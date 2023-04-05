@@ -2,3 +2,4 @@
 .Rhistory
 TimeConf.Rmd
 *.csv
+.Rproj.user
