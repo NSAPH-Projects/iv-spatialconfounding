@@ -12,127 +12,261 @@ library(ggplot2)
 # Exploratory
 ```{r}
 study = read.csv('Study_dataset_2010.csv')
-summary(study)
-studysub = study[,c(2,4,5:12,14,16,17:37)] 
+deaths = read.delim('Underlying_Cause_of_Death_1999-2020.txt')
+# remove notes column
+deaths = deaths[,-1]
+deaths$Death.Rate = deaths$Deaths/deaths$Population
+names(deaths)[2] = 'FIPS'
+# 72 NAs for deaths and pop
+
+# Merge with study dataset and remove PM
+fulldat = merge(deaths, study, by = 'FIPS')
+
+studysub = fulldat[,c(6:7, 9:17, 19, 21, 22:42)]#study[,c(2,4,5:12,14,16,17:37)] 
 # removing FIPS (each row is unique FIPS), NAME, total pop + area (captured in popdensity), cms variables. 
+predictorslist = names(studysub)[-c(1,2)]
 summary(studysub)
 ```
 
-# Partial Correlations: County-level
+# Absolute Partial Correlations at County-level
 ```{r}
-partialcors = rep(NA, ncol(studysub)-1)
-for (i in 2:ncol(studysub)){
-  print(names(studysub)[i])
-  predictors = names(studysub)[-c(1,i)] 
+partialcors_exposure = rep(NA, length(predictorslist))
+for (i in 3:ncol(studysub)){
+  print(colnames(studysub)[i])
+  predictors = colnames(studysub)[-c(1,2,i)] 
   # Regress X ~ .-Z
   formula1 = paste("qd_mean_pm25 ~ ", paste0(predictors, collapse = " + "))
   mm1 = lm(formula = formula1, data = studysub)
   res1 = mm1$residuals
-  predictors = names(studysub)[-c(1,i)] 
+  predictors = colnames(studysub)[-c(1,2,i)] 
   # Regress Z ~ .-X
-  formula2 = paste(names(studysub)[i], "~", paste0(predictors, collapse = " + "))
+  formula2 = paste(colnames(studysub)[i], "~", paste0(predictors, collapse = " + "))
   mm2 = lm(formula = formula2, data = studysub)
   res2 = mm2$residuals
-  partialcors[i-1] = cor(res1, res2)
+  partialcors_exposure[i-2] = cor(res1, res2)
 }
 
+partialcors_outcome = rep(NA, length(predictorslist))
+for (i in 3:ncol(studysub)){
+  print(colnames(studysub)[i])
+  predictors = colnames(studysub)[-c(1,2,i)] 
+  # Regress X ~ .-Z
+  formula1 = paste("Death.Rate ~ ", paste0(predictors, collapse = " + "))
+  mm1 = lm(formula = formula1, data = studysub)
+  res1 = mm1$residuals
+  predictors = colnames(studysub)[-c(1,2,i)] 
+  # Regress Z ~ .-X
+  formula2 = paste(colnames(studysub)[i], "~", paste0(predictors, collapse = " + "))
+  mm2 = lm(formula = formula2, data = studysub)
+  res2 = mm2$residuals
+  partialcors_outcome[i-2] = cor(res1, res2)
+}
 
-# Plot Partial Correlations
+partialcors_min = pmin(abs(partialcors_exposure), abs(partialcors_outcome))
+order = order(abs(partialcors_min))
+```
 
-order = order(abs(partialcors))
-
-total_imp = (names(studysub)[-1])[order]
-original_order = order
-
-balance = data.frame(matrix(NA, nrow = ncol(studysub)-1, ncol = 0))
-balance$Covariates = rep(1:(ncol(studysub)-1), 1)
-balance$Correlation = c(sort(abs(partialcors)))
-balance$covariates_name = rep((names(studysub)[-1])[order], 1)
+# Plots
+```{r}
+# Exposure
+balance = data.frame(matrix(NA, nrow = 32, ncol = 0))
+balance$Covariates = rep(1:32, 1)
+balance$Correlation = c(abs(partialcors_exposure)[order])
+balance$covariates_name = rep(predictorslist[order], 1)
 
 p1 = ggplot(balance, aes(x=Correlation, y=Covariates)) + 
-  scale_y_discrete(limit = 1:(ncol(studysub)-1),
-                   labels = (names(studysub)[-1])[order]) + 
+  scale_y_discrete(limit = 1:32,
+                   labels = predictorslist[order]) + 
   geom_point() +
   geom_path() +
-  geom_vline(xintercept = 0.1) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 10), legend.position = c(0.7, 0.2),
-        axis.text.y = element_text(angle = 20, hjust = 1)) +
-  ggtitle("PM2.5 and Confounders at County Level: Synthetic Dataset") + 
-  xlab("Absolute Partial Correlation")
+        axis.text.y = element_text(angle = 0, hjust = 1)) +
+  ggtitle("PM2.5 and Confounders at County Level") + 
+  xlab("Absolute Partial Correlation") + 
+  xlim(c(0,0.35))
 
 p1
+
+# Outcome
+balance = data.frame(matrix(NA, nrow = 32, ncol = 0))
+balance$Covariates = rep(1:32, 1)
+balance$Correlation = c(abs(partialcors_outcome)[order])
+balance$covariates_name = rep(predictorslist[order], 1)
+
+p2 = ggplot(balance, aes(x=Correlation, y=Covariates)) + 
+  scale_y_discrete(limit = 1:32,
+                   labels = predictorslist[order]) + 
+  geom_point() +
+  geom_path() +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 10), legend.position = c(0.7, 0.2),
+        axis.text.y = element_text(angle = 0, hjust = 1)) +
+  ggtitle("Mortality and Confounders at County Level") + 
+  xlab("Absolute Partial Correlation") + 
+  xlim(c(0,0.35))
+
+p2
+
+# Minimum 
+balance = data.frame(matrix(NA, nrow = 32, ncol = 0))
+balance$Covariates = rep(1:32, 1)
+balance$Correlation = c(abs(partialcors_min)[order])
+balance$covariates_name = rep(predictorslist[order], 1)
+
+p3 = ggplot(balance, aes(x=Correlation, y=Covariates)) + 
+  scale_y_discrete(limit = 1:32,
+                   labels = predictorslist[order]) + 
+  geom_point() +
+  geom_path() +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 10), legend.position = c(0.7, 0.2),
+        axis.text.y = element_text(angle = 0, hjust = 1)) +
+  ggtitle("Minimum Correlation at County Level") + 
+  xlab("Absolute Partial Correlation") + 
+  xlim(c(0,0.35))
+
+p3
 ```
+
 
 # Partial Correlations: County + State + Region level
 ```{r}
 # Decompose each variable X, measured at the county level, into three parts:  X1=The average per region, X2=The average per state minus X1, X3=X - X1 - X2
-predictors = names(studysub)[-1] # Copy names of predictors of interest 
-studysub2 = study[,c(2,4,5:12,14,16,17:37,44,46)] 
+studysub2 = fulldat[,c(6:7, 9:17, 19, 21, 22:42,49,51)]
 
 # Create X1
-formula_reg = paste('cbind(', paste0(predictors, collapse = ", "), ')', "~", 'region', sep = '')
+formula_reg = paste('cbind(', paste0(predictorslist, collapse = ", "), ')', "~", 'region', sep = '')
 reg = aggregate(formula=as.formula(formula_reg), data=studysub2, FUN = mean)
 colnames(reg)[-1] = paste(colnames(reg)[-1], 'reg', sep = "_")
 studysub2 = merge(studysub2, reg, by = 'region')
 
 # Create X2
-formula_st = paste('cbind(', paste0(predictors, collapse = ", "), ')', "~", 'STATE', sep = '')
+formula_st = paste('cbind(', paste0(predictorslist, collapse = ", "), ')', "~", 'STATE', sep = '')
 st = aggregate(formula=as.formula(formula_st), data=studysub2, FUN = mean)
 colnames(st)[-1] = paste(colnames(st)[-1], 'st', sep = "_")
 studysub2 = merge(studysub2, st, by = 'STATE')
 studysub2[68:99] = studysub2[68:99] - studysub2[36:67] # subtract region means from state means
 
 # Create X3
-studysub2[4:35] = studysub2[4:35] - studysub2[68:99] - studysub2[36:67] # subtract region and state means from county
+studysub2[5:36] = studysub2[5:36] - studysub2[69:100] - studysub2[37:68] # subtract region and state means from county
 # swap order to get county, state, region
-studysub2 = studysub2[,c(1:35,68:99, 36:67)]
-
-# Calculate Partial Correlations
+studysub2 = studysub2[,c(1:36,69:100, 37:68)]
 studysub2 = studysub2[,-c(1,2)] 
-partialcors = rep(NA, ncol(studysub2)-1)
-for (i in 2:ncol(studysub2)){
+
+# Calculate Partial Correlations: Exposure
+partialcors_exposure_levels = rep(NA, 3*length(predictorslist))
+for (i in 3:ncol(studysub2)){
   print(names(studysub2)[i])
-  predictors1 = names(studysub2)[-c(1,i)] 
+  predictors = names(studysub2)[-c(1,2,i)] 
   # Regress X ~ .-Z
-  formula1 = paste("qd_mean_pm25 ~ ", paste0(predictors1, collapse = " + "))
+  formula1 = paste("qd_mean_pm25 ~ ", paste0(predictors, collapse = " + "))
   mm1 = lm(formula = formula1, data = studysub2)
   res1 = mm1$residuals
-  predictors2 = names(studysub2)[-c(1,i)] 
+  predictors = names(studysub2)[-c(1,2,i)] 
   # Regress Z ~ .-X
-  formula2 = paste(names(studysub2)[i], "~", paste0(predictors2, collapse = " + "))
+  formula2 = paste(names(studysub2)[i], "~", paste0(predictors, collapse = " + "))
   mm2 = lm(formula = formula2, data = studysub2)
   res2 = mm2$residuals
-  partialcors[i-1] = cor(res1, res2)
+  partialcors_exposure_levels[i-2] = cor(res1, res2)
 }
 
-# Plot Partial Correlations
-partialcors_county = partialcors[1:32]
-partialcors_st = partialcors[33:64]
-partialcors_reg = partialcors[65:96]
+# Plot: Exposure
+partialcors_exposure_levels_county = partialcors_exposure_levels[1:32]
+partialcors_exposure_levels_st = partialcors_exposure_levels[33:64]
+partialcors_exposure_levels_reg = partialcors_exposure_levels[65:96]
 
-#order = order(abs(partialcors_county))
-order = original_order
 balance = data.frame(matrix(NA, nrow = 32*3, ncol = 0))
 balance$Covariates = rep(1:32, 3)
-balance$Correlation = c(abs(partialcors_county)[order], abs(partialcors_st)[order], abs(partialcors_reg)[order])
+balance$Correlation = c(abs(partialcors_exposure_levels_county)[order], abs(partialcors_exposure_levels_st)[order], abs(partialcors_exposure_levels_reg)[order])
 balance$covariates_name = rep(predictors[order], 3)
-balance$level <- c(rep("county", 32), rep("state", 32), rep("region", 32))
-balance$level <- factor(balance$level, levels = c("county", "state", "region"))
+balance$level = c(rep("county", 32), rep("state", 32), rep("region", 32))
+balance$level = factor(balance$level, levels = c("county", "state", "region"))
 
-p2 = ggplot(balance, aes(x=Correlation, y=Covariates, colour=level)) + 
+p4 = ggplot(balance, aes(x=Correlation, y=Covariates, colour=level)) + 
   scale_y_discrete(limit = 1:32,
-                   labels = predictors[order]) + 
+                   labels = predictorslist[order]) + 
   geom_point() +
   geom_path() +
-  #geom_vline(xintercept = 0.1) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 10), legend.position = c(0.7, 0.2),
         axis.text.y = element_text(angle = 0, hjust = 1)) +
-  ggtitle("PM2.5 and Confounders: Synthetic Dataset") + 
-  xlab("Absolute Partial Correlation")
+  ggtitle("PM2.5 and Confounders") + 
+  xlab("Absolute Partial Correlation") + 
+  xlim(c(0,0.35))
 
-p2
+p4
+
+# Calculate Partial Correlations: Outcome
+partialcors_outcome_levels = rep(NA, 3*length(predictorslist))
+for (i in 3:ncol(studysub2)){
+  print(names(studysub2)[i])
+  predictors = names(studysub2)[-c(1,2,i)] 
+  # Regress X ~ .-Z
+  formula1 = paste("Death.Rate ~ ", paste0(predictors, collapse = " + "))
+  mm1 = lm(formula = formula1, data = studysub2)
+  res1 = mm1$residuals
+  predictors = names(studysub2)[-c(1,2,i)] 
+  # Regress Z ~ .-X
+  formula2 = paste(names(studysub2)[i], "~", paste0(predictors, collapse = " + "))
+  mm2 = lm(formula = formula2, data = studysub2)
+  res2 = mm2$residuals
+  partialcors_outcome_levels[i-2] = cor(res1, res2)
+}
+
+# Plot: Outcome
+partialcors_outcome_levels_county = partialcors_outcome_levels[1:32]
+partialcors_outcome_levels_st = partialcors_outcome_levels[33:64]
+partialcors_outcome_levels_reg = partialcors_outcome_levels[65:96]
+
+balance = data.frame(matrix(NA, nrow = 32*3, ncol = 0))
+balance$Covariates = rep(1:32, 3)
+balance$Correlation = c(abs(partialcors_outcome_levels_county)[order], abs(partialcors_outcome_levels_st)[order], abs(partialcors_outcome_levels_reg)[order])
+balance$covariates_name = rep(predictors[order], 3)
+balance$level = c(rep("county", 32), rep("state", 32), rep("region", 32))
+balance$level = factor(balance$level, levels = c("county", "state", "region"))
+
+p5 = ggplot(balance, aes(x=Correlation, y=Covariates, colour=level)) + 
+  scale_y_discrete(limit = 1:32,
+                   labels = predictorslist[order]) + 
+  geom_point() +
+  geom_path() +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 10), legend.position = c(0.7, 0.2),
+        axis.text.y = element_text(angle = 0, hjust = 1)) +
+  ggtitle("Mortality and Confounders") + 
+  xlab("Absolute Partial Correlation") + 
+  xlim(c(0,0.35))
+
+p5
+
+# Minimum
+partialcors_min_levels = pmin(partialcors_exposure_levels, partialcors_outcome_levels)
+
+# Plot: mimimum
+partialcors_min_levels_county = partialcors_min_levels[1:32]
+partialcors_min_levels_st = partialcors_min_levels[33:64]
+partialcors_min_levels_reg = partialcors_min_levels[65:96]
+
+balance = data.frame(matrix(NA, nrow = 32*3, ncol = 0))
+balance$Covariates = rep(1:32, 3)
+balance$Correlation = c(abs(partialcors_min_levels_county)[order], abs(partialcors_min_levels_st)[order], abs(partialcors_min_levels_reg)[order])
+balance$covariates_name = rep(predictors[order], 3)
+balance$level = c(rep("county", 32), rep("state", 32), rep("region", 32))
+balance$level = factor(balance$level, levels = c("county", "state", "region"))
+
+p6 = ggplot(balance, aes(x=Correlation, y=Covariates, colour=level)) + 
+  scale_y_discrete(limit = 1:32,
+                   labels = predictorslist[order]) + 
+  geom_point() +
+  geom_path() +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 10), legend.position = c(0.7, 0.2),
+        axis.text.y = element_text(angle = 0, hjust = 1)) +
+  ggtitle("Minimum Correlations by Confounder") + 
+  xlab("Absolute Partial Correlation") + 
+  xlim(c(0,0.35))
+
+p6
+
 ```
-
-
