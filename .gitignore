@@ -4,3 +4,4 @@ TimeConf.Rmd
 *.csv
 *.pdf
 .Rproj.user
+*.txt
