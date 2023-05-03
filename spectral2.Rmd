@@ -44,6 +44,7 @@ coherence1d = function(x, spans){ # let x be union of time series eg ts.union(md
   return(list(freq,coh))
 }
 
+par(mfrow = c(1,2))
 p = coherence1d(ts.union(mdeaths,fdeaths), spans = 8)
 plot(p[[1]], p[[2]]^2, xlab = 'frequency', ylab = 'squared coherency', type = 'l', ylim = c(0,1))
 
@@ -109,6 +110,8 @@ bZ    <- 0.5
 sigma <- 0.25
 sigx  <- sqrt(1.7)
 sigz  <- sqrt(1.0)
+bw = 1
+bXZ = 1
 
 # Define rook neighborhood structure 
 s     <- expand.grid(1:n1,1:n1)
@@ -124,7 +127,7 @@ outXstar <- c()
 outZstar <- c()
 outcor <- c()
 for(sim in 1:nsims){
-    set.seed(sim*0820+design)
+    set.seed(sim)
     w    <- 1/sqrt(1-lam+lam*D)
     X    <- sigx*G%*%rnorm(n,0,w) # simulate X from Leroux CAR model
     Z    <- bXZ*W%*%X + sigz*G%*%rnorm(n,0,w)
