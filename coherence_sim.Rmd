@@ -250,6 +250,48 @@ covest = unlist(lapply(1:length(X), function(i) {
 plot(D, abs(covest),xlab='Eigenvalue',ylab="|Alpha(omega)|")
 ```
 
+## Trying with local covariance method
+```{r}
+west = which(study$region == 'WEST')
+studysub = study[west,]
+adjsub = adj[west,west]
+
+R     <- diag(rowSums(adjsub))-adjsub # precision of ICAR
+E     <- eigen(R) # eigen component
+G     <- E$vec
+D     <- E$val
+
+# Let X be qd_mean_pm25
+X = studysub$qd_mean_pm25
+Xscaled = scale(X) # make mean 0 sd 1
+# Let Z be mean min temp?
+Z = studysub$gmet_mean_tmmn
+Zscaled = scale(Z) # make mean 0 sd 1
+C = studysub[,c(4:12,14, 16, 17:22, 24:37)]  # 31 measured covariates (real data)
+Cscaled = scale(C)
+Xstar <- t(G)%*%Xscaled
+Zstar <- t(G)%*%Zscaled
+Cstar <- t(G)%*%Cscaled
+
+# are entries in the vector close? 
+k = 5
+alphas = rep(NA, length(Xstar))
+for (i in 1:length(Xstar)){
+  window = seq(max(1, i-k), min(i+k, length(Xstar)), by = 1)
+  #print(window)
+  weights = exp(-abs(window-i))
+  weights = weights/sum(weights)
+  #print(weights)
+  covmat = cov.wt(cbind(Zstar[window], Xstar[window], Cstar[window,]), 
+                wt = weights)$cov
+ alphas[i] = (covmat[1,2:(2+31)]%*%solve(covmat[2:(2+31),2:(2+31)], tol = 1e-23))[1] 
+}
+
+plot(D, abs(alphas),xlab='Eigenvalue',ylab="|Alpha(omega)|")
+
+```
+
+
 
 
 
