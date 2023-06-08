@@ -8,7 +8,7 @@ output: pdf_document
 ## Testing Simulate function
 ```{r}
 source('sim_func.R')
-outsim = sim(5, outcome = 'quadratic', betax = c(1,2), 
+outsim = sim(5, outcome = 'quadratic', betax = c(1,2), rhox = c(0.9,0.1),
              decomposition = 'nested')
 outsim = sim(5, outcome = 'linear', rhox = seq(1,0, by = -1/(5^4-1)),
              decomposition = 'spectral')

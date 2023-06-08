@@ -4,7 +4,7 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
                betaz = -1,
                betaxz = 0,
                sig = 1,
-               rhox = 0.7,
+               rhox = c(0.7,0.1),
                outcome=c('linear', 'quadratic', 'interaction'), # outcome model
                decomposition = c('spectral', 'nested'), # data generating
                distribution = 'gaussian' # TO DO
@@ -32,19 +32,25 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
   decomp = match.arg(decomposition)
   outcomemodel = match.arg(outcome)
   if (decomp == 'nested'){
-    xyz = mvrnorm(n^2, mu = c(0,0), 
-                  Sigma = matrix(c(1,rhox,rhox,1), 
+    stopifnot(length(rhox)==2)
+    xz = mvrnorm(n^2, mu = c(0,0), 
+                  Sigma = matrix(c(1,rhox[1],rhox[1],1), 
                                  nrow = 2, ncol = 2))
-    X1 = xya[,1]
-    Z1 = xya[,3]
+    X1 = xz[,1]
+    Z1 = xz[,2]
     df$X1 = rep(X1,each = n^2)
     df$Z1 = rep(Z1, each = n^2)
+    
     # add county-level variation
-    df$X2 = rnorm(n^4)
-    df$Z2 = rep(0, n^4)
+    xz = mvrnorm(n^4, mu = c(0,0), 
+                  Sigma = matrix(c(1,rhox[2],rhox[2],1), 
+                                 nrow = 2, ncol = 2))
+    df$X2 = xz[,1]
+    df$Z2 = xz[,2]
     df$X = df$X1 + df$X2
     df$Z = df$Z1 + df$Z2
   }
+  
   if (decomp == 'spectral'){
     stopifnot(length(rhox)==n^4)
     Xstar = rep(NA, n^4)
