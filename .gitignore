@@ -5,3 +5,10 @@ TimeConf.Rmd
 *.pdf
 .Rproj.user
 *.txt
+*.png
+*.jpeg
+*.tab
+atmospheric_data.Rmd
+tl_2010_us_county10*
+archived/*
+*.DS_Store
