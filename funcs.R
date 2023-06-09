@@ -1,3 +1,4 @@
+library(MASS)
 nested_decomp = function(vecs,group){
   # Create the decomposition matrices
   n = length(group)
@@ -116,12 +117,14 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
     Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(length(df$X), 
                                                            mean = 0, sd = sig)
   }
-  return(list('A'=A,#adjacency mat
-         'X'=df$X,#exposure
-         'Y'=df$Y,#outcome
-         'Z'=df$Z, #confounder
-         'state' = df$state #nested group
-         ))
+  return(list(
+    'coord' = cbind(df$xcoord, df$ycoord),
+    'A'=A,#adjacency mat
+    'X'=df$X,#exposure
+    'Y'=df$Y,#outcome
+    'Z'=df$Z, #confounder
+    'state' = df$state #nested group
+    ))
 }
 
 analysis = function(A, # adjacency
@@ -143,10 +146,10 @@ analysis = function(A, # adjacency
     X2 = nest$V2[,1]
     Y2 = nest$V2[,2]
     model2 = lm(Y2~X2)
-    betas = c(model1$coefficients[2,1], model2$coefficients[2,1])
+    betas = c(model2$coefficients[2], model1$coefficients[2])
   }
   if (decomposition == 'spectral'){
-    spec = spectral_decomp(cbind(Xstar,Ystar),A)
+    spec = spectral_decomp(cbind(X,Y),A)
     Xstar = spec[,1]
     Ystar = spec[,2]
     # TO DO: WHAT IS THE BEST WAY TO Do THIS??
@@ -155,7 +158,7 @@ analysis = function(A, # adjacency
     betas = c()
     for (i in 1:5){ # 125
       model = lm(Ystar[(125*(i-1)):(125*i)] ~ Xstar[(125*(i-1)):(125*i)])
-      betas = c(betas, model$coefficients[2,1])
+      betas = c(betas, model$coefficients[2])
     }
   }
   return(betas)
