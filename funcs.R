@@ -25,10 +25,10 @@ nested_decomp = function(groups){
       projs[[i]] = G
     }
     else{
-      projs[[i]] = G-projs[[i-1]]
+      projs[[i]] = G-Reduce("+", projs[1:(i-1)]) # sum up the prev As
     }
   }
-  projs[[l]] = diag(n)-projs[[l-1]]
+  projs[[l]] = diag(n)-Reduce("+", projs[1:(l-1)]) 
   
   return(projs)
 }
