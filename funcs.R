@@ -62,7 +62,7 @@ sim = function(n,
   print('Creating coordinates and groups')
   g = make_lattice(c(n^l,n^l))
   coords = layout_on_grid(g)
-=  df = cbind.data.frame(xcoord = coords[,1], ycoord = coords[,2])
+  df = cbind.data.frame(xcoord = coords[,1], ycoord = coords[,2])
   for (i in 1:(l-1)){
     df[,(i+2)] = as.numeric(paste(str_pad((df$xcoord)%/%(n^(l-i)),2,pad = '0'),
                                   str_pad((df$ycoord)%/%(n^(l-i)),2,pad = '0'),
@@ -81,20 +81,20 @@ sim = function(n,
   if (decomp == 'nested'){ 
     stopifnot(length(rhox)==l)
     # there must be a faster way to do this
-    Xmat = matrix(NA, ncol = l, nrow = n^(2*l))
-    Zmat = matrix(NA, ncol = l, nrow = n^(2*l))
+    Xmat = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
+    Zmat = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
     for (i in 1:l){
       xz = mvrnorm(n^(2*i), mu = c(0,0), 
                    Sigma = matrix(c(1,rhox[i],rhox[i],1), 
                                   nrow = 2, ncol = 2))
       Xi = xz[,1]
       Zi = xz[,2]
-      Xmat[,i] = rep(Xi,each = n^(2*(l-i)))
-      Zmat[,i] = rep(Zi, each = n^(2*(l-i)))
+      Xmat = Xmat + rep(Xi,each = n^(2*(l-i)))#[,i] = rep(Xi,each = n^(2*(l-i)))
+      Zmat = Zmat + rep(Zi, each = n^(2*(l-i)))#[,i] = rep(Zi, each = n^(2*(l-i)))
     }
     # important here to check the order of the df
-    df$X = rowSums(Xmat)
-    df$Z = rowSums(Zmat)
+    df$X = Xmat
+    df$Z = Zmat
   }
   
   if (decomp == 'spectral'){
@@ -150,9 +150,11 @@ analysis = function(n, # subgroups in a group
   l = ncol(groups) + 1
   if (decomposition == 'nested'){
     # Regress Y on X at each level
+    print('Perform decomposition')
     nest = nested_decomp(groups)
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
+    print('Calculate betahats')
     betas = rep(NA, l)
     for (i in 1:l){ 
       Xi = nest[[i]] %*% X
@@ -163,12 +165,14 @@ analysis = function(n, # subgroups in a group
     betas = rev(betas) # flip order since want small scale to big
   }
   if (decomposition == 'spectral'){
+    print('Perform decomposition')
     spec = spectral_decomp(A)
     Xstar = spec %*% X
     Ystar = spec %*% Y
     # TO DO: WHAT IS THE BEST WAY TO Do THIS??
     # For now just split up the spectral r.v.s into discrete scales
     # so that I have multiple observations per scale...
+    print('Calculate betahats')
     betas = c()
     num = n^(2*l-1)
     for (i in 1:n){ # 125

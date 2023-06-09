@@ -34,25 +34,25 @@ scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z,
 ## Analysis
 
 ```{r}
-par(mfrow = c(1,2))
 testnested = analysis(n = 5, A = outsim$A, 
                 X = outsim$X, 
                 Y = outsim$Y, 
                 Z = outsim$Z, 
                 groups = outsim$groups,
                 decomposition = 'nested')
-plot(1:2, testnested, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
-     main = 'Nested', xaxp = c(1,2,1), ylim = c(1,3))
-points(1:2, testnested, pch = 19)
-legend('topright', legend = 'True Beta', col = 'red', lty = 1)
-abline(h = 2, col = 'red')
-
 testspectral = analysis(n = 5, A = outsim$A, 
                 X = outsim$X, 
                 Y = outsim$Y, 
                 Z = outsim$Z, 
                 groups = outsim$groups,
                 decomposition = 'spectral')
+
+par(mfrow = c(1,2))
+plot(1:2, testnested, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested', xaxp = c(1,2,1), ylim = c(1,3))
+points(1:2, testnested, pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
 plot(1:5, testspectral, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
      type = 'l', ylim = c(1,3), main = 'Spectral')
 points(1:5, testspectral, pch = 19)
@@ -64,9 +64,10 @@ Below we see that the bias of the $\hat{\beta}_x$ estimates obtained from the sp
 ## Repeat this with Nested DGM
 Let's generate some data using the nested decomposition. The covariance between $X$ and $Z$ is decreasing with spatial scale by construction (see rhox). Note that we consider only two spatial scales for now. We assume $Y$ is a linear function of $X$ and $Z$ with coefficients $2$ and $-1$ respectively.
 ```{r}
-par(mfrow = c(1,3))
 outsim = sim(n = 5, outcome = 'linear', rhox = c(0.9, 0.001),
              decomposition = 'nested')
+
+par(mfrow = c(1,3))
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
               color = outsim$groups, pch = 20, angle = 60, main = 'Exposure X')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
@@ -116,6 +117,7 @@ These take a little longer time. Need to start using igraph and figure out how t
 ```{r}
 outsim = sim(n=4,l=3,outcome = 'linear', rhox = seq(0,1, by = 1/(4^(2*3)-1)),
              decomposition = 'spectral')
+
 par(mfrow = c(2,3))
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
               color = outsim$groups[,1], pch = 20, angle = 60, 
@@ -168,6 +170,7 @@ abline(h = 2, col = 'red')
 ```{r}
 outsim = sim(n = 4, l=3, outcome = 'linear', rhox = c(0.9, 0.5, 0.001),
              decomposition = 'nested')
+
 par(mfrow = c(2,3))
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
               color = outsim$groups[,1], pch = 20, angle = 60, main = 'Exposure X')
