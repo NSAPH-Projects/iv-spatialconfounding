@@ -11,7 +11,7 @@ library(ggplot2)
 library(reshape2)
 library(dplyr)
 library(scatterplot3d) # update later with scatter3d (interactive)
-set.seed(10)
+set.seed(2)
 ```
 
 ## Generate Data
@@ -21,12 +21,12 @@ par(mfrow = c(1,3))
 outsim = sim(5, outcome = 'linear', rhox = seq(0,1, by = 1/(5^4-1)),
              decomposition = 'spectral')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
-              color = outsim$state, pch = 20, angle = 60, main = 'Exposure X')
+              color = outsim$groups[,1], pch = 20, angle = 60, main = 'Exposure X')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
-              color = outsim$state, pch = 20, angle = 60, main = 'Outcome Y')
+              color = outsim$groups[,1], pch = 20, angle = 60, main = 'Outcome Y')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
               main = 'Confounder Z',
-              color = outsim$state, pch = 20, angle = 60)
+              color = outsim$groups[,1], pch = 20, angle = 60)
 
 ```
 
@@ -34,11 +34,11 @@ scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z,
 
 ```{r}
 par(mfrow = c(1,2))
-testnested = analysis(A = outsim$A, 
+testnested = analysis(n = 5, A = outsim$A, 
                 X = outsim$X, 
                 Y = outsim$Y, 
                 Z = outsim$Z, 
-                state = outsim$state,
+                groups = outsim$groups,
                 decomposition = 'nested')
 plot(1:2, testnested, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
      main = 'Nested', xaxp = c(1,2,1), ylim = c(1,3))
@@ -46,11 +46,11 @@ points(1:2, testnested, pch = 19)
 legend('topright', legend = 'True Beta', col = 'red', lty = 1)
 abline(h = 2, col = 'red')
 
-testspectral = analysis(A = outsim$A, 
+testspectral = analysis(n = 5, A = outsim$A, 
                 X = outsim$X, 
                 Y = outsim$Y, 
                 Z = outsim$Z, 
-                state = outsim$state,
+                groups = outsim$groups,
                 decomposition = 'spectral')
 plot(1:5, testspectral, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
      type = 'l', ylim = c(1,3), main = 'Spectral')
@@ -64,26 +64,26 @@ Below we see that the bias of the $\hat{\beta}_x$ estimates obtained from the sp
 Let's generate some data using the nested decomposition. The covariance between $X$ and $Z$ is decreasing with spatial scale by construction (see rhox). Note that we consider only two spatial scales for now. We assume $Y$ is a linear function of $X$ and $Z$ with coefficients $2$ and $-1$ respectively.
 ```{r}
 par(mfrow = c(1,3))
-outsim = sim(5, outcome = 'linear', rhox = c(0.9, 0.001),
+outsim = sim(n = 5, outcome = 'linear', rhox = c(0.9, 0.001),
              decomposition = 'nested')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
-              color = outsim$state, pch = 20, angle = 60, main = 'Exposure X')
+              color = outsim$groups, pch = 20, angle = 60, main = 'Exposure X')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
-              color = outsim$state, pch = 20, angle = 60, main = 'Outcome Y')
+              color = outsim$groups, pch = 20, angle = 60, main = 'Outcome Y')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
               main = 'Confounder Z',
-              color = outsim$state, pch = 20, angle = 60)
+              color = outsim$groups, pch = 20, angle = 60)
 ```
 
 ## Repeat the analysis
 Below we see that the bias of the $\hat{\beta}_x$ estimates obtained from the nested decomposition indeed decreases with smaller spatial scale, as desired. This is also true for the spectral decomposition.
 ```{r}
 par(mfrow = c(1,2))
-testnested = analysis(A = outsim$A, 
+testnested = analysis(n = 5, A = outsim$A, 
                 X = outsim$X, 
                 Y = outsim$Y, 
                 Z = outsim$Z, 
-                state = outsim$state,
+                groups = outsim$groups,
                 decomposition = 'nested')
 
 plot(1:2, testnested, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
@@ -92,11 +92,11 @@ points(1:2, testnested, pch = 19)
 legend('topright', legend = 'True Beta', col = 'red', lty = 1)
 abline(h = 2, col = 'red')
 
-testspectral = analysis(A = outsim$A, 
+testspectral = analysis(n=5, A = outsim$A, 
                 X = outsim$X, 
                 Y = outsim$Y, 
                 Z = outsim$Z, 
-                state = outsim$state,
+                groups = outsim$groups,
                 decomposition = 'spectral')
 
 plot(1:5, testspectral, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
@@ -105,3 +105,112 @@ points(1:5, testspectral, pch = 19)
 legend('topright', legend = 'True Beta', col = 'red', lty = 1)
 abline(h = 2, col = 'red')
 ```
+
+\newpage
+# Repeat with multiple levels
+We will now repeat the analysis using $4$ subgroups within a group and $3$ nested levels ($4^{2 \times 3}$ units total).
+
+## Generate Data
+These take a little longer time. Need to start using igraph and figure out how to generate X and Z more efficiently...
+```{r}
+outsim = sim(n=4,l=3,outcome = 'linear', rhox = seq(0,1, by = 1/(4^(2*3)-1)),
+             decomposition = 'spectral')
+par(mfrow = c(2,3))
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
+              color = outsim$groups[,1], pch = 20, angle = 60, 
+              main = 'Exposure X: Level 1')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
+              color = outsim$groups[,1], pch = 20, angle = 60, main = 'Outcome Y: Level 1')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
+              main = 'Confounder Z: Level 1',
+              color = outsim$groups[,1], pch = 20, angle = 60)
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
+              color = outsim$groups[,2], pch = 20, angle = 60, main = 'Exposure X: Level 2')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
+              color = outsim$groups[,2], pch = 20, angle = 60, main = 'Outcome Y: Level 2')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
+              main = 'Confounder Z: Level 2',
+              color = outsim$groups[,2], pch = 20, angle = 60)
+```
+
+## Analysis
+```{r}
+testnested = analysis(n = 4, A = outsim$A, 
+                X = outsim$X, 
+                Y = outsim$Y, 
+                Z = outsim$Z, 
+                groups = outsim$groups,
+                decomposition = 'nested')
+testspectral = analysis(n = 4, A = outsim$A, 
+                X = outsim$X, 
+                Y = outsim$Y, 
+                Z = outsim$Z, 
+                groups = outsim$groups,
+                decomposition = 'spectral')
+
+par(mfrow = c(1,2))
+
+plot(1:3, testnested, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested', xaxp = c(1,2,1), ylim = c(0.5,3))
+points(1:3, testnested, pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+
+plot(1:4, testspectral, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', ylim = c(0.5,3), main = 'Spectral')
+points(1:4, testspectral, pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+```
+
+## Repeat this with Nested DGM
+```{r}
+outsim = sim(n = 4, l=3, outcome = 'linear', rhox = c(0.9, 0.5, 0.001),
+             decomposition = 'nested')
+par(mfrow = c(2,3))
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
+              color = outsim$groups[,1], pch = 20, angle = 60, main = 'Exposure X')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
+              color = outsim$groups[,1], pch = 20, angle = 60, main = 'Outcome Y')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
+              main = 'Confounder Z',
+              color = outsim$groups[,1], pch = 20, angle = 60)
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
+              color = outsim$groups[,2], pch = 20, angle = 60, main = 'Exposure X')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
+              color = outsim$groups[,2], pch = 20, angle = 60, main = 'Outcome Y')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
+              main = 'Confounder Z',
+              color = outsim$groups[,2], pch = 20, angle = 60)
+```
+
+## Repeat the analysis
+```{r}
+testnested = analysis(n = 4, A = outsim$A, 
+                X = outsim$X, 
+                Y = outsim$Y, 
+                Z = outsim$Z, 
+                groups = outsim$groups,
+                decomposition = 'nested')
+
+testspectral = analysis(n = 4, A = outsim$A, 
+                X = outsim$X, 
+                Y = outsim$Y, 
+                Z = outsim$Z, 
+                groups = outsim$groups,
+                decomposition = 'spectral')
+
+par(mfrow = c(1,2))
+plot(1:3, testnested, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested', xaxp = c(1,2,1), ylim = c(1,3))
+points(1:3, testnested, pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+plot(1:4, testspectral, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', ylim = c(1,3), main = 'Spectral')
+points(1:4, testspectral, pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+```
+
+

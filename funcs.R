@@ -1,27 +1,37 @@
 library(MASS)
-nested_decomp = function(vecs,group){
+library(stringr)
+nested_decomp = function(groups){
   # Create the decomposition matrices
-  n = length(group)
-  nst = as.data.frame(table(group))
-  colnames(nst) = c('group', 'frequency')
-  
+  n = nrow(groups)
+  l = ncol(groups) + 1
+
   # create projection matrices
-  G1 = matrix(NA, nrow = n, ncol = n)
-  for (j in 1:nrow(G1)){
-    st = group[j]
-    stfac  = 1/nst$frequency[nst$group == st]
-    for (k in 1:ncol(G1)){
-      G1[j,k] = stfac*(st == group[k])
+  projs = list()
+  for (i in 1:(l-1)){
+    nst = as.data.frame(table(groups[,i]))
+    colnames(nst) = c('group', 'frequency')
+    G = matrix(NA, nrow = n, ncol = n)
+    for (j in 1:nrow(G)){
+      st = groups[j,i]
+      stfac  = 1/nst$frequency[nst$group == st]
+      for (k in 1:ncol(G)){
+        G[j,k] = stfac*(st == groups[k,i])
+      }
+    }
+    
+    if (i == 1){
+      projs[[i]] = G
+    }
+    else{
+      projs[[i]] = G-projs[[i-1]]
     }
   }
+  projs[[l]] = diag(n)-projs[[l-1]]
   
-  A1 = G1
-  A2 = diag(n)-G1 
-  return(list('V1' = A1%*%vecs, 
-              'V2' = A2%*%vecs))
+  return(projs)
 }
 
-spectral_decomp = function(vecs,A,inv = F){
+spectral_decomp = function(A,inv = F){
   R = diag(rowSums(A))-A # precision of ICAR
   E = eigen(R) # eigen component
   D = E$val
@@ -29,12 +39,13 @@ spectral_decomp = function(vecs,A,inv = F){
   rm(E,R)
   if (inv){
     invG = solve(t(G)) 
-    return(invG%*%vecs)
+    return(invG)
   }
-  return(t(G)%*%vecs)
+  return(t(G))
 }
 
-sim = function(n,# n^2 x n^2 is dim of adjacency matrix
+sim = function(n,
+               l=2, # levels of nested decomp
                betax = 2,
                betaz = -1,
                betaxz = 0,
@@ -46,11 +57,17 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
                ){
   
   # Create coordinates
-  df = as.data.frame(expand.grid(xcoord = 1:(n^2), ycoord = 1:(n^2)))
-  df$state = as.numeric(paste((df$xcoord-1)%/%n,(df$ycoord-1)%/%n, sep = ''))
-  df = df[order(df$state),]
-  
+  print('Creating coordinates')
+  df = as.data.frame(expand.grid(xcoord = 1:(n^l), ycoord = 1:(n^l)))
+  for (i in 1:(l-1)){
+    df[,(i+2)] = as.numeric(paste(str_pad((df$xcoord-1)%/%(n^(l-i)),2,pad = '0'),
+                                  str_pad((df$ycoord-1)%/%(n^(l-i)),2,pad = '0'),
+                                  sep = ''))
+  }
+  df = df[order(df[,(l+1)]),] # ordering by finest grid level should order by the coarser grids too
+
   # Create adjacency matrix
+  print('Creating adjacency')
   A = matrix(NA, nrow = nrow(df), ncol = nrow(df))
   for (i in 1:nrow(df)){
     coord = c(df$xcoord[i], df$ycoord[i])
@@ -67,31 +84,31 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
   decomp = match.arg(decomposition)
   outcomemodel = match.arg(outcome)
   # Simulate X and Z
-  if (decomp == 'nested'){
-    stopifnot(length(rhox)==2)
-    xz = mvrnorm(n^2, mu = c(0,0), 
-                  Sigma = matrix(c(1,rhox[1],rhox[1],1), 
-                                 nrow = 2, ncol = 2))
-    X1 = xz[,1]
-    Z1 = xz[,2]
-    df$X1 = rep(X1,each = n^2)
-    df$Z1 = rep(Z1, each = n^2)
-    
-    # add county-level variation
-    xz = mvrnorm(n^4, mu = c(0,0), 
-                  Sigma = matrix(c(1,rhox[2],rhox[2],1), 
-                                 nrow = 2, ncol = 2))
-    df$X2 = xz[,1]
-    df$Z2 = xz[,2]
-    df$X = df$X1 + df$X2
-    df$Z = df$Z1 + df$Z2
+  print('Creating X and Z')
+  if (decomp == 'nested'){ 
+    stopifnot(length(rhox)==l)
+    # there must be a faster way to do this
+    Xmat = matrix(NA, ncol = l, nrow = n^(2*l))
+    Zmat = matrix(NA, ncol = l, nrow = n^(2*l))
+    for (i in 1:l){
+      xz = mvrnorm(n^(2*i), mu = c(0,0), 
+                   Sigma = matrix(c(1,rhox[i],rhox[i],1), 
+                                  nrow = 2, ncol = 2))
+      Xi = xz[,1]
+      Zi = xz[,2]
+      Xmat[,i] = rep(Xi,each = n^(2*(l-i)))
+      Zmat[,i] = rep(Zi, each = n^(2*(l-i)))
+    }
+    # important here to check the order of the df
+    df$X = rowSums(Xmat)
+    df$Z = rowSums(Zmat)
   }
   
   if (decomp == 'spectral'){
-    stopifnot(length(rhox)==n^4)
-    Xstar = rep(NA, n^4)
-    Zstar = rep(NA, n^4)
-    for (i in 1:(n^4)){
+    stopifnot(length(rhox)==n^(2*l))
+    Xstar = rep(NA, n^(2*l))
+    Zstar = rep(NA, n^(2*l))
+    for (i in 1:(n^(2*l))){
       xz = mvrnorm(1, mu = c(0,0), 
                    Sigma = matrix(c(1,rhox[i],rhox[i],1), 
                                   nrow = 2, ncol = 2))
@@ -99,11 +116,12 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
       Zstar[i] = xz[2]
     }
     # Project into spatial domain
-    spec = spectral_decomp(cbind(Xstar,Zstar),A,inv=T)
-    df$X = spec[,1] # n^4 length vector
-    df$Z = spec[,2]
+    spec = spectral_decomp(A,inv=T)
+    df$X = spec %*% Xstar # n^4 length vector
+    df$Z = spec %*% Zstar
   }
   # Simulate the outcome
+  print('Simulating outcome')
   if (outcomemodel == 'linear'){
     df$Y = betax*df$X + betaz*df$Z + rnorm(length(df$X), mean = 0, 
                                   sd = sig)
@@ -114,7 +132,7 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
                                                     sd = sig)
   }
   if (outcomemodel == 'interaction'){
-    Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(length(df$X), 
+    df$Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(length(df$X), 
                                                            mean = 0, sd = sig)
   }
   return(list(
@@ -123,41 +141,45 @@ sim = function(n,# n^2 x n^2 is dim of adjacency matrix
     'X'=df$X,#exposure
     'Y'=df$Y,#outcome
     'Z'=df$Z, #confounder
-    'state' = df$state #nested group
+    'groups' = as.matrix(df[,3:(l+1)], nrow = nrow(df), ncol = ncol(df[,3:(l+1)])) #nested group
     ))
 }
 
-analysis = function(A, # adjacency
+analysis = function(n, # subgroups in a group
+                    A, # adjacency
                     X, # exposure
                     Y, # outcome
                     Z, # confounder
-                    state, # nested group
+                    groups, # nested group
                     decomposition = c('spectral', 'nested')
                     ){
   decomposition = match.arg(decomposition)
+  l = ncol(groups) + 1
   if (decomposition == 'nested'){
     # Regress Y on X at each level
-    nest = nested_decomp(cbind(X,Y), state)
+    nest = nested_decomp(groups)
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
-    X1 = nest$V1[,1]
-    Y1 = nest$V1[,2]
-    model1 = lm(Y1~X1)
-    X2 = nest$V2[,1]
-    Y2 = nest$V2[,2]
-    model2 = lm(Y2~X2)
-    betas = c(model2$coefficients[2], model1$coefficients[2])
+    betas = rep(NA, l)
+    for (i in 1:l){ 
+      Xi = nest[[i]] %*% X
+      Yi = nest[[i]] %*% Y
+      modeli = lm(Yi~Xi)
+      betas[i] = modeli$coefficients[2]
+    }
+    betas = rev(betas) # flip order since want small scale to big
   }
   if (decomposition == 'spectral'){
-    spec = spectral_decomp(cbind(X,Y),A)
-    Xstar = spec[,1]
-    Ystar = spec[,2]
+    spec = spectral_decomp(A)
+    Xstar = spec %*% X
+    Ystar = spec %*% Y
     # TO DO: WHAT IS THE BEST WAY TO Do THIS??
-    # For now just split up the spectral r.v.s into 5 discrete scales
+    # For now just split up the spectral r.v.s into discrete scales
     # so that I have multiple observations per scale...
     betas = c()
-    for (i in 1:5){ # 125
-      model = lm(Ystar[(125*(i-1)):(125*i)] ~ Xstar[(125*(i-1)):(125*i)])
+    num = n^(2*l-1)
+    for (i in 1:n){ # 125
+      model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)])
       betas = c(betas, model$coefficients[2])
     }
   }
