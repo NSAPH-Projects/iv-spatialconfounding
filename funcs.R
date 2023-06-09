@@ -1,5 +1,7 @@
 library(MASS)
 library(stringr)
+library(igraph)
+
 nested_decomp = function(groups){
   # Create the decomposition matrices
   n = nrow(groups)
@@ -57,29 +59,20 @@ sim = function(n,
                ){
   
   # Create coordinates
-  print('Creating coordinates')
-  df = as.data.frame(expand.grid(xcoord = 1:(n^l), ycoord = 1:(n^l)))
+  print('Creating coordinates and groups')
+  g = make_lattice(c(n^l,n^l))
+  coords = layout_on_grid(g)
+=  df = cbind.data.frame(xcoord = coords[,1], ycoord = coords[,2])
   for (i in 1:(l-1)){
-    df[,(i+2)] = as.numeric(paste(str_pad((df$xcoord-1)%/%(n^(l-i)),2,pad = '0'),
-                                  str_pad((df$ycoord-1)%/%(n^(l-i)),2,pad = '0'),
+    df[,(i+2)] = as.numeric(paste(str_pad((df$xcoord)%/%(n^(l-i)),2,pad = '0'),
+                                  str_pad((df$ycoord)%/%(n^(l-i)),2,pad = '0'),
                                   sep = ''))
   }
   df = df[order(df[,(l+1)]),] # ordering by finest grid level should order by the coarser grids too
 
   # Create adjacency matrix
   print('Creating adjacency')
-  A = matrix(NA, nrow = nrow(df), ncol = nrow(df))
-  for (i in 1:nrow(df)){
-    coord = c(df$xcoord[i], df$ycoord[i])
-    for (j in 1:i){
-      A[i,j] = 1*(abs(df$xcoord[j]-coord[1]) + abs(df$ycoord[j]-coord[2]) == 1)
-    }
-  }
-  for (i in 1:(nrow(df)-1)){
-    for (j in (i+1):nrow(df)){
-      A[i,j] = A[j,i]
-    }
-  }
+  A = as.matrix(as_adjacency_matrix(g))
   
   decomp = match.arg(decomposition)
   outcomemodel = match.arg(outcome)

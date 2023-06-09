@@ -17,9 +17,10 @@ set.seed(2)
 ## Generate Data
 First let's generate some data using the spectral decomposition. Note that the covariance between $X$ and $Z$ is decreasing with spatial scale by construction (see rhox - things are flipped since spectral decomp projects in order of highest to lowest freq). We assume $Y$ is a linear function of $X$ and $Z$ with coefficients $2$ and $-1$ respectively.
 ```{r}
-par(mfrow = c(1,3))
 outsim = sim(5, outcome = 'linear', rhox = seq(0,1, by = 1/(5^4-1)),
              decomposition = 'spectral')
+
+par(mfrow = c(1,3))
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
               color = outsim$groups[,1], pch = 20, angle = 60, main = 'Exposure X')
 scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
