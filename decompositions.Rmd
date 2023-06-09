@@ -216,4 +216,58 @@ legend('topright', legend = 'True Beta', col = 'red', lty = 1)
 abline(h = 2, col = 'red')
 ```
 
+\newpage 
+# Try truncation
+Here we generate data but remove the variation of $Z$ in the nested decomposition at the smallest grid levels.
+```{r}
+outsim = sim(n = 4, l=3, truncate = 2, outcome = 'linear', rhox = c(0.9, 0.5, 0.001),
+             decomposition = 'nested')
+
+par(mfrow = c(2,3))
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
+              color = outsim$groups[,1], pch = 20, angle = 60, main = 'Exposure X')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
+              color = outsim$groups[,1], pch = 20, angle = 60, main = 'Outcome Y')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
+              main = 'Confounder Z',
+              color = outsim$groups[,1], pch = 20, angle = 60)
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$X, 
+              color = outsim$groups[,2], pch = 20, angle = 60, main = 'Exposure X')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Y, 
+              color = outsim$groups[,2], pch = 20, angle = 60, main = 'Outcome Y')
+scatterplot3d(x = outsim$coord[,1], outsim$coord[,2], outsim$Z, 
+              main = 'Confounder Z',
+              color = outsim$groups[,2], pch = 20, angle = 60)
+```
+
+## Analysis
+```{r}
+testnested = analysis(n = 4, A = outsim$A, 
+                X = outsim$X, 
+                Y = outsim$Y, 
+                Z = outsim$Z, 
+                groups = outsim$groups,
+                decomposition = 'nested')
+
+testspectral = analysis(n = 4, A = outsim$A, 
+                X = outsim$X, 
+                Y = outsim$Y, 
+                Z = outsim$Z, 
+                groups = outsim$groups,
+                decomposition = 'spectral')
+
+par(mfrow = c(1,2))
+plot(1:3, testnested, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested', xaxp = c(1,2,1), ylim = c(0.5,3))
+points(1:3, testnested, pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+plot(1:4, testspectral, xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', ylim = c(0.5,3), main = 'Spectral')
+points(1:4, testspectral, pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+```
+
+
 

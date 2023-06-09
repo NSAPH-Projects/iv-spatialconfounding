@@ -55,8 +55,11 @@ sim = function(n,
                rhox = c(0.7,0.1),
                outcome=c('linear', 'quadratic', 'interaction'), # outcome model
                decomposition = c('spectral', 'nested'), # data generating
-               distribution = 'gaussian' # TO DO
+               distribution = 'gaussian', # TO DO,
+               truncate = NULL # after this spatial level Z will not vary
                ){
+  decomp = match.arg(decomposition)
+  outcome = match.arg(outcome)
   
   # Create coordinates
   print('Creating coordinates and groups')
@@ -74,39 +77,55 @@ sim = function(n,
   print('Creating adjacency')
   A = as.matrix(as_adjacency_matrix(g))
   
-  decomp = match.arg(decomposition)
-  outcomemodel = match.arg(outcome)
   # Simulate X and Z
   print('Creating X and Z')
   if (decomp == 'nested'){ 
-    stopifnot(length(rhox)==l)
-    # there must be a faster way to do this
-    Xmat = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
-    Zmat = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
-    for (i in 1:l){
-      xz = mvrnorm(n^(2*i), mu = c(0,0), 
-                   Sigma = matrix(c(1,rhox[i],rhox[i],1), 
-                                  nrow = 2, ncol = 2))
-      Xi = xz[,1]
-      Zi = xz[,2]
-      Xmat = Xmat + rep(Xi,each = n^(2*(l-i)))#[,i] = rep(Xi,each = n^(2*(l-i)))
-      Zmat = Zmat + rep(Zi, each = n^(2*(l-i)))#[,i] = rep(Zi, each = n^(2*(l-i)))
+    if (is.null(truncate)){ # arg for stopping variation in Z after certain spatial scale
+      truncate = l
     }
-    # important here to check the order of the df
-    df$X = Xmat
-    df$Z = Zmat
+    stopifnot(length(rhox)>=min(l,truncate))
+    # there must be a faster way to do this
+    X = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
+    Z = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
+    
+    for (i in 1:l){
+      if (i > truncate){
+        Xi = rnorm(n^(2*i), mean = 0, sd = 1)
+        Zi = rep(0, n^(2*i))
+      }
+      else{
+        xz = mvrnorm(n^(2*i), mu = c(0,0), 
+                     Sigma = matrix(c(1,rhox[i],rhox[i],1), 
+                                    nrow = 2, ncol = 2))
+        Xi = xz[,1]
+        Zi = xz[,2]
+      }
+      X = X + rep(Xi,each = n^(2*(l-i)))
+      Z = Z + rep(Zi, each = n^(2*(l-i)))
+    }
+    df$X = X
+    df$Z = Z
   }
   
   if (decomp == 'spectral'){
-    stopifnot(length(rhox)==n^(2*l))
+    if (is.null(truncate)){ # arg for stopping variation in Z after certain spatial scale
+      truncate = n^(2*l)
+    }
+    stopifnot(length(rhox)>=min(n^(2*l), truncate))
     Xstar = rep(NA, n^(2*l))
     Zstar = rep(NA, n^(2*l))
     for (i in 1:(n^(2*l))){
-      xz = mvrnorm(1, mu = c(0,0), 
-                   Sigma = matrix(c(1,rhox[i],rhox[i],1), 
-                                  nrow = 2, ncol = 2))
-      Xstar[i] = xz[1]
-      Zstar[i] = xz[2]
+      if (i > truncate){
+        Xstar[i] = rnorm(1, mean = 0, sd = 1)
+        Zstar[i] = 0
+      }
+      else{
+        xz = mvrnorm(1, mu = c(0,0), 
+                     Sigma = matrix(c(1,rhox[i],rhox[i],1), 
+                                    nrow = 2, ncol = 2))
+        Xstar[i] = xz[1]
+        Zstar[i] = xz[2]
+      }
     }
     # Project into spatial domain
     spec = spectral_decomp(A,inv=T)
@@ -115,16 +134,16 @@ sim = function(n,
   }
   # Simulate the outcome
   print('Simulating outcome')
-  if (outcomemodel == 'linear'){
+  if (outcome == 'linear'){
     df$Y = betax*df$X + betaz*df$Z + rnorm(length(df$X), mean = 0, 
                                   sd = sig)
   }
-  if (outcomemodel == 'quadratic'){
+  if (outcome == 'quadratic'){
     stopifnot(length(betax)>=2)
     df$Y = betax[1]*df$X + betax[2]*df$X^2 + betaz*df$Z + rnorm(length(df$X), mean = 0, 
                                                     sd = sig)
   }
-  if (outcomemodel == 'interaction'){
+  if (outcome == 'interaction'){
     df$Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(length(df$X), 
                                                            mean = 0, sd = sig)
   }
