@@ -55,14 +55,17 @@ sim = function(n,
                rhox = c(0.7,0.1),
                outcome=c('linear', 'quadratic', 'interaction'), # outcome model
                decomposition = c('spectral', 'nested'), # data generating
-               distribution = 'gaussian', # TO DO,
-               truncate = NULL # after this spatial level Z will not vary
+               distribution = 'exponential', # distribution of X,
+               truncate = NULL, # after this spatial level Z will not vary
+               quiet = F
                ){
   decomp = match.arg(decomposition)
   outcome = match.arg(outcome)
-  
+
   # Create coordinates
-  print('Creating coordinates and groups')
+  if (!quiet){
+    print('Creating coordinates and groups')
+  }
   g = make_lattice(c(n^l,n^l))
   coords = layout_on_grid(g)
   df = cbind.data.frame(xcoord = coords[,1], ycoord = coords[,2])
@@ -74,11 +77,15 @@ sim = function(n,
   df = df[order(df[,(l+1)]),] # ordering by finest grid level should order by the coarser grids too
 
   # Create adjacency matrix
-  print('Creating adjacency')
+  if (!quiet){
+    print('Creating adjacency')
+  }
   A = as.matrix(as_adjacency_matrix(g))
   
   # Simulate X and Z
-  print('Creating X and Z')
+  if (!quiet){
+    print('Creating X and Z')
+  }
   if (decomp == 'nested'){ 
     if (is.null(truncate)){ # arg for stopping variation in Z after certain spatial scale
       truncate = l
@@ -94,11 +101,17 @@ sim = function(n,
         Zi = rep(0, n^(2*i))
       }
       else{
-        xz = mvrnorm(n^(2*i), mu = c(0,0), 
-                     Sigma = matrix(c(1,rhox[i],rhox[i],1), 
-                                    nrow = 2, ncol = 2))
-        Xi = xz[,1]
-        Zi = xz[,2]
+        if (distribution == 'gaussian'){
+          xz = mvrnorm(n^(2*i), mu = c(0,0), 
+                       Sigma = matrix(c(1,rhox[i],rhox[i],1), 
+                                      nrow = 2, ncol = 2))
+          Xi = xz[,1]
+          Zi = xz[,2]
+        }
+        if (distribution == 'exponential'){
+          Xi = rexp(n^(2*i))
+          Zi = rhox[i]*Xi + sqrt(1-rhox[i]^2)*rexp(n^(2*i))
+        }
       }
       X = X + rep(Xi,each = n^(2*(l-i)))
       Z = Z + rep(Zi, each = n^(2*(l-i)))
@@ -114,18 +127,24 @@ sim = function(n,
     stopifnot(length(rhox)>=min(n^(2*l), truncate))
     Xstar = rep(NA, n^(2*l))
     Zstar = rep(NA, n^(2*l))
-    for (i in 1:(n^(2*l))){
-      if (i > truncate){
-        Xstar[i] = rnorm(1, mean = 0, sd = 1)
-        Zstar[i] = 0
+    if (distribution == 'gaussian'){
+      for (i in 1:(n^(2*l))){
+        if (i > truncate){
+          Xstar[i] = rnorm(1, mean = 0, sd = 1)
+          Zstar[i] = 0
+        }
+        else{
+          xz = mvrnorm(1, mu = c(0,0), 
+                       Sigma = matrix(c(1,rhox[i],rhox[i],1), 
+                                      nrow = 2, ncol = 2))
+          Xstar[i] = xz[1]
+          Zstar[i] = xz[2]
+        }
       }
-      else{
-        xz = mvrnorm(1, mu = c(0,0), 
-                     Sigma = matrix(c(1,rhox[i],rhox[i],1), 
-                                    nrow = 2, ncol = 2))
-        Xstar[i] = xz[1]
-        Zstar[i] = xz[2]
-      }
+    }
+    if (distribution == 'exponential'){
+      Xstar = rexp(n^(2*l))
+      Zstar = rhox*Xstar + sqrt(1-rhox^2)*rexp(n^(2*l))
     }
     # Project into spatial domain
     spec = spectral_decomp(A,inv=T)
@@ -133,7 +152,9 @@ sim = function(n,
     df$Z = spec %*% Zstar
   }
   # Simulate the outcome
-  print('Simulating outcome')
+  if (!quiet){
+    print('Simulating outcome')
+  }
   if (outcome == 'linear'){
     df$Y = betax*df$X + betaz*df$Z + rnorm(length(df$X), mean = 0, 
                                   sd = sig)
@@ -163,17 +184,22 @@ analysis = function(n, # subgroups in a group
                     Y, # outcome
                     Z, # confounder
                     groups, # nested group
-                    decomposition = c('spectral', 'nested')
+                    decomposition = c('spectral', 'nested'),
+                    quiet = F
                     ){
   decomposition = match.arg(decomposition)
   l = ncol(groups) + 1
   if (decomposition == 'nested'){
     # Regress Y on X at each level
-    print('Perform decomposition')
+    if (!quiet){
+      print('Perform decomposition')
+    }
     nest = nested_decomp(groups)
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
-    print('Calculate betahats')
+    if (!quiet){
+      print('Calculate betahats')
+    }
     betas = rep(NA, l)
     for (i in 1:l){ 
       Xi = nest[[i]] %*% X
@@ -184,17 +210,21 @@ analysis = function(n, # subgroups in a group
     betas = rev(betas) # flip order since want small scale to big
   }
   if (decomposition == 'spectral'){
-    print('Perform decomposition')
+    if (!quiet){
+      print('Perform decomposition')
+    }
     spec = spectral_decomp(A)
     Xstar = spec %*% X
     Ystar = spec %*% Y
     # TO DO: WHAT IS THE BEST WAY TO Do THIS??
     # For now just split up the spectral r.v.s into discrete scales
     # so that I have multiple observations per scale...
-    print('Calculate betahats')
+    if (!quiet){
+      print('Calculate betahats')
+    }
     betas = c()
-    num = n^(2*l-1)
-    for (i in 1:n){ # 125
+    num = n^(2*l-2) # -1
+    for (i in 1:(n^2)){ # n
       model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)])
       betas = c(betas, model$coefficients[2])
     }

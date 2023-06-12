@@ -11,3 +11,6 @@ atmospheric_data.Rmd
 tl_2010_us_county10*
 archived/*
 *.DS_Store
+decompositions_cache/*
+decompositions_files/*
+decompositions.md
