@@ -97,8 +97,13 @@ sim = function(n,
     
     for (i in 1:l){
       if (i > truncate){
-        Xi = rnorm(n^(2*i), mean = 0, sd = 1)
-        Zi = rep(0, n^(2*i))
+        if (distribution == 'gaussian'){
+          Xi = rnorm(n^(2*i), mean = 0, sd = 1)
+        }
+        if (distribution == 'exponential'){
+          Xi = rexp(n^(2*i))
+        }
+        Zi = rep(0, n^(2*i)) 
       }
       else{
         if (distribution == 'gaussian'){
@@ -130,7 +135,12 @@ sim = function(n,
     if (distribution == 'gaussian'){
       for (i in 1:(n^(2*l))){
         if (i > truncate){
-          Xstar[i] = rnorm(1, mean = 0, sd = 1)
+          if (distribution == 'gaussian'){
+            Xstar[i] = rnorm(1, mean = 0, sd = 1)
+          }
+          if (distribution == 'exponential'){
+            Xstar[i] = rexp(1)
+          }
           Zstar[i] = 0
         }
         else{
