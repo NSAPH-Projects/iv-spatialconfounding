@@ -75,6 +75,8 @@ legend('topright', legend = 'True Beta', col = 'red', lty = 1)
 abline(h = 2, col = 'red')
 ```
 
+Looking at the nested plot, it's nice to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed nested. Looking at the spectral plot, we see that the spectral decomposition also results in a bias of $0$ for low spatial scales. The curve here takes on an almost-stepwise shape.
+
 \newpage
 ## Simulation 2: Spectral DGM
 We repeat simulation 1 but now the data-generating model originates from the spectral decomposition rather than the nested. In particular, we use the graph Fourier transform to project $X$ and $Z$ into the spectral domain. In the spectral domain, 
@@ -125,6 +127,8 @@ plot(1:25, colMeans(spectralmat), xlab = 'Spatial Scale', ylab = 'betahat', pch 
 legend('topright', legend = 'True Beta', col = 'red', lty = 1)
 abline(h = 2, col = 'red')
 ```
+
+Looking at the spectral plot, it's nice to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at both of the two grid levels. 
 
 \newpage
 ## Simulation 3: Local Confounding
@@ -232,7 +236,7 @@ abline(h = 2, col = 'red')
 
 \newpage
 ## Simulation 4: Nonlinear Outcome Model
-We repeat simulation 1 and 2 but the outcome model now includes a quadratic term of $X$. In particular, $Y_i = 2X_i + X_i^2 -Z_i + \epsilon$. 
+We repeat simulation 1 and 2 but the outcome model now includes a quadratic term of $X$. In particular, $Y_i = 2X_i + X_i^2 -Z_i + \epsilon$. The scale-specific analyses attempt to estimate both coefficients of $X$. Neither method does a good job at recovering either of the coefficients.
 
 ### Nested DGM
 ```{r, sim41, cache = T, echo = F}
