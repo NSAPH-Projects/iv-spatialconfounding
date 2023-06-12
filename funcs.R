@@ -195,6 +195,7 @@ analysis = function(n, # subgroups in a group
                     Z, # confounder
                     groups, # nested group
                     decomposition = c('spectral', 'nested'),
+                    outcome = 'linear',
                     quiet = F
                     ){
   decomposition = match.arg(decomposition)
@@ -210,14 +211,26 @@ analysis = function(n, # subgroups in a group
     if (!quiet){
       print('Calculate betahats')
     }
-    betas = rep(NA, l)
+    betas = c() # CHANGED from rep(NA,)
     for (i in 1:l){ 
       Xi = nest[[i]] %*% X
       Yi = nest[[i]] %*% Y
-      modeli = lm(Yi~Xi)
-      betas[i] = modeli$coefficients[2]
+      if (outcome == 'linear'){
+        modeli = lm(Yi~Xi)
+        betas = c(betas,modeli$coefficients[2])
+      }
+      if (outcome == 'quadratic'){
+        modeli = lm(Yi~ poly(Xi,degree = 2))
+        betas = cbind(betas, modeli$coefficients[2:3])
+      }
     }
-    betas = rev(betas) # flip order since want small scale to big
+    #betas = rev(betas) # flip order since want small scale to big
+    if (outcome == 'linear'){
+      betas = rev(betas)
+    }
+    if (outcome == 'quadratic'){
+      betas = betas[,ncol(betas):1]
+    }
   }
   if (decomposition == 'spectral'){
     if (!quiet){
@@ -235,8 +248,14 @@ analysis = function(n, # subgroups in a group
     betas = c()
     num = n^(2*l-2) # -1
     for (i in 1:(n^2)){ # n
-      model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)])
-      betas = c(betas, model$coefficients[2])
+      if (outcome == 'linear'){
+        model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)])
+        betas = c(betas, model$coefficients[2])
+      }
+      if (outcome == 'quadratic'){
+        model = lm(Ystar[(num*(i-1)):(num*i)] ~ poly(Xstar[(num*(i-1)):(num*i)], 2))
+        betas = cbind(betas, model$coefficients[2:3])
+      }
     }
   }
   return(betas)

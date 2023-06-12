@@ -2,7 +2,10 @@
 title: "Decompositions"
 author: "Sophie Woodward"
 date: '2023-06-08'
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r, include = F}
@@ -17,7 +20,7 @@ set.seed(2)
 # Simulation Study
 Denote $X$ as exposure $X$, $Z$ as unmeasured confounder, and $Y$ as outcome. 
 
-## Simulation 1
+## Simulation 1: Nested DGM
 We simulate the following scenario 100 times. Across $n_1 = 25$ states of $5 \times 5$ grids, 
 \begin{align*}
 X_{1,s} &\sim \text{Exp}(1)\\
@@ -32,7 +35,7 @@ and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots,
 
 For each of the 100 scenarios, we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. I hypothesize that $\hat{\beta}(\omega)$ is unbiased for high $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
 
-```{r, sim1, cache = T}
+```{r, sim1, cache = T, echo = F}
 nsims = 100
 nestedmat = matrix(NA, nrow = nsims, ncol = 2)
 spectralmat = matrix(NA, nrow = nsims, ncol = 25)
@@ -73,7 +76,7 @@ abline(h = 2, col = 'red')
 ```
 
 \newpage
-## Simulation 2
+## Simulation 2: Spectral DGM
 We repeat simulation 1 but now the data-generating model originates from the spectral decomposition rather than the nested. In particular, we use the graph Fourier transform to project $X$ and $Z$ into the spectral domain. In the spectral domain, 
 \begin{align*}
 X^*_i &\sim \text{Exp}(1)\\
@@ -83,7 +86,7 @@ for $i=1, \ldots, 625$ where $\rho_i = 0, 1/624, 2/624, \ldots, 1$. So the covar
 
 Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. I hypothesize that $\hat{\beta}(\omega)$ is unbiased for high $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
 
-```{r, sim2, cache = T}
+```{r, sim2, cache = T, echo = F}
 nsims = 100
 nestedmat = matrix(NA, nrow = nsims, ncol = 2)
 spectralmat = matrix(NA, nrow = nsims, ncol = 25)
@@ -123,6 +126,249 @@ legend('topright', legend = 'True Beta', col = 'red', lty = 1)
 abline(h = 2, col = 'red')
 ```
 
+\newpage
+## Simulation 3: Local Confounding
+We repeat simulations 1 and 2 but now confounding dissipates at larger scales. 
 
+For the nested DGM, 
+\begin{align*}
+X_{1,s} &\sim \text{Exp}(1)\\
+Z_{1,s} &\sim 0.001X_2 + \sqrt{1-0.001^2}\text{Exp}(1)
+\end{align*}
+for each $5 \times 5$ state, $s = 1, \ldots, n_1 = 25$. Across $n_2 = 625$ counties of $1 \times 1$ grids, let 
+\begin{align*}
+X_{2,i} &\sim \text{Exp}(1)\\
+Z_{2,i} &\sim 0.9X_2 + \sqrt{1-0.9^2}\text{Exp}(1)
+\end{align*}
+and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots, n_2 = 625$. By construction, $X,Z$ are nearly uncorrelated across the states of $5 \times 5$, but correlated within states. 
+
+```{r, sim31, cache = T, echo = F}
+nsims = 100
+nestedmat = matrix(NA, nrow = nsims, ncol = 2)
+spectralmat = matrix(NA, nrow = nsims, ncol = 25)
+
+for (num in 1:nsims){
+  outsim = sim(n = 5, outcome = 'linear', 
+              rhox = c(0.001, 0.9),
+             decomposition = 'nested', 
+             quiet = T)
+  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'nested', 
+                  quiet = T)
+  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'spectral', 
+                  quiet = T)
+}
+
+
+par(mfrow = c(1,2))
+plot(1:2, colMeans(nestedmat), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested', xaxp = c(1,2,1), ylim = c(0.5,3))
+points(1:2, colMeans(nestedmat), pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+
+plot(1:25, colMeans(spectralmat), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', ylim = c(0.5,3), main = 'Spectral')
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+```
+
+\newpage
+For the spectral DGM, 
+\begin{align*}
+X^*_i &\sim \text{Exp}(1)\\
+Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}\text{Exp}(1)
+\end{align*}
+for $i=1, \ldots, 625$ where $\rho_i = 1, 623/624, 622/624, \ldots, 0$. 
+
+```{r, sim32, cache = T, echo = F}
+nsims = 100
+nestedmat = matrix(NA, nrow = nsims, ncol = 2)
+spectralmat = matrix(NA, nrow = nsims, ncol = 25)
+
+for (num in 1:nsims){
+  outsim = sim(n = 5, outcome = 'linear', 
+              rhox = seq(1,0, by = -1/(5^4-1)),
+             decomposition = 'spectral', 
+             quiet = T)
+  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'nested', 
+                  quiet = T)
+  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'spectral', 
+                  quiet = T)
+}
+
+
+par(mfrow = c(1,2))
+plot(1:2, colMeans(nestedmat), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested', xaxp = c(1,2,1), ylim = c(0.5,3))
+points(1:2, colMeans(nestedmat), pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+
+plot(1:25, colMeans(spectralmat), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', ylim = c(0.5,3), main = 'Spectral')
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+```
+
+\newpage
+## Simulation 4: Nonlinear Outcome Model
+We repeat simulation 1 and 2 but the outcome model now includes a quadratic term of $X$. In particular, $Y_i = 2X_i + X_i^2 -Z_i + \epsilon$. 
+
+### Nested DGM
+```{r, sim41, cache = T, echo = F}
+nsims = 100
+nestedmat1 = matrix(NA, nrow = nsims, ncol = 2)
+nestedmat2 = matrix(NA, nrow = nsims, ncol = 2)
+spectralmat1 = matrix(NA, nrow = nsims, ncol = 25)
+spectralmat2 = matrix(NA, nrow = nsims, ncol = 25)
+
+for (num in 1:nsims){
+  outsim = sim(n = 5, outcome = 'quadratic', 
+              betax = c(2,1),
+              rhox = c(0.9, 0.001),
+             decomposition = 'nested', 
+             quiet = T
+             )
+  nestedout = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'nested', 
+                  outcome = 'quadratic',
+                  quiet = T
+                  )
+  nestedmat1[num,] = nestedout[1,]
+  nestedmat2[num,] = nestedout[2,]
+
+  spectralout = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'spectral', 
+                  outcome = 'quadratic',
+                  quiet = T
+                  )
+  spectralmat1[num,] = spectralout[1,]
+  spectralmat2[num,] = spectralout[2,]
+}
+
+
+par(mfrow = c(2,2))
+plot(1:2, colMeans(nestedmat1), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested: Linear Term', xaxp = c(1,2,1),
+     ylim = c(-1, max(colMeans(nestedmat1))))
+points(1:2, colMeans(nestedmat1), pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+
+plot(1:25, colMeans(spectralmat1), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', main = 'Spectral: Linear Term',
+     ylim = c(-1, max(colMeans(spectralmat1))))
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+
+plot(1:2, colMeans(nestedmat2), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested: Quadratic Term', xaxp = c(1,2,1),
+     ylim = c(-1, max(colMeans(nestedmat2))))
+points(1:2, colMeans(nestedmat2), pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 1, col = 'red')
+
+plot(1:25, colMeans(spectralmat2), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', main = 'Spectral: Quadratic Term',
+     ylim = c(-1, max(colMeans(spectralmat2))))
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 1, col = 'red')
+```
+
+### Spectral DGM
+```{r, sim42, cache = T, echo = F}
+nestedmat1 = matrix(NA, nrow = nsims, ncol = 2)
+nestedmat2 = matrix(NA, nrow = nsims, ncol = 2)
+spectralmat1 = matrix(NA, nrow = nsims, ncol = 25)
+spectralmat2 = matrix(NA, nrow = nsims, ncol = 25)
+
+for (num in 1:nsims){
+  outsim = sim(n = 5, outcome = 'quadratic', 
+              betax = c(2,1),
+              rhox = seq(0,1, by = 1/(5^4-1)),
+             decomposition = 'spectral', 
+             quiet = T
+             )
+  nestedout = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'nested', 
+                  outcome = 'quadratic',
+                  quiet = T
+                  )
+  nestedmat1[num,] = nestedout[1,]
+  nestedmat2[num,] = nestedout[2,]
+
+  spectralout = analysis(n = 5, A = outsim$A, 
+                  X = outsim$X, 
+                  Y = outsim$Y, 
+                  Z = outsim$Z, 
+                  groups = outsim$groups,
+                  decomposition = 'spectral', 
+                  outcome = 'quadratic',
+                  quiet = T
+                  )
+  spectralmat1[num,] = spectralout[1,]
+  spectralmat2[num,] = spectralout[2,]
+}
+
+
+par(mfrow = c(2,2))
+plot(1:2, colMeans(nestedmat1), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested: Linear Term', xaxp = c(1,2,1),
+     ylim = c(-1, max(colMeans(nestedmat1))))
+points(1:2, colMeans(nestedmat1), pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+
+plot(1:25, colMeans(spectralmat1), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', main = 'Spectral: Linear Term',
+     ylim = c(-1, max(colMeans(spectralmat1))))
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 2, col = 'red')
+
+plot(1:2, colMeans(nestedmat2), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19, type = 'l', 
+     main = 'Nested: Quadratic Term', xaxp = c(1,2,1),
+     ylim = c(-1, max(colMeans(nestedmat2))))
+points(1:2, colMeans(nestedmat2), pch = 19)
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 1, col = 'red')
+
+plot(1:25, colMeans(spectralmat2), xlab = 'Spatial Scale', ylab = 'betahat', pch = 19,
+     type = 'l', main = 'Spectral: Quadratic Term',
+     ylim = c(-1, max(colMeans(spectralmat2))))
+legend('topright', legend = 'True Beta', col = 'red', lty = 1)
+abline(h = 1, col = 'red')
+```
 
 
