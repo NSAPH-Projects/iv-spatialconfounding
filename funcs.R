@@ -192,7 +192,6 @@ analysis = function(n, # subgroups in a group
                     A, # adjacency
                     X, # exposure
                     Y, # outcome
-                    Z, # confounder
                     groups, # nested group
                     decomposition = c('spectral', 'nested'),
                     outcome = 'linear',
@@ -259,6 +258,57 @@ analysis = function(n, # subgroups in a group
     }
   }
   return(betas)
+}
+
+coherence = function(n, # subgroups in a group
+                    A, # adjacency
+                    X, # exposure
+                    Z, # confounder
+                    groups, # nested group
+                    decomposition = c('spectral', 'nested'),
+                    quiet = F
+  ){
+  decomposition = match.arg(decomposition)
+  l = ncol(groups) + 1
+  if (decomposition == 'nested'){
+    # Regress Y on X at each level
+    if (!quiet){
+      print('Perform decomposition')
+    }
+    nest = nested_decomp(groups)
+    # CHECK because many repeated obs to a state
+    # but maybe this makes sense since there are more 'counties' so adds weight
+    if (!quiet){
+      print('Calculate correlations')
+    }
+    cors = c() # CHANGED from rep(NA,)
+    for (i in 1:l){ 
+      Xi = nest[[i]] %*% X
+      Zi = nest[[i]] %*% Z
+      cors = c(cors,cor(Xi,Zi))
+    }
+    cors = rev(cors)
+  }
+  if (decomposition == 'spectral'){
+    if (!quiet){
+      print('Perform decomposition')
+    }
+    spec = spectral_decomp(A)
+    Xstar = spec %*% X
+    Zstar = spec %*% Z
+    # TO DO: WHAT IS THE BEST WAY TO Do THIS??
+    # For now just split up the spectral r.v.s into discrete scales
+    # so that I have multiple observations per scale...
+    if (!quiet){
+      print('Calculate correlations')
+    }
+    cors = c()
+    num = n^(2*l-2) # -1
+    for (i in 1:(n^2)){ # n
+      cors = c(cors, cor(Zstar[(num*(i-1)):(num*i)],Xstar[(num*(i-1)):(num*i)]))
+    }
+  }
+  return(cors)
 }
 
 
