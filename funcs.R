@@ -33,16 +33,12 @@ nested_decomp = function(groups){
   return(projs)
 }
 
-spectral_decomp = function(A,inv = F){
+spectral_decomp = function(A){
   R = diag(rowSums(A))-A # precision of ICAR
   E = eigen(R) # eigen component
   D = E$val
   G = E$vec
   rm(E,R)
-  if (inv){
-    invG = solve(t(G)) 
-    return(invG)
-  }
   return(t(G))
 }
 
@@ -57,8 +53,7 @@ sim = function(n,
                decomposition = c('spectral', 'nested'), # data generating
                distribution = 'exponential', # distribution of X,
                truncate = NULL, # after this spatial level Z will not vary
-               quiet = F,
-               specinv = NULL
+               quiet = F
                ){
   decomp = match.arg(decomposition)
   outcome = match.arg(outcome)
@@ -158,8 +153,11 @@ sim = function(n,
       Zstar = rhox*Xstar + sqrt(1-rhox^2)*rexp(n^(2*l))
     }
     # Project into spatial domain
-    if (is.null(specinv)){
-      specinv = spectral_decomp(A,inv=T)
+    if (is.null(spec)){
+      specinv = t(spectral_decomp(A))
+    }
+    else{
+      specinv = t(spec)
     }
     df$X = specinv %*% Xstar # n^4 length vector
     df$Z = specinv %*% Zstar
@@ -271,8 +269,7 @@ analysis = function(n, # subgroups in a group
       }
     }
     if (return_decomps){
-      specinv = spectral_decomp(A, inv = T)
-      return(list('betas' = betas, 'spec' = spec, 'specinv' = specinv))
+      return(list('betas' = betas, 'spec' = spec))
     }
   }
   return(betas)
@@ -346,7 +343,6 @@ simfunc = function(nsims=100,
                    objective='analysis',
                    nest=NULL, # assume given
                    spec=NULL, # assume given
-                   specinv=NULL,
                    truncate=NULL,
                    distribution='exponential',
                    betaxz=0
@@ -360,7 +356,6 @@ simfunc = function(nsims=100,
                  decomposition = dgm, 
                  truncate = truncate,
                  quiet = quiet,
-                 specinv = specinv,
                  distribution = distribution,
                  betaxz=betaxz)
     if (objective == 'analysis'){

@@ -70,7 +70,6 @@ analspectral = analysis(n = 5, A = outsim$A,
                   return_decomps = T)
 nest = analnested$nest
 spec = analspectral$spec
-specinv = analspectral$specinv
 ```
 
 ```{r, sim11, cache = T, echo = F, message = F, results = 'hide', warning = F}
@@ -101,14 +100,14 @@ for $i=1, \ldots, 625$ where $\rho_i = 0, 1/624, 2/624, \ldots, 1$. So the covar
 Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis:  $\hat{\beta}(\omega)$ is unbiased for low $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
 
 ```{r, sim21, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox= seq(0,1, by = 1/(5^4-1)),dgm='spectral', nest=nest,spec=spec,specinv = specinv)
+out = simfunc(rhox= seq(0,1, by = 1/(5^4-1)),dgm='spectral', nest=nest,spec=spec)
 plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 ```
 
 Looking at the spectral plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at both of the two grid levels. At first I thought that made sense: by construction the covariance is continuously decreasing with spatial scale; within a $5 \times 5$ grid we will observe bias. Let's try $\rho_i = 0$ $\forall i$. 
 
 ```{r, sim22, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=rep(0,625), dgm='spectral', nest=nest, spec=spec, specinv = specinv)
+out = simfunc(rhox=rep(0,625), dgm='spectral', nest=nest, spec=spec)
 plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 ```
 
@@ -118,7 +117,7 @@ I am puzzled by the result. I thought making the spectral coherence equal to $0$
 Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions when the DGM is spectral and Cov$(X^*, Z^*)=0$ for all spatial frequencies: 
 
 ```{r, sim31, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=rep(0,625), dgm='spectral', nest=nest, spec=spec, specinv = specinv,
+out = simfunc(rhox=rep(0,625), dgm='spectral', nest=nest, spec=spec,
               objective = 'coherence')
 plotfunc(nestedmat = out$nestedmat, 
                      spectralmat = out$spectralmat,
@@ -151,7 +150,7 @@ So why is the correlation between $X$ and $Z$ at different levels of the nested 
 Suppose $Z$ doesn't vary at all until some spatial frequency. 
 
 ```{r, sim33, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=rep(0, 5^4), dgm='spectral', nest=nest, spec=spec, specinv = specinv,
+out = simfunc(rhox=rep(0, 5^4), dgm='spectral', nest=nest, spec=spec,
               objective = 'coherence', truncate = 312)
 plotfunc(nestedmat = out$nestedmat, 
                      spectralmat = out$spectralmat,
@@ -173,7 +172,7 @@ X^*_i \\ Z^*_i
 for $i=1, \ldots, 625$ where $\rho_i = 0$ $\forall i$.
 
 ```{r, sim34, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=rep(0, 5^4), dgm='spectral', nest=nest, spec=spec, specinv = specinv,
+out = simfunc(rhox=rep(0, 5^4), dgm='spectral', nest=nest, spec=spec,
               objective = 'coherence', distribution = 'gaussian')
 plotfunc(nestedmat = out$nestedmat, 
                      spectralmat = out$spectralmat,
@@ -215,7 +214,7 @@ for $i=1, \ldots, 625$ where $\rho_i = 1, 623/624, 622/624, \ldots, 0$.
 
 ```{r, sim42, cache = T, echo = F, message = F, results = 'hide', warning = F}
 out = simfunc(rhox=seq(1,0, by = -1/(5^4-1)), dgm='spectral', nest=nest, 
-              spec=spec, specinv = specinv)
+              spec=spec)
 plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 ```
 
@@ -235,7 +234,7 @@ plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(0.5,
 
 ```{r, sim52, cache = T, echo = F, message = F, results = 'hide', warning = F}
 out = simfunc(rhox=seq(0,1, by = 1/(5^4-1)), dgm='spectral', nest=nest, 
-              spec=spec, specinv=specinv, outcome = 'interaction', betaxz=0.5)
+              spec=spec, outcome = 'interaction', betaxz=0.5)
 plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(0.5, 4))
 ```
 
