@@ -336,4 +336,114 @@ coherence = function(n, # subgroups in a group
   return(cors)
 }
 
+simfunc = function(nsims=100, 
+                   n=5, 
+                   l=2,
+                   outcome='linear', 
+                   rhox, 
+                   dgm, 
+                   quiet=T,
+                   objective='analysis',
+                   nest=NULL, # assume given
+                   spec=NULL, # assume given
+                   specinv=NULL,
+                   truncate=NULL,
+                   distribution='exponential',
+                   betaxz=0
+                   ){
+  nestedmat = matrix(NA, nrow = nsims, ncol = l)
+  spectralmat = matrix(NA, nrow = nsims, ncol = n^2)
+  for (num in 1:nsims){
+    outsim = sim(n = n, 
+                 outcome = outcome, 
+                 rhox = rhox,
+                 decomposition = dgm, 
+                 truncate = truncate,
+                 quiet = quiet,
+                 specinv = specinv,
+                 distribution = distribution,
+                 betaxz=betaxz)
+    if (objective == 'analysis'){
+      nestedmat[num,] = analysis(n = n, 
+                                 A = outsim$A, 
+                                 X = outsim$X, 
+                                 Y = outsim$Y, 
+                                 groups = outsim$groups,
+                                 decomposition = 'nested', 
+                                 quiet = quiet,
+                                 nest = nest)
+      spectralmat[num,] = analysis(n = n, 
+                                   A = outsim$A, 
+                                   X = outsim$X, 
+                                   Y = outsim$Y, 
+                                   groups = outsim$groups,
+                                   decomposition = 'spectral', 
+                                   quiet = quiet, 
+                                   spec = spec)
+    }
+    if (objective == 'coherence'){
+      nestedmat[num,] = coherence(n = n, 
+                                  A = outsim$A, 
+                                  X = outsim$X, 
+                                  Z = outsim$Z, 
+                                  groups = outsim$groups,
+                                  decomposition = 'nested', 
+                                  quiet = quiet, nest = nest)
+      spectralmat[num,] = coherence(n = n, 
+                                    A = outsim$A, 
+                                    X = outsim$X, 
+                                    Z = outsim$Z, 
+                                    groups = outsim$groups,
+                                    decomposition = 'spectral', 
+                                    quiet = quiet, spec = spec)
+    }
+  }
+  return(list('nestedmat' = nestedmat, 'spectralmat' = spectralmat))
+}
+
+
+plotfunc = function(n=5,
+                    l=2,
+                    nestedmat,
+                    spectralmat,
+                    ylab = 'betahat',
+                    hline = 2,
+                    ylim = c(0.5,3),
+                    col='blue'
+                    ){
+  stopifnot(ncol(nestedmat) == l)
+  stopifnot(ncol(spectralmat) == n^2)
+  nested_df <- data.frame(Spatial_Scale = 1:l, cors = colMeans(nestedmat))
+  spectral_df <- data.frame(Spatial_Scale = 1:(n^2), cors = colMeans(spectralmat))
+  
+  # Plot for nestedmat
+  plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = cors)) +
+    geom_line(color = col) +
+    geom_point(color = col) +
+    xlab('Spatial Scale') +
+    ylab(ylab) +
+    ggtitle('Nested') +
+    ylim(ylim[1],ylim[2]) +
+    theme_minimal() +
+    theme(legend.position = 'topright') +
+    geom_hline(yintercept = hline, color = 'red') +
+    guides(color = FALSE)
+  
+  # Plot for spectralmat
+  plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
+    geom_line(color = col) +
+    xlab('Spatial Scale') +
+    ylab(ylab) +
+    ggtitle('Spectral') +
+    ylim(ylim[1],ylim[2]) +
+    theme_minimal() +
+    theme(legend.position = 'topright') +
+    geom_hline(yintercept = hline, color = 'red') +
+    guides(color = FALSE)
+  
+  # Arrange and center the plots
+  combined_plots = grid.arrange(plot_nested, plot_spectral, nrow = 1)
+  
+  return(combined_plots)
+}
 

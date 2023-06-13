@@ -49,6 +49,7 @@ For each of the 100 scenarios, we decompose $X,Z,Y$ at different spatial scales 
 
 
 ```{r, precompute, cache=T, echo = F}
+# I first compute nest and spec in this chunk so they don't have to be recomputed 
 outsim = sim(n = 5, outcome = 'linear', 
               rhox = c(0.9, 0.001),
              decomposition = 'nested', 
@@ -72,141 +73,22 @@ spec = analspectral$spec
 specinv = analspectral$specinv
 ```
 
-```{r, sim1, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = c(0.9, 0.001),
-             decomposition = 'nested', 
-             quiet = T)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T,
-                  nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, 
-                  spec = spec)
-}
+```{r, sim11, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox= c(0.9, 0.001), dgm='nested', nest=nest,spec=spec)
+combinedplots = plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+combinedplots 
 ```
-
-```{r, sim1plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
-```
-
 
 The true $\beta$ is plotted in red (need to add legend). Looking at the nested plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed nested. Looking at the spectral plot, we see that the spectral decomposition also results in a bias of $0$ for low spatial scales. The curve here takes on an almost-stepwise shape.
 
 Alternatively, suppose $Z$ doesn't vary at all within states. That is, for fixed $5\times 5$ grid $s'$, $Z_i = c \in \mathbb R$ $\forall i$ such that $s(i) = s'$. I accomplish this by letting $Z_{2,i} = 0$ $\forall i$ in the construction above, so $Z_i = Z_{1, s(i)}$.
 
-```{r, sim11, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
 
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = c(0.9, 0.001),
-             decomposition = 'nested', 
-             truncate = 1,
-             quiet = T)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, 
-                  nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T,
-                  spec = spec)
-}
+```{r, sim12, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox= c(0.9, 0.001),dgm='nested', nest=nest,spec=spec,truncate = 1)
+combinedplots = plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+combinedplots 
 ```
-
-```{r, sim11plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-```
-
 
 # Simulation 2: Spectral DGM
 We repeat simulation 1 but now the data-generating model originates from the spectral decomposition rather than the nested. In particular, we use the graph Fourier transform to project $X$ and $Z$ into the spectral domain. In the spectral domain, 
@@ -218,135 +100,16 @@ for $i=1, \ldots, 625$ where $\rho_i = 0, 1/624, 2/624, \ldots, 1$. So the covar
 
 Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis:  $\hat{\beta}(\omega)$ is unbiased for low $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
 
-```{r, sim2, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = seq(0,1, by = 1/(5^4-1)),
-             decomposition = 'spectral', 
-             quiet = T, specinv = specinv)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T,
-                  nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, 
-                  spec = spec)
-}
+```{r, sim21, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox= seq(0,1, by = 1/(5^4-1)),dgm='spectral', nest=nest,spec=spec,specinv = specinv)
+plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 ```
-
-```{r, sim2plotsgg, echo=F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
-```
-
 
 Looking at the spectral plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at both of the two grid levels. At first I thought that made sense: by construction the covariance is continuously decreasing with spatial scale; within a $5 \times 5$ grid we will observe bias. Let's try $\rho_i = 0$ $\forall i$. 
 
-```{r, sim22, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = rep(0,625),#c(rep(0,400), seq(1/225,1,by = 1/225)),
-             decomposition = 'spectral', 
-             quiet = T, specinv = specinv)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
-```
-
-```{r, sim22plotsgg, echo=F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
+```{r, sim22, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=rep(0,625), dgm='spectral', nest=nest, spec=spec, specinv = specinv)
+plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 ```
 
 I am puzzled by the result. I thought making the spectral coherence equal to $0$ for all eigenvalues would result in the nested decomposition also resulting in unbiased estimates. However, this isn't the case: The nested decomposition produces estimates that are negatively biased by $0.5$. What's going on? Let's look at covariance between $X$ and $Z$ by spatial scale (next section).
@@ -354,133 +117,30 @@ I am puzzled by the result. I thought making the spectral coherence equal to $0$
 # Simulation 3: Covariance by Spatial Scale
 Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions when the DGM is spectral and Cov$(X^*, Z^*)=0$ for all spatial frequencies: 
 
-```{r, sim31, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = rep(0,625),
-             decomposition = 'spectral', 
-             quiet = T, specinv = specinv)
-  nestedmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
-```
-
-```{r, sim31plotsgg, echo=F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, cors = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, cors = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  geom_point(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Nested') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Spectral') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
+```{r, sim31, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=rep(0,625), dgm='spectral', nest=nest, spec=spec, specinv = specinv,
+              objective = 'coherence')
+plotfunc(nestedmat = out$nestedmat, 
+                     spectralmat = out$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1,1),
+                     col='green')
 ```
 
 Weirdly, in the spatial domain $X$ and $Z$ are still correlated at both grid levels. 
 
 Let's repeat this with the nested DGM. Below I plot the correlation between $X$ and $Z$ by spatial scale for both decompositions when the DGM is nested and the covariance between $X$ and $Z$ equals $0$ for both grid levels: 
-```{r, sim32, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
 
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = c(0,0),#c(rep(0,400), seq(1/225,1,by = 1/225)),
-             decomposition = 'nested', 
-             quiet = T)
-  nestedmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
-```
-
-```{r, sim32plotsgg, echo=F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, cors = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, cors = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  geom_point(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Nested') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Spectral') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
+```{r, sim32, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=c(0,0), dgm='nested', nest=nest, spec=spec,
+              objective = 'coherence')
+plotfunc(nestedmat = out$nestedmat, 
+                     spectralmat = out$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1,1),
+                     col='green')
 ```
 
 Both decompositions recover zero correlation over most spatial scales. Except the correlation for large scales of the spectral decomposition blows up...
@@ -489,68 +149,16 @@ So why is the correlation between $X$ and $Z$ at different levels of the nested 
 
 \newpage
 Suppose $Z$ doesn't vary at all until some spatial frequency. 
-```{r, sim33, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
 
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = rep(0, 5^4),
-              truncate = 312,
-             decomposition = 'spectral', 
-             quiet = T, specinv = specinv)
-  nestedmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
-```
-
-```{r, sim33plotsgg, echo=F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, cors = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, cors = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  geom_point(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Nested') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Spectral') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
+```{r, sim33, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=rep(0, 5^4), dgm='spectral', nest=nest, spec=spec, specinv = specinv,
+              objective = 'coherence', truncate = 312)
+plotfunc(nestedmat = out$nestedmat, 
+                     spectralmat = out$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1,1),
+                     col='green')
 ```
 
 Still getting the same result. 
@@ -564,69 +172,15 @@ X^*_i \\ Z^*_i
 \end{align*}
 for $i=1, \ldots, 625$ where $\rho_i = 0$ $\forall i$.
 
-```{r, sim34, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear',
-               distribution = 'gaussian',
-              rhox = rep(0, 5^4),
-              truncate = 312,
-             decomposition = 'spectral', 
-             quiet = T, specinv = specinv)
-  nestedmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = coherence(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Z = outsim$Z, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
-```
-
-```{r, sim34plotsgg, echo=F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, cors = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, cors = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  geom_point(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Nested') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
-  geom_line(color = "green") +
-  xlab('Spatial Scale') +
-  ylab('Cor(X,Z)') +
-  ggtitle('Spectral') +
-  ylim(-1,1) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 0, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
+```{r, sim34, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=rep(0, 5^4), dgm='spectral', nest=nest, spec=spec, specinv = specinv,
+              objective = 'coherence', distribution = 'gaussian')
+plotfunc(nestedmat = out$nestedmat, 
+                     spectralmat = out$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1,1),
+                     col='green')
 ```
 
 Ok, there we go - normality recovers what we would expect. So I need to play around with my DGM to figure out why Expo is producing weird results. Or, rather why normality is special (could it have to do with the fact the Fourier transform of a Gaussian is Gaussian and other nice properties of the normal? Or is this an error in the way I set up my DGM?) (TO DO)
@@ -647,67 +201,9 @@ Z_{2,i} &\sim 0.9X_2 + \sqrt{1-0.9^2}\text{Exp}(1)
 \end{align*}
 and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots, n_2 = 625$. By construction, $X,Z$ are nearly uncorrelated across the states of $5 \times 5$, but correlated within states. 
 
-```{r, sim41, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = c(0.001, 0.9),
-             decomposition = 'nested', 
-             quiet = T)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
-```
-
-```{r, sim41plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
+```{r, sim41, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=c(0.001, 0.9), dgm='nested', nest=nest, spec=spec)
+plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 ```
 
 For the spectral DGM, 
@@ -717,412 +213,29 @@ Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}\text{Exp}(1)
 \end{align*}
 for $i=1, \ldots, 625$ where $\rho_i = 1, 623/624, 622/624, \ldots, 0$. 
 
-```{r, sim42, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'linear', 
-              rhox = seq(1,0, by = -1/(5^4-1)),
-             decomposition = 'spectral', 
-             quiet = T, specinv = specinv)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
-```
-
-```{r, sim42plotsgg, echo=F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
+```{r, sim42, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=seq(1,0, by = -1/(5^4-1)), dgm='spectral', nest=nest, 
+              spec=spec, specinv = specinv)
+plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 ```
 
 \newpage
-# Simulation 5: Nonlinear Outcome Model
-We repeat simulation 1 and 2 but the outcome model now includes a quadratic term of $X$. In particular, $Y_i = 2X_i + X_i^2 -Z_i + \epsilon$. The scale-specific analyses attempt to estimate both coefficients of $X$. Neither method does a good job at recovering either of the coefficients.
-
-**Nested DGM**
-
-```{r, sim51, cache = T, echo = F}
-nsims = 100
-nestedmat1 = matrix(NA, nrow = nsims, ncol = 2)
-nestedmat2 = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat1 = matrix(NA, nrow = nsims, ncol = 25)
-spectralmat2 = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'quadratic', 
-              betax = c(2,1),
-              rhox = c(0.9, 0.001),
-             decomposition = 'nested', 
-             quiet = T
-             )
-  nestedout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  outcome = 'quadratic',
-                  quiet = T
-                  )
-  nestedmat1[num,] = nestedout[1,]
-  nestedmat2[num,] = nestedout[2,]
-
-  spectralout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  outcome = 'quadratic',
-                  quiet = T
-                  )
-  spectralmat1[num,] = spectralout[1,]
-  spectralmat2[num,] = spectralout[2,]
-}
-```
-
-```{r, sim51plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat1, spectralmat1, nestedmat2, and spectralmat2
-nested_df1 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat1))
-spectral_df1 <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat1))
-nested_df2 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat2))
-spectral_df2 <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat2))
-
-# Plot for nestedmat1
-plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested: Linear Term') +
-  ylim(-1, max(colMeans(nestedmat1))) +
-  theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat1
-plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral: Linear Term') +
-  ylim(-1, max(colMeans(spectralmat1))) +
-  theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for nestedmat2
-plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested: Quadratic Term') +
-  ylim(-1, max(colMeans(nestedmat2))) +
-  theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat2
-plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral: Quadratic Term') +
-  ylim(-1, 1.5) +
-  theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange the plots
-combined_plots <- grid.arrange(plot_nested1, plot_spectral1, plot_nested2, plot_spectral2, ncol = 2)
-
-# Display the combined plots
-combined_plots
-
-```
-
-
-**Spectral DGM**
-
-```{r, sim52, cache = T, echo = F}
-nestedmat1 = matrix(NA, nrow = nsims, ncol = 2)
-nestedmat2 = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat1 = matrix(NA, nrow = nsims, ncol = 25)
-spectralmat2 = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'quadratic', 
-              betax = c(2,1),
-              rhox = seq(0,1, by = 1/(5^4-1)),
-             decomposition = 'spectral', 
-             quiet = T
-             )
-  nestedout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  outcome = 'quadratic',
-                  quiet = T
-                  )
-  nestedmat1[num,] = nestedout[1,]
-  nestedmat2[num,] = nestedout[2,]
-
-  spectralout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  outcome = 'quadratic',
-                  quiet = T
-                  )
-  spectralmat1[num,] = spectralout[1,]
-  spectralmat2[num,] = spectralout[2,]
-}
-```
-
-
-```{r, sim52plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat1, spectralmat1, nestedmat2, and spectralmat2
-nested_df1 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat1))
-spectral_df1 <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat1))
-nested_df2 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat2))
-spectral_df2 <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat2))
-
-# Plot for nestedmat1
-plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested: Linear Term') +
-  ylim(-1, max(colMeans(nestedmat1))) +
-  theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat1
-plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral: Linear Term') +
-  ylim(-1, max(colMeans(spectralmat1))) +
-  theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for nestedmat2
-plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested: Quadratic Term') +
-  ylim(-1, max(colMeans(nestedmat2))) +
-  theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat2
-plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral: Quadratic Term') +
-  ylim(-1, 1.5) +
-  theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange the plots
-combined_plots <- grid.arrange(plot_nested1, plot_spectral1, plot_nested2, plot_spectral2, ncol = 2)
-
-# Display the combined plots
-combined_plots
-
-```
-
-\newpage
-# Simulation 6: Outcome Model with Interaction
+# Simulation 5: Outcome Model with Interaction
 We repeat simulation 1 and 2 but the outcome model now includes an interaction term between $X$ and $Z$. In particular, let $Y_i = 2X_i -Z_i + 0.5X_iZ_i + \epsilon$. 
 
 **Nested DGM**
 
-```{r, sim61, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'interaction', 
-               betaxz = 0.5,
-              rhox = c(0.9, 0.001),
-             decomposition = 'nested', 
-             quiet = T)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
+```{r, sim51, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=c(0.9, 0.001), dgm='nested', nest=nest, 
+              spec=spec, outcome = 'interaction', betaxz=0.5)
+plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(0.5, 4))
 ```
-
-
-```{r, sim61plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 4) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 4) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
-```
-
 
 **Spectral DGM**
 
-```{r, sim62, cache = T, echo = F}
-nsims = 100
-nestedmat = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat = matrix(NA, nrow = nsims, ncol = 25)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'interaction', 
-               betaxz = 0.5,
-              rhox = seq(0,1, by = 1/(5^4-1)),
-             decomposition = 'spectral', 
-             quiet = T, specinv = specinv)
-  nestedmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, nest = nest)
-  spectralmat[num,] = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, spec = spec)
-}
+```{r, sim52, cache = T, echo = F, message = F, results = 'hide', warning = F}
+out = simfunc(rhox=seq(0,1, by = 1/(5^4-1)), dgm='spectral', nest=nest, 
+              spec=spec, specinv=specinv, outcome = 'interaction', betaxz=0.5)
+plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(0.5, 4))
 ```
-
-```{r, sim62plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat and spectralmat
-nested_df <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat))
-spectral_df <- data.frame(Spatial_Scale = 1:25, betahat = colMeans(spectralmat))
-
-# Plot for nestedmat
-plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Nested') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Plot for spectralmat
-plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betahat)) +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('betahat') +
-  ggtitle('Spectral') +
-  ylim(0.5, 3) +
-  theme_minimal() +
-  theme(legend.position = 'topright') +
-  geom_hline(yintercept = 2, color = 'red') +
-  guides(color = FALSE)
-
-# Arrange and center the plots
-combined_plots <- grid.arrange(plot_nested, plot_spectral, nrow = 1)
-
-# Display the combined and centered plots
-combined_plots
-
-```
-
 
