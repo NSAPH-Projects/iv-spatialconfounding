@@ -423,8 +423,7 @@ plotfunc = function(n=5,
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = hline, color = 'red') +
-    guides(color = FALSE)
+    geom_hline(yintercept = hline, color = 'red')
   
   # Plot for spectralmat
   plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
@@ -435,8 +434,7 @@ plotfunc = function(n=5,
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = hline, color = 'red') +
-    guides(color = FALSE)
+    geom_hline(yintercept = hline, color = 'red')
   
   # Arrange and center the plots
   combined_plots = grid.arrange(plot_nested, plot_spectral, nrow = 1)
