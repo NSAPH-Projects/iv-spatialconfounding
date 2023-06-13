@@ -35,13 +35,13 @@ set.seed(2)
 Denote $X$ as exposure $X$, $Z$ as unmeasured confounder, and $Y$ as outcome. 
 We simulate the following scenario 100 times. Across $n_1 = 25$ $5 \times 5$ grids, which we refer to as states,
 \begin{align*}
-X_{1,s} &\sim \text{Exp}(1)\\
-Z_{1,s} &\sim 0.9X_2 + \sqrt{1-0.9^2}\text{Exp}(1)
+X_{1,s} &\sim \text{Exp}(1)-1\\
+Z_{1,s} &\sim 0.9X_2 + \sqrt{1-0.9^2}(\text{Exp}(1)-1)
 \end{align*}
 for $s = 1, \ldots, n_1 = 25$. Across $n_2 = 625$ $1 \times 1$ grids, which we refer to as counties, let 
 \begin{align*}
-X_{2,i} &\sim \text{Exp}(1)\\
-Z_{2,i} &\sim 0.001X_2 + \sqrt{1-0.001^2}\text{Exp}(1)
+X_{2,i} &\sim \text{Exp}(1)-1\\
+Z_{2,i} &\sim 0.001X_2 + \sqrt{1-0.001^2}(\text{Exp}(1)-1)
 \end{align*}
 and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots, n_2 = 625$. By construction, $X,Z$ are nearly uncorrelated within the states of $5 \times 5$, but correlated across states. (Note that this DGM exactly follows the nested decomposition.) We let $Y_i = 2X_i -Z_i + \epsilon$ where $\epsilon_i \sim \mathcal{N}(0,1)$ independently across $i$.
 
@@ -92,8 +92,8 @@ combinedplots
 # Simulation 2: Spectral DGM
 We repeat simulation 1 but now the data-generating model originates from the spectral decomposition rather than the nested. In particular, we use the graph Fourier transform to project $X$ and $Z$ into the spectral domain. In the spectral domain, 
 \begin{align*}
-X^*_i &\sim \text{Exp}(1)\\
-Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}\text{Exp}(1)
+X^*_i &\sim \text{Exp}(1)-1\\
+Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}(\text{Exp}(1)-1)
 \end{align*}
 for $i=1, \ldots, 625$ where $\rho_i = 0, 1/624, 2/624, \ldots, 1$. So the covariance between $X$ and $Z$ goes to $0$ for smaller $i$, which corresponds to larger eigenvalues $\omega$ of the graph Laplacian, or smaller spatial scales. 
 
@@ -190,13 +190,13 @@ Let's go back to using the Exponential DGM. We repeat simulations 1 and 2 but no
 
 For the nested DGM, this means
 \begin{align*}
-X_{1,s} &\sim \text{Exp}(1)\\
-Z_{1,s} &\sim 0.001X_2 + \sqrt{1-0.001^2}\text{Exp}(1)
+X_{1,s} &\sim \text{Exp}(1)-1\\
+Z_{1,s} &\sim 0.001X_2 + \sqrt{1-0.001^2}(\text{Exp}(1)-1)
 \end{align*}
 for each $5 \times 5$ state, $s = 1, \ldots, n_1 = 25$. Across $n_2 = 625$ counties of $1 \times 1$ grids, let 
 \begin{align*}
-X_{2,i} &\sim \text{Exp}(1)\\
-Z_{2,i} &\sim 0.9X_2 + \sqrt{1-0.9^2}\text{Exp}(1)
+X_{2,i} &\sim \text{Exp}(1)-1\\
+Z_{2,i} &\sim 0.9X_2 + \sqrt{1-0.9^2}(\text{Exp}(1)-1)
 \end{align*}
 and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots, n_2 = 625$. By construction, $X,Z$ are nearly uncorrelated across the states of $5 \times 5$, but correlated within states. 
 
@@ -207,8 +207,8 @@ plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 
 For the spectral DGM, 
 \begin{align*}
-X^*_i &\sim \text{Exp}(1)\\
-Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}\text{Exp}(1)
+X^*_i &\sim \text{Exp}(1)-1\\
+Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}(\text{Exp}(1)-1)
 \end{align*}
 for $i=1, \ldots, 625$ where $\rho_i = 1, 623/624, 622/624, \ldots, 0$. 
 

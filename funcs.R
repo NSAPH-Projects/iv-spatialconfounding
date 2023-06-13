@@ -53,7 +53,8 @@ sim = function(n,
                decomposition = c('spectral', 'nested'), # data generating
                distribution = 'exponential', # distribution of X,
                truncate = NULL, # after this spatial level Z will not vary
-               quiet = F
+               quiet = F,
+               spec = NULL
                ){
   decomp = match.arg(decomposition)
   outcome = match.arg(outcome)
@@ -97,7 +98,7 @@ sim = function(n,
           Xi = rnorm(n^(2*i), mean = 0, sd = 1)
         }
         if (distribution == 'exponential'){
-          Xi = rexp(n^(2*i))
+          Xi = rexp(n^(2*i))-1
         }
         Zi = rep(0, n^(2*i)) 
       }
@@ -110,8 +111,8 @@ sim = function(n,
           Zi = xz[,2]
         }
         if (distribution == 'exponential'){
-          Xi = rexp(n^(2*i))
-          Zi = rhox[i]*Xi + sqrt(1-rhox[i]^2)*rexp(n^(2*i))
+          Xi = rexp(n^(2*i))-1
+          Zi = rhox[i]*Xi + sqrt(1-rhox[i]^2)*(rexp(n^(2*i))-1)
         }
       }
       X = X + rep(Xi,each = n^(2*(l-i)))
@@ -135,7 +136,7 @@ sim = function(n,
             Xstar[i] = rnorm(1, mean = 0, sd = 1)
           }
           if (distribution == 'exponential'){
-            Xstar[i] = rexp(1)
+            Xstar[i] = rexp(1)-1
           }
           Zstar[i] = 0
         }
@@ -149,8 +150,8 @@ sim = function(n,
       }
     }
     if (distribution == 'exponential'){
-      Xstar = rexp(n^(2*l))
-      Zstar = rhox*Xstar + sqrt(1-rhox^2)*rexp(n^(2*l))
+      Xstar = rexp(n^(2*l))-1
+      Zstar = rhox*Xstar + sqrt(1-rhox^2)*(rexp(n^(2*l))-1)
     }
     # Project into spatial domain
     if (is.null(spec)){
@@ -357,7 +358,8 @@ simfunc = function(nsims=100,
                  truncate = truncate,
                  quiet = quiet,
                  distribution = distribution,
-                 betaxz=betaxz)
+                 betaxz=betaxz,
+                 spec = spec)
     if (objective == 'analysis'){
       nestedmat[num,] = analysis(n = n, 
                                  A = outsim$A, 
