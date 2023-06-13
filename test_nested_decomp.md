@@ -10,26 +10,36 @@ source("funcs.R")
 ``` r
 # Create a group matrix
 L <- 4
-n <- 128
-g <- matrix(0, nrow = n, ncol = L + 1)
+n <- 32
+g <- matrix(0, nrow = n, ncol = L)
 for (j in 1:(L - 1)) {
-    g[, j] <- (0:(n - 1)) %/% (n %/% 2^j)
+    g[, j] <- 1 + (0:(n - 1)) %/% (n %/% 2^j)
 }
 g[ ,L] <- 1:n
-head(g)
+head(g, 16)
 ```
 
-    ##      [,1] [,2] [,3] [,4] [,5]
-    ## [1,]    0    0    0    1    0
-    ## [2,]    0    0    0    2    0
-    ## [3,]    0    0    0    3    0
-    ## [4,]    0    0    0    4    0
-    ## [5,]    0    0    0    5    0
-    ## [6,]    0    0    0    6    0
+    ##       [,1] [,2] [,3] [,4]
+    ##  [1,]    1    1    1    1
+    ##  [2,]    1    1    1    2
+    ##  [3,]    1    1    1    3
+    ##  [4,]    1    1    1    4
+    ##  [5,]    1    1    2    5
+    ##  [6,]    1    1    2    6
+    ##  [7,]    1    1    2    7
+    ##  [8,]    1    1    2    8
+    ##  [9,]    1    2    3    9
+    ## [10,]    1    2    3   10
+    ## [11,]    1    2    3   11
+    ## [12,]    1    2    3   12
+    ## [13,]    1    2    4   13
+    ## [14,]    1    2    4   14
+    ## [15,]    1    2    4   15
+    ## [16,]    1    2    4   16
 
 Obtain two lists. The first one contains the projection matrices
-$\{P_j\}_{j=1}^L$ and the second one contains the decomposition matrices
-$\{A_j\}_{j=1}^L$.
+$(P_j)_{j=1}^L$ and the second one contains the decomposition matrices
+$(A_j)_{j=1}^L$.
 
 ``` r
 res <- nested_decomp(g)
@@ -60,22 +70,22 @@ head(x_averaged, 16)
 ```
 
     ##       [,1] [,2] [,3] [,4]
-    ##  [1,] 32.5 16.5  8.5    1
-    ##  [2,] 32.5 16.5  8.5    2
-    ##  [3,] 32.5 16.5  8.5    3
-    ##  [4,] 32.5 16.5  8.5    4
-    ##  [5,] 32.5 16.5  8.5    5
-    ##  [6,] 32.5 16.5  8.5    6
-    ##  [7,] 32.5 16.5  8.5    7
-    ##  [8,] 32.5 16.5  8.5    8
-    ##  [9,] 32.5 16.5  8.5    9
-    ## [10,] 32.5 16.5  8.5   10
-    ## [11,] 32.5 16.5  8.5   11
-    ## [12,] 32.5 16.5  8.5   12
-    ## [13,] 32.5 16.5  8.5   13
-    ## [14,] 32.5 16.5  8.5   14
-    ## [15,] 32.5 16.5  8.5   15
-    ## [16,] 32.5 16.5  8.5   16
+    ##  [1,]  8.5  4.5  2.5    1
+    ##  [2,]  8.5  4.5  2.5    2
+    ##  [3,]  8.5  4.5  2.5    3
+    ##  [4,]  8.5  4.5  2.5    4
+    ##  [5,]  8.5  4.5  6.5    5
+    ##  [6,]  8.5  4.5  6.5    6
+    ##  [7,]  8.5  4.5  6.5    7
+    ##  [8,]  8.5  4.5  6.5    8
+    ##  [9,]  8.5 12.5 10.5    9
+    ## [10,]  8.5 12.5 10.5   10
+    ## [11,]  8.5 12.5 10.5   11
+    ## [12,]  8.5 12.5 10.5   12
+    ## [13,]  8.5 12.5 14.5   13
+    ## [14,]  8.5 12.5 14.5   14
+    ## [15,]  8.5 12.5 14.5   15
+    ## [16,]  8.5 12.5 14.5   16
 
 Verify the orthogonality.
 
@@ -95,12 +105,6 @@ Verify the reconstruction.
 rowSums(x_orth) == x
 ```
 
-    ##   [1] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ##  [16] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ##  [31] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ##  [46] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ##  [61] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ##  [76] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ##  [91] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ## [106] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
-    ## [121] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+    ##  [1] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+    ## [16] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+    ## [31] TRUE TRUE

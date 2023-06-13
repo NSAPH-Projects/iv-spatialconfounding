@@ -14,16 +14,16 @@ source("funcs.R")
 ```{r}
 # Create a group matrix
 L <- 4
-n <- 128
-g <- matrix(0, nrow = n, ncol = L + 1)
+n <- 32
+g <- matrix(0, nrow = n, ncol = L)
 for (j in 1:(L - 1)) {
-    g[, j] <- (0:(n - 1)) %/% (n %/% 2^j)
+    g[, j] <- 1 + (0:(n - 1)) %/% (n %/% 2^j)
 }
 g[ ,L] <- 1:n
-head(g)
+head(g, 16)
 ```
 
-Obtain two lists. The first one contains the projection matrices $\{P_j\}_{j=1}^L$ and the second one contains the decomposition matrices $\{A_j\}_{j=1}^L$.
+Obtain two lists. The first one contains the projection matrices $(P_j)_{j=1}^L$ and the second one contains the decomposition matrices $(A_j)_{j=1}^L$.
 
 ```{r}
 res <- nested_decomp(g)
