@@ -10,24 +10,24 @@ nested_decomp <- function(groups) {
   # TODO: currently using dense format
   #   but this is inefficient, more efficient to perform
   #   the decompositions by recursive groupby/tapply ops
-  projmats <- list()
-  orthmats <- list()
+  proj_mats <- list()
+  decomp_mats <- list()
   for (l in 1:L) {
     P_l <- matrix(0, n, n)
     for (group in unique(groups[, l])) {
       ix <- which(groups[, l] == group)
       P_l[ix, ix] <- 1 / length(ix)
     }
-    projmats[[l]] <- P_l
+    proj_mats[[l]] <- P_l
     if (l > 1) {
-      orthmats[[l]] <- P_l - projmats[[l - 1]]
+      decomp_mats[[l]] <- P_l - proj_mats[[l - 1]]
     } else {
-      orthmats[[l]] <- P_l
+      decomp_mats[[l]] <- P_l
     }
   }
   return(list(
-    proj_mats = projmats,
-    decomp_mats = orthmats
+    proj_mats = proj_mats,
+    decomp_mats = decomp_mats
   ))
 }
 
