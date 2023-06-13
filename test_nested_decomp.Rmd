@@ -2,8 +2,9 @@
 title: "Decompositions"
 author: "Mauricio Tec"
 date: '2023-06-08'
-output: github_document
-# keep_md: true
+output:
+    github_document:
+        html_preview: false
 ---
 
 ```{r, warning=FALSE, message=FALSE}
