@@ -57,7 +57,8 @@ sim = function(n,
                decomposition = c('spectral', 'nested'), # data generating
                distribution = 'exponential', # distribution of X,
                truncate = NULL, # after this spatial level Z will not vary
-               quiet = F
+               quiet = F,
+               specinv = NULL
                ){
   decomp = match.arg(decomposition)
   outcome = match.arg(outcome)
@@ -157,9 +158,11 @@ sim = function(n,
       Zstar = rhox*Xstar + sqrt(1-rhox^2)*rexp(n^(2*l))
     }
     # Project into spatial domain
-    spec = spectral_decomp(A,inv=T)
-    df$X = spec %*% Xstar # n^4 length vector
-    df$Z = spec %*% Zstar
+    if (is.null(specinv)){
+      specinv = spectral_decomp(A,inv=T)
+    }
+    df$X = specinv %*% Xstar # n^4 length vector
+    df$Z = specinv %*% Zstar
   }
   # Simulate the outcome
   if (!quiet){
@@ -195,16 +198,22 @@ analysis = function(n, # subgroups in a group
                     groups, # nested group
                     decomposition = c('spectral', 'nested'),
                     outcome = 'linear',
-                    quiet = F
+                    quiet = F,
+                    nest = NULL,
+                    spec = NULL,
+                    return_decomps = F
                     ){
   decomposition = match.arg(decomposition)
   l = ncol(groups) + 1
   if (decomposition == 'nested'){
     # Regress Y on X at each level
-    if (!quiet){
-      print('Perform decomposition')
+    
+    if (is.null(nest)){
+      if (!quiet){
+        print('Perform decomposition')
+      }
+      nest = nested_decomp(groups)
     }
-    nest = nested_decomp(groups)
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
     if (!quiet){
@@ -230,12 +239,17 @@ analysis = function(n, # subgroups in a group
     if (outcome == 'quadratic'){
       betas = betas[,ncol(betas):1]
     }
+    if (return_decomps){
+      return(list('betas' = betas, 'nest' = nest))
+    }
   }
   if (decomposition == 'spectral'){
-    if (!quiet){
-      print('Perform decomposition')
+    if (is.null(spec)){
+      if (!quiet){
+        print('Perform decomposition')
+      }
+      spec = spectral_decomp(A)
     }
-    spec = spectral_decomp(A)
     Xstar = spec %*% X
     Ystar = spec %*% Y
     # TO DO: WHAT IS THE BEST WAY TO Do THIS??
@@ -256,6 +270,10 @@ analysis = function(n, # subgroups in a group
         betas = cbind(betas, model$coefficients[2:3])
       }
     }
+    if (return_decomps){
+      specinv = spectral_decomp(A, inv = T)
+      return(list('betas' = betas, 'spec' = spec, 'specinv' = specinv))
+    }
   }
   return(betas)
 }
@@ -266,16 +284,21 @@ coherence = function(n, # subgroups in a group
                     Z, # confounder
                     groups, # nested group
                     decomposition = c('spectral', 'nested'),
-                    quiet = F
+                    quiet = F,
+                    nest = NULL,
+                    spec = NULL
   ){
   decomposition = match.arg(decomposition)
   l = ncol(groups) + 1
   if (decomposition == 'nested'){
     # Regress Y on X at each level
-    if (!quiet){
-      print('Perform decomposition')
+    if (is.null(nest)){
+      if (!quiet){
+        print('Perform decomposition')
+      }
+      nest = nested_decomp(groups)
     }
-    nest = nested_decomp(groups)
+    
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
     if (!quiet){
@@ -290,10 +313,12 @@ coherence = function(n, # subgroups in a group
     cors = rev(cors)
   }
   if (decomposition == 'spectral'){
-    if (!quiet){
-      print('Perform decomposition')
+    if (is.null(spec)){
+      if (!quiet){
+        print('Perform decomposition')
+      }
+      spec = spectral_decomp(A)
     }
-    spec = spectral_decomp(A)
     Xstar = spec %*% X
     Zstar = spec %*% Z
     # TO DO: WHAT IS THE BEST WAY TO Do THIS??
