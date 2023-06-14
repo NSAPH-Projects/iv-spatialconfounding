@@ -200,7 +200,8 @@ analysis = function(n, # subgroups in a group
                     quiet = F,
                     nest = NULL,
                     spec = NULL,
-                    return_decomps = F
+                    return_decomps = F,
+                    spectralmethod = 'bin'
                     ){
   decomposition = match.arg(decomposition)
   l = ncol(groups) + 1
@@ -258,17 +259,37 @@ analysis = function(n, # subgroups in a group
       print('Calculate betahats')
     }
     betas = c()
-    num = n^(2*l-2) # -1
-    for (i in 1:(n^2)){ # n
-      if (outcome == 'linear'){
-        model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)])
-        betas = c(betas, model$coefficients[2])
-      }
-      if (outcome == 'quadratic'){
-        model = lm(Ystar[(num*(i-1)):(num*i)] ~ poly(Xstar[(num*(i-1)):(num*i)], 2))
-        betas = cbind(betas, model$coefficients[2:3])
+    if (spectralmethod == 'bin'){
+      num = n^(2*l-2) # -1
+      for (i in 1:(n^2)){ # n
+        if (outcome == 'linear'){
+          model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)])
+          betas = c(betas, model$coefficients[2])
+        }
+        if (outcome == 'quadratic'){
+          model = lm(Ystar[(num*(i-1)):(num*i)] ~ poly(Xstar[(num*(i-1)):(num*i)], 2))
+          betas = cbind(betas, model$coefficients[2:3])
+        }
       }
     }
+    if (spectralmethod == 'wls'){
+      betas = c()
+      for (i in 1:length(Xstar)){
+        k = 10
+        window = seq(max(1, i-k), min(i+k, length(Xstar)), by = 1)
+        wt = exp(-0.1*abs(window-i))
+        wt = wt/sum(wt)
+        if (outcome == 'linear'){
+          model = lm(Ystar[window]~Xstar[window], weights = wt)
+          betas = c(betas, model$coefficients[2])
+        }
+        if (outcome == 'quadratic'){
+          model = lm(Ystar[window]~poly(Xstar[window],2),weights = wt)
+          betas = cbind(betas, model$coefficients[2:3])
+        }
+      }
+    }
+    
     if (return_decomps){
       return(list('betas' = betas, 'spec' = spec))
     }
@@ -284,7 +305,8 @@ coherence = function(n, # subgroups in a group
                     decomposition = c('spectral', 'nested'),
                     quiet = F,
                     nest = NULL,
-                    spec = NULL
+                    spec = NULL,
+                    spectralmethod = 'bin'
   ){
   decomposition = match.arg(decomposition)
   l = ncol(groups) + 1
@@ -319,17 +341,28 @@ coherence = function(n, # subgroups in a group
     }
     Xstar = spec %*% X
     Zstar = spec %*% Z
-    # TO DO: WHAT IS THE BEST WAY TO Do THIS??
-    # For now just split up the spectral r.v.s into discrete scales
-    # so that I have multiple observations per scale...
     if (!quiet){
       print('Calculate correlations')
     }
-    cors = c()
-    num = n^(2*l-2) # -1
-    for (i in 1:(n^2)){ # n
-      cors = c(cors, cor(Zstar[(num*(i-1)):(num*i)],Xstar[(num*(i-1)):(num*i)]))
+    if (spectralmethod == 'bin'){
+      cors = c()
+      num = n^(2*l-2) # -1
+      for (i in 1:(n^2)){ # n
+        cors = c(cors, cor(Zstar[(num*(i-1)):(num*i)],Xstar[(num*(i-1)):(num*i)]))
+      }
     }
+    if (spectralmethod == 'wls'){
+      # TO DO
+      cors = c()
+      k = 10
+      for (i in 1:length(Xstar)){
+        window = seq(max(1, i-k), min(i+k, length(Xstar)), by = 1)
+        wt = exp(-0.1*abs(window-i))
+        wt = wt/sum(wt)
+        cors = c(cors, cov.wt(cbind(Xstar[window],Zstar[window]),wt=wt,cor = T)$cov[1,2])
+      }
+    }
+    
   }
   return(cors)
 }
@@ -346,10 +379,16 @@ simfunc = function(nsims=100,
                    spec=NULL, # assume given
                    truncate=NULL,
                    distribution='exponential',
-                   betaxz=0
+                   betaxz=0,
+                   spectralmethod = 'bin'
                    ){
   nestedmat = matrix(NA, nrow = nsims, ncol = l)
-  spectralmat = matrix(NA, nrow = nsims, ncol = n^2)
+  if (spectralmethod == 'bin'){
+    spectralmat = matrix(NA, nrow = nsims, ncol = n^2)
+  }
+  if (spectralmethod == 'wls'){
+    spectralmat = matrix(NA, nrow = nsims, ncol = n^(2*l))
+  }
   for (num in 1:nsims){
     outsim = sim(n = n, 
                  outcome = outcome, 
@@ -376,7 +415,8 @@ simfunc = function(nsims=100,
                                    groups = outsim$groups,
                                    decomposition = 'spectral', 
                                    quiet = quiet, 
-                                   spec = spec)
+                                   spec = spec,
+                                   spectralmethod = spectralmethod)
     }
     if (objective == 'coherence'){
       nestedmat[num,] = coherence(n = n, 
@@ -392,7 +432,8 @@ simfunc = function(nsims=100,
                                     Z = outsim$Z, 
                                     groups = outsim$groups,
                                     decomposition = 'spectral', 
-                                    quiet = quiet, spec = spec)
+                                    quiet = quiet, spec = spec,
+                                    spectralmethod = spectralmethod)
     }
   }
   return(list('nestedmat' = nestedmat, 'spectralmat' = spectralmat))
@@ -408,10 +449,8 @@ plotfunc = function(n=5,
                     ylim = c(0.5,3),
                     col='blue'
                     ){
-  stopifnot(ncol(nestedmat) == l)
-  stopifnot(ncol(spectralmat) == n^2)
-  nested_df <- data.frame(Spatial_Scale = 1:l, cors = colMeans(nestedmat))
-  spectral_df <- data.frame(Spatial_Scale = 1:(n^2), cors = colMeans(spectralmat))
+  nested_df <- data.frame(Spatial_Scale = 1:ncol(nestedmat), cors = colMeans(nestedmat))
+  spectral_df <- data.frame(Spatial_Scale = 1:ncol(spectralmat), cors = colMeans(spectralmat))
   
   # Plot for nestedmat
   plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = cors)) +
@@ -423,7 +462,7 @@ plotfunc = function(n=5,
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = hline, color = 'red')
+    geom_hline(yintercept = hline, color = 'red', linetype = "dashed")
   
   # Plot for spectralmat
   plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
@@ -434,7 +473,7 @@ plotfunc = function(n=5,
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = hline, color = 'red')
+    geom_hline(yintercept = hline, color = 'red', linetype = "dashed")
   
   # Arrange and center the plots
   combined_plots = grid.arrange(plot_nested, plot_spectral, nrow = 1)
