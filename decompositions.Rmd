@@ -112,7 +112,7 @@ plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
 
 We observe less bias.
 
-# Simulation 3: Covariance by Spatial Scale
+# Simulation 3: Correlation by Spatial Scale
 Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 1 (nested decomposition, $\rho = (0.001,0.9)$).
 
 ```{r, sim31, cache = T, echo = F, message = F, results = 'hide', warning = F}
@@ -122,7 +122,7 @@ plotfunc(nestedmat = out$nestedmat,
                      spectralmat = out$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
-                     ylim=c(-1,1),
+                     ylim=c(-1.1,1.1),
                      col='green')
 ```
 
@@ -135,7 +135,7 @@ plotfunc(nestedmat = out$nestedmat,
                      spectralmat = out$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
-                     ylim=c(-1,1),
+                     ylim=c(-1.1,1.1),
                      col='green')
 ```
 
@@ -149,7 +149,7 @@ plotfunc(nestedmat = out$nestedmat,
                      spectralmat = out$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
-                     ylim=c(-1,1),
+                     ylim=c(-1.1,1.1),
                      col='green')
 ```
 
@@ -162,7 +162,7 @@ plotfunc(nestedmat = out$nestedmat,
                      spectralmat = out$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
-                     ylim=c(-1,1),
+                     ylim=c(-1.1,1.1),
                      col='green')
 ```
 
@@ -212,6 +212,8 @@ out = simfunc(rhox=c(0.9, 0.001), dgm='nested', nest=nest,
 plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(-0.5, 4))
 ```
 
+The bias of the estimates is worse at higher scales but still zero bias at low scales.
+
 **Spectral DGM**
 
 ```{r, sim52, cache = T, echo = F, message = F, results = 'hide', warning = F}
@@ -219,6 +221,8 @@ out = simfunc(rhox=seq(0,1, by = 1/(5^4-1)), dgm='spectral', nest=nest,
               spec=spec, outcome = 'interaction', betaxz=-1,spectralmethod = 'wls')
 plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(-0.5, 4))
 ```
+
+The bias of the estimates is the same as the results without an interaction... CHECK THIS
 
 \newpage
 # Simulation 6: Nonlinear Outcome Model
@@ -284,7 +288,7 @@ plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Nested: Linear Term') +
   ylim(-1, max(colMeans(nestedmat1))) +
   theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
+  geom_hline(yintercept = 2, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Plot for spectralmat1
@@ -295,7 +299,7 @@ plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Spectral: Linear Term') +
   ylim(-1, max(colMeans(spectralmat1))) +
   theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
+  geom_hline(yintercept = 2, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Plot for nestedmat2
@@ -307,7 +311,7 @@ plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Nested: Quadratic Term') +
   ylim(-1, max(colMeans(nestedmat2))) +
   theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = 1, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Plot for spectralmat2
@@ -318,7 +322,7 @@ plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Spectral: Quadratic Term') +
   ylim(-1, 1.5) +
   theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = 1, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Arrange the plots
@@ -390,7 +394,7 @@ plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Nested: Linear Term') +
   ylim(-1, max(colMeans(nestedmat1))) +
   theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
+  geom_hline(yintercept = 2, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Plot for spectralmat1
@@ -401,7 +405,7 @@ plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Spectral: Linear Term') +
   ylim(-1, max(colMeans(spectralmat1))) +
   theme_minimal() +
-  geom_hline(yintercept = 2, color = 'red') +
+  geom_hline(yintercept = 2, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Plot for nestedmat2
@@ -413,7 +417,7 @@ plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Nested: Quadratic Term') +
   ylim(-1, max(colMeans(nestedmat2))) +
   theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = 1, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Plot for spectralmat2
@@ -424,7 +428,7 @@ plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat)) +
   ggtitle('Spectral: Quadratic Term') +
   ylim(-1, 1.5) +
   theme_minimal() +
-  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = 1, color = 'red', linetype = 'dashed') +
   guides(color = FALSE)
 
 # Arrange the plots
