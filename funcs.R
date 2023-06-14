@@ -228,7 +228,7 @@ analysis = function(n, # subgroups in a group
         betas = c(betas,modeli$coefficients[2])
       }
       if (outcome == 'quadratic'){
-        modeli = lm(Yi~ poly(Xi,degree = 2))
+        modeli = lm(Yi~ Xi + I(Xi^2))
         betas = cbind(betas, modeli$coefficients[2:3])
       }
     }
@@ -267,7 +267,7 @@ analysis = function(n, # subgroups in a group
           betas = c(betas, model$coefficients[2])
         }
         if (outcome == 'quadratic'){
-          model = lm(Ystar[(num*(i-1)):(num*i)] ~ poly(Xstar[(num*(i-1)):(num*i)], 2))
+          model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)] + I(Xstar[(num*(i-1)):(num*i)]^2))
           betas = cbind(betas, model$coefficients[2:3])
         }
       }
@@ -284,7 +284,7 @@ analysis = function(n, # subgroups in a group
           betas = c(betas, model$coefficients[2])
         }
         if (outcome == 'quadratic'){
-          model = lm(Ystar[window]~poly(Xstar[window],2),weights = wt)
+          model = lm(Ystar[window]~Xstar[window] + I(Xstar[window]^2),weights = wt)
           betas = cbind(betas, model$coefficients[2:3])
         }
       }
@@ -359,7 +359,7 @@ coherence = function(n, # subgroups in a group
         window = seq(max(1, i-k), min(i+k, length(Xstar)), by = 1)
         wt = exp(-0.1*abs(window-i))
         wt = wt/sum(wt)
-        cors = c(cors, cov.wt(cbind(Xstar[window],Zstar[window]),wt=wt,cor = T)$cov[1,2])
+        cors = c(cors, cov.wt(cbind(Xstar[window],Zstar[window]),wt=wt,cor = T)$cor[1,2])
       }
     }
     
@@ -444,16 +444,19 @@ plotfunc = function(n=5,
                     l=2,
                     nestedmat,
                     spectralmat,
-                    ylab = 'betahat',
+                    ylab = 'bias',
                     hline = 2,
-                    ylim = c(0.5,3),
+                    ylim = c(-2,2),
                     col='blue'
                     ){
-  nested_df <- data.frame(Spatial_Scale = 1:ncol(nestedmat), cors = colMeans(nestedmat))
-  spectral_df <- data.frame(Spatial_Scale = 1:ncol(spectralmat), cors = colMeans(spectralmat))
+  nested_df <- data.frame(Spatial_Scale = 1:ncol(nestedmat), betas = colMeans(nestedmat))
+  spectral_df <- data.frame(Spatial_Scale = 1:ncol(spectralmat), betas = colMeans(spectralmat))
   
   # Plot for nestedmat
-  plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = cors)) +
+  plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betas-hline)) + 
+    geom_ribbon(aes(ymin = apply(nestedmat, 2, quantile, probs = 0.025)-hline, 
+                    ymax = apply(nestedmat, 2, quantile, probs = 0.975)-hline), 
+                fill = "lightblue") +
     geom_line(color = col) +
     geom_point(color = col) +
     xlab('Spatial Scale') +
@@ -462,10 +465,13 @@ plotfunc = function(n=5,
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = hline, color = 'red', linetype = "dashed")
+    geom_hline(yintercept = 0, color = 'red', linetype = "dashed")
   
   # Plot for spectralmat
-  plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = cors)) +
+  plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betas-hline)) + 
+    geom_ribbon(aes(ymin = apply(spectralmat, 2, quantile, probs = 0.025)-hline, 
+                    ymax = apply(spectralmat, 2, quantile, probs = 0.975)-hline), 
+                fill = "lightblue") +
     geom_line(color = col) +
     xlab('Spatial Scale') +
     ylab(ylab) +
@@ -473,7 +479,7 @@ plotfunc = function(n=5,
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = hline, color = 'red', linetype = "dashed")
+    geom_hline(yintercept = 0, color = 'red', linetype = "dashed")
   
   # Arrange and center the plots
   combined_plots = grid.arrange(plot_nested, plot_spectral, nrow = 1)
