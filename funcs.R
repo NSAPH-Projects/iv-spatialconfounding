@@ -1,6 +1,9 @@
 library(MASS)
 library(stringr)
 library(igraph)
+library(ggplot2)
+library(gridExtra)
+
 
 nested_decomp_mats <- function(groups, append_identity = TRUE) {
   if (!is.matrix(groups)) {
@@ -364,8 +367,8 @@ coherence = function(n, # subgroups in a group
     }
     cors = c() # CHANGED from rep(NA,)
     for (i in 1:l){ 
-      Xi = nest[[i]] %*% X
-      Zi = nest[[i]] %*% Z
+      Xi = nest$decomp_mats[[i]] %*% X
+      Zi = nest$decomp_mats[[i]] %*% Z
       cors = c(cors,cor(Xi,Zi))
     }
     cors = rev(cors)
