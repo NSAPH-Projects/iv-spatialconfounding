@@ -2,7 +2,13 @@ library(MASS)
 library(stringr)
 library(igraph)
 
-nested_decomp_mats <- function(groups) {
+nested_decomp_mats <- function(groups, append_identity = TRUE) {
+  if (!is.matrix(groups)) {
+    groups = as.matrix(groups, ncol = 1)
+  }
+  if (append_identity) {
+    groups <- cbind(groups, 1:nrow(groups))
+  }
   n <- nrow(groups)
   L <- ncol(groups)
 
@@ -36,78 +42,80 @@ nested_decomp <- function(x, groups) {
   L <- ncol(groups)
   # first compute group averages using t apply
   avs <- matrix(0, n, L)
-  orth <- matrix(0, n, L)
+  decomp <- matrix(0, n, L)
   for (l in 1:L) {
     avs[ ,l] <- tapply(x, groups[, l], mean)[groups[, l]]
     if (l == 1) {
-      orth[ ,l] <- avs[ ,l]
+      decomp[ ,l] <- avs[ ,l]
     } else {
-      orth[ ,l] <- avs[ ,l] - avs[ ,l - 1]
+      decomp[ ,l] <- avs[ ,l] - avs[ ,l - 1]
     }
   }
   return(list(
     avs = avs,
-    orth = orth
+    decomp = decomp
   ))
 }
 
-spectral_decomp_mat <- function(A, inv = FALSE) {
-  R <- diag(rowSums(A)) - A # precision of ICAR
+
+spectral_decomp <- function(A, inv = FALSE) {
+  R <- diag(rowSums(A)) - A # graph laplacian (ICAR precision)
   E <- eigen(R) # eigen component
   D <- E$val
   G <- E$vec
+
   if (inv) {
     return(G)
   }
   return(t(G))
 }
 
-spectral_decomp <- function(x, A, inv = FALSE) {
-  R <- diag(rowSums(A)) - A # precision of ICAR
-  E <- eigen(R) # eigen component
-  D <- E$val
-  G <- E$vec
-  rm(E, R)
-  if (inv) {
-    return(G %*% x)
-  }
-  return(tcrossprod(G, x))
-}
-
-
-sim <- function(n,
-                l = 2, # levels of nested decomp
-                betax = 2,
-                betaz = -1,
-                betaxz = 0,
-                sig = 1,
-                rhox = c(0.7, 0.1),
-                outcome = c("linear", "quadratic", "interaction"), # outcome model
-                decomposition = c("spectral", "nested"), # data generating
-                distribution = "gaussian", # TO DO,
-                truncate = NULL # after this spatial level Z will not vary
-) {
-  decomp <- match.arg(decomposition)
-  outcome <- match.arg(outcome)
-
+make_coords_df = function(n, l, quiet=FALSE) {
   # Create coordinates
-  print("Creating coordinates and groups")
-  g <- make_lattice(c(n^l, n^l))
-  coords <- layout_on_grid(g)
-  df <- cbind.data.frame(xcoord = coords[, 1], ycoord = coords[, 2])
-  for (i in 1:(l - 1)) {
-    df[, (i + 2)] <- as.numeric(paste(str_pad((df$xcoord) %/% (n^(l - i)), 2, pad = "0"),
-      str_pad((df$ycoord) %/% (n^(l - i)), 2, pad = "0"),
-      sep = ""
-    ))
+  if (!quiet){
+    print('Creating coordinates and groups')
   }
-  df <- df[order(df[, (l + 1)]), ] # ordering by finest grid level should order by the coarser grids too
+  g = make_lattice(c(n^l,n^l))
+  coords = layout_on_grid(g)
+  df = cbind.data.frame(xcoord = coords[,1], ycoord = coords[,2])
+  for (i in 1:(l-1)){
+    df[,(i+2)] = as.numeric(paste(str_pad((df$xcoord)%/%(n^(l-i)),2,pad = '0'),
+                                  str_pad((df$ycoord)%/%(n^(l-i)),2,pad = '0'),
+                                  sep = ''))
+  }
+  df = df[order(df[,(l+1)]),] # ordering by finest grid level should order by the coarser grids too
 
   # Create adjacency matrix
   if (!quiet){
     print('Creating adjacency')
   }
   A = as.matrix(as_adjacency_matrix(g))
+  return (list(
+    df=df,
+    adjacency_mat=A
+  ))
+}
+
+sim = function(n,
+               l=2, # levels of nested decomp
+               betax = 2,
+               betaz = -1,
+               betaxz = 0,
+               sig = 1,
+               rhox = c(0.7,0.1),
+               outcome=c('linear', 'quadratic', 'interaction'), # outcome model
+               decomposition = c('spectral', 'nested'), # data generating
+               distribution = 'exponential', # distribution of X,
+               truncate = NULL, # after this spatial level Z will not vary
+               quiet = F,
+               spec = NULL
+               ){
+  decomp = match.arg(decomposition)
+  outcome = match.arg(outcome)
+
+  lattice = make_coords_df(n, l, quiet = quiet)
+  df = lattice$df
+  A = lattice$adjacency_mat
   
   # Simulate X and Z
   if (!quiet){
@@ -117,7 +125,7 @@ sim <- function(n,
     if (is.null(truncate)){ # arg for stopping variation in Z after certain spatial scale
       truncate = l
     }
-    stopifnot(length(rhox) >= min(l, truncate))
+    stopifnot(length(rhox)>=min(l,truncate))
     # there must be a faster way to do this
     X = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
     Z = rep(0, n^(2*l))#matrix(NA, ncol = l, nrow = n^(2*l))
@@ -148,13 +156,13 @@ sim <- function(n,
       X = X + rep(Xi,each = n^(2*(l-i)))
       Z = Z + rep(Zi, each = n^(2*(l-i)))
     }
-    df$X <- X
-    df$Z <- Z
+    df$X = X
+    df$Z = Z
   }
-
-  if (decomp == "spectral") {
-    if (is.null(truncate)) { # arg for stopping variation in Z after certain spatial scale
-      truncate <- n^(2 * l)
+  
+  if (decomp == 'spectral'){
+    if (is.null(truncate)){ # arg for stopping variation in Z after certain spatial scale
+      truncate = n^(2*l)
     }
     stopifnot(length(rhox)>=min(n^(2*l), truncate))
     Xstar = rep(NA, n^(2*l))
@@ -201,26 +209,23 @@ sim <- function(n,
     df$Y = betax*df$X + betaz*df$Z + rnorm(length(df$X), mean = 0, 
                                   sd = sig)
   }
-  if (outcome == "quadratic") {
-    stopifnot(length(betax) >= 2)
-    df$Y <- betax[1] * df$X + betax[2] * df$X^2 + betaz * df$Z + rnorm(length(df$X),
-      mean = 0,
-      sd = sig
-    )
+  if (outcome == 'quadratic'){
+    stopifnot(length(betax)>=2)
+    df$Y = betax[1]*df$X + betax[2]*df$X^2 + betaz*df$Z + rnorm(length(df$X), mean = 0, 
+                                                    sd = sig)
   }
-  if (outcome == "interaction") {
-    df$Y <- betax * df$X + betaz * df$Z + betaxz * df$X * df$Z + rnorm(length(df$X),
-      mean = 0, sd = sig
-    )
+  if (outcome == 'interaction'){
+    df$Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(length(df$X), 
+                                                           mean = 0, sd = sig)
   }
   return(list(
-    "coord" = cbind(df$xcoord, df$ycoord),
-    "A" = A, # adjacency mat
-    "X" = df$X, # exposure
-    "Y" = df$Y, # outcome
-    "Z" = df$Z, # confounder
-    "groups" = as.matrix(df[, 3:(l + 1)], nrow = nrow(df), ncol = ncol(df[, 3:(l + 1)])) # nested group
-  ))
+    'coord' = cbind(df$xcoord, df$ycoord),
+    'A'=A,#adjacency mat
+    'X'=df$X,#exposure
+    'Y'=df$Y,#outcome
+    'Z'=df$Z, #confounder
+    'groups' = as.matrix(df[,3:(l+1)], nrow = nrow(df), ncol = ncol(df[,3:(l+1)])) #nested group
+    ))
 }
 
 analysis = function(n, # subgroups in a group
@@ -245,7 +250,7 @@ analysis = function(n, # subgroups in a group
       if (!quiet){
         print('Perform decomposition')
       }
-      nest = nested_decomp(groups)
+      nest = nested_decomp_mats(groups)
     }
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
@@ -254,8 +259,8 @@ analysis = function(n, # subgroups in a group
     }
     betas = c() # CHANGED from rep(NA,)
     for (i in 1:l){ 
-      Xi = nest[[i]] %*% X
-      Yi = nest[[i]] %*% Y
+      Xi = nest$decomp_mats[[i]] %*% X
+      Yi = nest$decomp_mats[[i]] %*% Y
       if (outcome == 'linear'){
         modeli = lm(Yi~Xi)
         betas = c(betas,modeli$coefficients[2])
@@ -519,4 +524,3 @@ plotfunc = function(n=5,
   
   return(combined_plots)
 }
-
