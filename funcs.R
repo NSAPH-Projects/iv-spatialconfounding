@@ -2,63 +2,75 @@ library(MASS)
 library(stringr)
 library(igraph)
 
-nested_decomp = function(groups){
-  # Create the decomposition matrices
-  n = nrow(groups)
-  l = ncol(groups) + 1
+nested_decomp_mats <- function(groups, append_identity = TRUE) {
+  if (!is.matrix(groups)) {
+    groups = as.matrix(groups, ncol = 1)
+  }
+  if (append_identity) {
+    groups <- cbind(groups, 1:nrow(groups))
+  }
+  n <- nrow(groups)
+  L <- ncol(groups)
 
-  # create projection matrices
-  projs = list()
-  for (i in 1:(l-1)){
-    nst = as.data.frame(table(groups[,i]))
-    colnames(nst) = c('group', 'frequency')
-    G = matrix(NA, nrow = n, ncol = n)
-    for (j in 1:nrow(G)){
-      st = groups[j,i]
-      stfac  = 1/nst$frequency[nst$group == st]
-      for (k in 1:ncol(G)){
-        G[j,k] = stfac*(st == groups[k,i])
-      }
+  # create averaging matrices
+  # TODO: currently using dense format
+  #   but this is inefficient, more efficient to perform
+  #   the decompositions by recursive groupby/tapply ops
+  proj_mats <- list()
+  decomp_mats <- list()
+  for (l in 1:L) {
+    P_l <- matrix(0, n, n)
+    for (group in unique(groups[, l])) {
+      ix <- which(groups[, l] == group)
+      P_l[ix, ix] <- 1 / length(ix)
     }
-    
-    if (i == 1){
-      projs[[i]] = G
-    }
-    else{
-      projs[[i]] = G-Reduce("+", projs[1:(i-1)]) # sum up the prev As
+    proj_mats[[l]] <- P_l
+    if (l > 1) {
+      decomp_mats[[l]] <- P_l - proj_mats[[l - 1]]
+    } else {
+      decomp_mats[[l]] <- P_l
     }
   }
-  projs[[l]] = diag(n)-Reduce("+", projs[1:(l-1)]) 
-  
-  return(projs)
+  return(list(
+    proj_mats = proj_mats,
+    decomp_mats = decomp_mats
+  ))
 }
 
-spectral_decomp = function(A){
-  R = diag(rowSums(A))-A # precision of ICAR
-  E = eigen(R) # eigen component
-  D = E$val
-  G = E$vec
-  rm(E,R)
+nested_decomp <- function(x, groups) {
+  n <- nrow(groups)
+  L <- ncol(groups)
+  # first compute group averages using t apply
+  avs <- matrix(0, n, L)
+  decomp <- matrix(0, n, L)
+  for (l in 1:L) {
+    avs[ ,l] <- tapply(x, groups[, l], mean)[groups[, l]]
+    if (l == 1) {
+      decomp[ ,l] <- avs[ ,l]
+    } else {
+      decomp[ ,l] <- avs[ ,l] - avs[ ,l - 1]
+    }
+  }
+  return(list(
+    avs = avs,
+    decomp = decomp
+  ))
+}
+
+
+spectral_decomp <- function(A, inv = FALSE) {
+  R <- diag(rowSums(A)) - A # graph laplacian (ICAR precision)
+  E <- eigen(R) # eigen component
+  D <- E$val
+  G <- E$vec
+
+  if (inv) {
+    return(G)
+  }
   return(t(G))
 }
 
-sim = function(n,
-               l=2, # levels of nested decomp
-               betax = 2,
-               betaz = -1,
-               betaxz = 0,
-               sig = 1,
-               rhox = c(0.7,0.1),
-               outcome=c('linear', 'quadratic', 'interaction'), # outcome model
-               decomposition = c('spectral', 'nested'), # data generating
-               distribution = 'exponential', # distribution of X,
-               truncate = NULL, # after this spatial level Z will not vary
-               quiet = F,
-               spec = NULL
-               ){
-  decomp = match.arg(decomposition)
-  outcome = match.arg(outcome)
-
+make_coords_df = function(n, l, quiet=FALSE) {
   # Create coordinates
   if (!quiet){
     print('Creating coordinates and groups')
@@ -78,6 +90,32 @@ sim = function(n,
     print('Creating adjacency')
   }
   A = as.matrix(as_adjacency_matrix(g))
+  return (list(
+    df=df,
+    adjacency_mat=A
+  ))
+}
+
+sim = function(n,
+               l=2, # levels of nested decomp
+               betax = 2,
+               betaz = -1,
+               betaxz = 0,
+               sig = 1,
+               rhox = c(0.7,0.1),
+               outcome=c('linear', 'quadratic', 'interaction'), # outcome model
+               decomposition = c('spectral', 'nested'), # data generating
+               distribution = 'exponential', # distribution of X,
+               truncate = NULL, # after this spatial level Z will not vary
+               quiet = F,
+               spec = NULL
+               ){
+  decomp = match.arg(decomposition)
+  outcome = match.arg(outcome)
+
+  lattice = make_coords_df(n, l, quiet = quiet)
+  df = lattice$df
+  A = lattice$adjacency_mat
   
   # Simulate X and Z
   if (!quiet){
@@ -212,7 +250,7 @@ analysis = function(n, # subgroups in a group
       if (!quiet){
         print('Perform decomposition')
       }
-      nest = nested_decomp(groups)
+      nest = nested_decomp_mats(groups)
     }
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
@@ -221,8 +259,8 @@ analysis = function(n, # subgroups in a group
     }
     betas = c() # CHANGED from rep(NA,)
     for (i in 1:l){ 
-      Xi = nest[[i]] %*% X
-      Yi = nest[[i]] %*% Y
+      Xi = nest$decomp_mats[[i]] %*% X
+      Yi = nest$decomp_mats[[i]] %*% Y
       if (outcome == 'linear'){
         modeli = lm(Yi~Xi)
         betas = c(betas,modeli$coefficients[2])
@@ -486,4 +524,3 @@ plotfunc = function(n=5,
   
   return(combined_plots)
 }
-
