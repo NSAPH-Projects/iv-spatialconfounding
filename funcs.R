@@ -2,7 +2,7 @@ library(MASS)
 library(stringr)
 library(igraph)
 
-nested_decomp <- function(groups) {
+nested_decomp_mats <- function(groups) {
   n <- nrow(groups)
   L <- ncol(groups)
 
@@ -31,18 +31,50 @@ nested_decomp <- function(groups) {
   ))
 }
 
-spectral_decomp <- function(A, inv = F) {
+nested_decomp <- function(x, groups) {
+  n <- nrow(groups)
+  L <- ncol(groups)
+  # first compute group averages using t apply
+  avs <- matrix(0, n, L)
+  orth <- matrix(0, n, L)
+  for (l in 1:L) {
+    avs[ ,l] <- tapply(x, groups[, l], mean)[groups[, l]]
+    if (l == 1) {
+      orth[ ,l] <- avs[ ,l]
+    } else {
+      orth[ ,l] <- avs[ ,l] - avs[ ,l - 1]
+    }
+  }
+  return(list(
+    avs = avs,
+    orth = orth
+  ))
+}
+
+spectral_decomp_mat <- function(A, inv = FALSE) {
   R <- diag(rowSums(A)) - A # precision of ICAR
   E <- eigen(R) # eigen component
   D <- E$val
   G <- E$vec
   rm(E, R)
   if (inv) {
-    invG <- solve(t(G))
-    return(invG)
+    return(G)
   }
   return(t(G))
 }
+
+spectral_decomp <- function(x, A, inv = FALSE) {
+  R <- diag(rowSums(A)) - A # precision of ICAR
+  E <- eigen(R) # eigen component
+  D <- E$val
+  G <- E$vec
+  rm(E, R)
+  if (inv) {
+    return(G %*% x)
+  }
+  return(tcrossprod(G, x))
+}
+
 
 sim <- function(n,
                 l = 2, # levels of nested decomp
@@ -177,7 +209,7 @@ analysis <- function(n, # subgroups in a group
   if (decomposition == "nested") {
     # Regress Y on X at each level
     print("Perform decomposition")
-    nest <- nested_decomp(groups)
+    nest <- nested_decomp_mats(groups)
     # CHECK because many repeated obs to a state
     # but maybe this makes sense since there are more 'counties' so adds weight
     print("Calculate betahats")
