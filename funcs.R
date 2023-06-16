@@ -40,7 +40,13 @@ nested_decomp_mats <- function(groups, append_identity = TRUE) {
   ))
 }
 
-nested_decomp <- function(x, groups) {
+nested_decomp <- function(x, groups, append_identity = TRUE) {
+  if (!is.matrix(groups)) {
+    groups = as.matrix(groups, ncol = 1)
+  }
+  if (append_identity) {
+    groups <- cbind(groups, 1:nrow(groups))
+  }
   n <- nrow(groups)
   L <- ncol(groups)
   # first compute group averages using t apply
