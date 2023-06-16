@@ -123,7 +123,7 @@ plotfunc(nestedmat = out$nestedmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1,1),
-                     col='green')
+                     col='purple')
 ```
 
 Suppose $Z$ doesn't vary at all within states.
@@ -136,7 +136,7 @@ plotfunc(nestedmat = out$nestedmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1,1),
-                     col='green')
+                     col='purple')
 ```
 
 \newpage
@@ -150,7 +150,7 @@ plotfunc(nestedmat = out$nestedmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1.1,1.1),
-                     col='green')
+                     col='purple')
 ```
 
 Suppose $Z$ doesn't vary at all for the half highest frequencies (smallest scales). 
@@ -163,7 +163,7 @@ plotfunc(nestedmat = out$nestedmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1.1,1.1),
-                     col='green')
+                     col='purple')
 ```
 
 \newpage
@@ -281,6 +281,9 @@ spectral_df2 <- data.frame(Spatial_Scale = 1:625, betahat = colMeans(spectralmat
 
 # Plot for nestedmat1
 plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat-2)) +
+  geom_ribbon(aes(ymin = apply(nestedmat1, 2, quantile, probs = 0.025)-2, 
+                    ymax = apply(nestedmat1, 2, quantile, probs = 0.975)-2), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   geom_point(color = "blue") +
   xlab('Spatial Scale') +
@@ -293,6 +296,9 @@ plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat-2)) +
 
 # Plot for spectralmat1
 plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat-2)) +
+  geom_ribbon(aes(ymin = apply(spectralmat1, 2, quantile, probs = 0.025)-2, 
+                    ymax = apply(spectralmat1, 2, quantile, probs = 0.975)-2), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   xlab('Spatial Scale') +
   ylab('bias') +
@@ -304,6 +310,9 @@ plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat-2)) +
 
 # Plot for nestedmat2
 plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat-1)) +
+  geom_ribbon(aes(ymin = apply(nestedmat2, 2, quantile, probs = 0.025)-1, 
+                    ymax = apply(nestedmat2, 2, quantile, probs = 0.975)-1), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   geom_point(color = "blue") +
   xlab('Spatial Scale') +
@@ -316,6 +325,9 @@ plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat-1)) +
 
 # Plot for spectralmat2
 plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat-1)) +
+  geom_ribbon(aes(ymin = apply(spectralmat2, 2, quantile, probs = 0.025)-1, 
+                    ymax = apply(spectralmat2, 2, quantile, probs = 0.975)-1), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   xlab('Spatial Scale') +
   ylab('bias') +
@@ -387,6 +399,9 @@ spectral_df2 <- data.frame(Spatial_Scale = 1:625, betahat = colMeans(spectralmat
 
 # Plot for nestedmat1
 plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat-2)) +
+  geom_ribbon(aes(ymin = apply(nestedmat1, 2, quantile, probs = 0.025)-2, 
+                    ymax = apply(nestedmat1, 2, quantile, probs = 0.975)-2), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   geom_point(color = "blue") +
   xlab('Spatial Scale') +
@@ -399,6 +414,9 @@ plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat-2)) +
 
 # Plot for spectralmat1
 plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat-2)) +
+  geom_ribbon(aes(ymin = apply(spectralmat1, 2, quantile, probs = 0.025)-2, 
+                    ymax = apply(spectralmat1, 2, quantile, probs = 0.975)-2), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   xlab('Spatial Scale') +
   ylab('bias') +
@@ -410,6 +428,9 @@ plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat-2)) +
 
 # Plot for nestedmat2
 plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat-1)) +
+  geom_ribbon(aes(ymin = apply(nestedmat2, 2, quantile, probs = 0.025)-1, 
+                    ymax = apply(nestedmat2, 2, quantile, probs = 0.975)-1), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   geom_point(color = "blue") +
   xlab('Spatial Scale') +
@@ -422,6 +443,9 @@ plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat-1)) +
 
 # Plot for spectralmat2
 plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat-1)) +
+  geom_ribbon(aes(ymin = apply(spectralmat2, 2, quantile, probs = 0.025)-1, 
+                    ymax = apply(spectralmat2, 2, quantile, probs = 0.975)-1), 
+                fill = "lightblue") +
   geom_line(color = "blue") +
   xlab('Spatial Scale') +
   ylab('bias') +
