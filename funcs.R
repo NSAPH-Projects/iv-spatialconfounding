@@ -257,7 +257,7 @@ analysis = function(n, # subgroups in a group
     if (!quiet){
       print('Calculate betahats')
     }
-    betas = c() # CHANGED from rep(NA,)
+    betas = c() 
     for (i in 1:l){ 
       Xi = nest$decomp_mats[[i]] %*% X
       Yi = nest$decomp_mats[[i]] %*% Y
@@ -364,8 +364,8 @@ coherence = function(n, # subgroups in a group
     }
     cors = c() # CHANGED from rep(NA,)
     for (i in 1:l){ 
-      Xi = nest[[i]] %*% X
-      Zi = nest[[i]] %*% Z
+      Xi = nest$decomp_mats[[i]] %*% X
+      Zi = nest$decomp_mats[[i]] %*% Z
       cors = c(cors,cor(Xi,Zi))
     }
     cors = rev(cors)
@@ -429,6 +429,7 @@ simfunc = function(nsims=100,
   }
   for (num in 1:nsims){
     outsim = sim(n = n, 
+                 l=l,
                  outcome = outcome, 
                  rhox = rhox,
                  decomposition = dgm, 
