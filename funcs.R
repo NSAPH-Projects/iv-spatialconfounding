@@ -4,7 +4,7 @@ library(igraph)
 
 nested_decomp_mats <- function(groups, append_identity = TRUE) {
   if (!is.matrix(groups)) {
-    groups = as.matrix(groups, ncol = 1)
+    groups <- as.matrix(groups, ncol = 1)
   }
   if (append_identity) {
     groups <- cbind(groups, 1:nrow(groups))
@@ -37,24 +37,84 @@ nested_decomp_mats <- function(groups, append_identity = TRUE) {
   ))
 }
 
-nested_decomp <- function(x, groups) {
+nested_decomp_fast <- function(x, groups) {
+  if (!is.matrix(groups)) {
+    groups <- as.matrix(groups, ncol = 1)
+  }
   n <- nrow(groups)
   L <- ncol(groups)
   # first compute group averages using t apply
   avs <- matrix(0, n, L)
   decomp <- matrix(0, n, L)
   for (l in 1:L) {
-    avs[ ,l] <- tapply(x, groups[, l], mean)[groups[, l]]
+    avs[, l] <- tapply(x, groups[, l], mean)[groups[, l]]
     if (l == 1) {
-      decomp[ ,l] <- avs[ ,l]
+      decomp[, l] <- avs[, l]
     } else {
-      decomp[ ,l] <- avs[ ,l] - avs[ ,l - 1]
+      decomp[, l] <- avs[, l] - avs[, l - 1]
     }
   }
   return(list(
     avs = avs,
     decomp = decomp
   ))
+}
+
+
+nested_decomp <- function(groups, append_identity = TRUE) {
+  if (!is.matrix(groups)) {
+    groups <- as.matrix(groups, ncol = 1)
+  }
+  if (append_identity) {
+    groups <- cbind(groups, 1:nrow(groups))
+  }
+  n <- nrow(groups)
+  L <- ncol(groups)
+
+  # decomposition matrices
+  decomp <- nested_decomp_mats(groups, append_identity = FALSE)
+
+  # sequentially collect the orthogonal components
+  # from the orthogonal decomposition matrices
+
+  curr_ix <- 0
+  prev_unique_values <- 0
+  basis <- matrix(0, n, n)
+
+  # list of unique values at each level
+  num_unique_values <- numeric(L)
+  for (l in seq_len(L - 1)) {
+    num_unique_values[l] <- length(unique(groups[, l]))
+  }
+  num_unique_values[L] <- n
+
+  for (l in seq_len(L)) {
+    dmat_l <- decomp$decomp_mats[[l]]
+
+    # get rank of orthogonal projection matrix
+    rank <- num_unique_values[l] - prev_unique_values
+
+    # obtain orthonormal basis of image
+    eig <- eigen(dmat_l, symmetric = TRUE)
+    basis_idx <- (curr_ix + 1):(curr_ix + rank)
+    basis[, basis_idx] <- eig$vectors[, seq_len(rank)]
+
+    # update recursion
+    prev_unique_values <- num_unique_values[l]
+    curr_ix <- curr_ix + rank
+  }
+
+  return(basis)
+}
+
+get_projection <- function(x, basis, k) {
+  xstar <- t(basis) %*% x
+  n <- length(xstar)
+  if (k < n) {
+    xstar[(k + 1):n] <- 0
+  }
+  xproj <- basis %*% xstar
+  return(xproj)
 }
 
 

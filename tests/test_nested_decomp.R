@@ -1,7 +1,7 @@
 source("funcs.R") # defines nested_decomp and spectral_decomp
 
 # Create a group matrix
-L <- 4
+L <- 3
 n <- 128
 g <- matrix(0, nrow = n, ncol = L)
 for (l in 1:(L - 1)) {
