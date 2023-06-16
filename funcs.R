@@ -1,7 +1,3 @@
-library(MASS)
-library(stringr)
-library(igraph)
-
 nested_decomp_mats <- function(groups, append_identity = TRUE) {
   if (!is.matrix(groups)) {
     groups = as.matrix(groups, ncol = 1)

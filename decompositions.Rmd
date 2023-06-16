@@ -12,12 +12,10 @@ geometry: margin=1cm
 
 ```{r, include = F}
 source('funcs.R')
-library(ggplot2)
-library(reshape2)
-library(dplyr)
-library(scatterplot3d) # update later with scatter3d (interactive)
-library(gridExtra)
-set.seed(2)
+if (!file.exists('out.Rdata')){
+  source('runsim.R')
+}
+load('out.Rdata')
 ```
 
 # Key Findings (so far)
@@ -49,33 +47,8 @@ and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots,
 For each of the 100 scenarios, we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis: $\hat{\beta}(\omega)$ is unbiased for low $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
 
 
-```{r, precompute, cache=T, echo = F}
-# I first compute nest and spec in this chunk so they don't have to be recomputed 
-outsim = sim(n = 5, outcome = 'linear', 
-              rhox = c(0.9, 0.001),
-             decomposition = 'nested', 
-             quiet = T)
-analnested = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y,
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  quiet = T, 
-                  return_decomps = T)
-analspectral = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  quiet = T, 
-                  return_decomps = T)
-nest = analnested$nest
-spec = analspectral$spec
-```
-
-```{r, sim11, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox= c(0.9, 0.001), dgm='nested', nest=nest,spec=spec, spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+```{r, sim1, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[1]]$nestedmat, spectralmat = out[[1]]$spectralmat)
 ```
 
 The true $\beta$ is plotted in red (need to add legend). Looking at the nested plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed nested. Looking at the spectral plot, we see that the spectral decomposition also results in a bias of $0$ for low spatial scales. The curve here takes on an almost-stepwise shape.
@@ -83,9 +56,8 @@ The true $\beta$ is plotted in red (need to add legend). Looking at the nested p
 Alternatively, suppose $Z$ doesn't vary at all within states. That is, for fixed $5\times 5$ grid $s'$, $Z_i = c \in \mathbb R$ $\forall i$ such that $s(i) = s'$. I accomplish this by letting $Z_{2,i} = 0$ $\forall i$ in the construction above, so $Z_i = Z_{1, s(i)}$. Similar result.
 
 
-```{r, sim12, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox= c(0.9, 0.001),dgm='nested', nest=nest,spec=spec,truncate = 1,spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+```{r, sim2, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[2]]$nestedmat, spectralmat = out[[2]]$spectralmat)
 ```
 
 # Simulation 2: Spectral DGM
@@ -98,16 +70,14 @@ for $i=1, \ldots, 625$ where $\rho_i = 0, 1/624, 2/624, \ldots, 1$. So the covar
 
 Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis:  $\hat{\beta}(\omega)$ is unbiased for low $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
 
-```{r, sim21, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox= seq(0,1, by = 1/(5^4-1)),dgm='spectral', nest=nest,spec=spec,spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+```{r, sim3, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[3]]$nestedmat, spectralmat = out[[3]]$spectralmat)
 ```
 
 Looking at the spectral plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at both of the two grid levels. I think this makes sense: by construction the covariance is continuously decreasing with spatial scale; within a $5 \times 5$ grid we will observe bias. Let's try $\rho_i = 0$ $\forall i\leq 525$, $\rho_i = (i-525)/100$ for $526 \leq i \leq 625$. 
 
-```{r, sim22, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=c(rep(0,525),seq(1/100,1,by = 1/100)), dgm='spectral', nest=nest, spec=spec,spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+```{r, sim4, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat)
 ```
 
 We observe less bias.
@@ -115,11 +85,9 @@ We observe less bias.
 # Simulation 3: Correlation by Spatial Scale
 Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 1 (nested decomposition, $\rho = (0.001,0.9)$).
 
-```{r, sim31, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=c(0.9,0.001), dgm='nested', nest=nest, spec=spec,
-              objective = 'coherence', spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, 
-                     spectralmat = out$spectralmat,
+```{r, sim5, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[5]]$nestedmat, 
+                     spectralmat = out[[5]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1,1),
@@ -128,11 +96,9 @@ plotfunc(nestedmat = out$nestedmat,
 
 Suppose $Z$ doesn't vary at all within states.
 
-```{r, sim32, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=c(0.9,0.001), dgm='nested', nest=nest, spec=spec,
-              objective = 'coherence', truncate = 1, spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, 
-                     spectralmat = out$spectralmat,
+```{r, sim6, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[6]]$nestedmat, 
+                     spectralmat = out[[6]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1,1),
@@ -142,11 +108,9 @@ plotfunc(nestedmat = out$nestedmat,
 \newpage
 Now, let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 2 (spectral decomposition, $\rho_i = 0, 1/624, 2/624, \ldots, 1$).
 
-```{r, sim33, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=seq(0,1, by = 1/(5^4-1)), dgm='spectral', nest=nest, spec=spec,
-              objective = 'coherence', spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, 
-                     spectralmat = out$spectralmat,
+```{r, sim7, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[7]]$nestedmat, 
+                     spectralmat = out[[7]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1.1,1.1),
@@ -155,11 +119,9 @@ plotfunc(nestedmat = out$nestedmat,
 
 Suppose $Z$ doesn't vary at all for the half highest frequencies (smallest scales). 
 
-```{r, sim34, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=seq(0,1, by = 1/(5^4-1)), dgm='spectral', nest=nest, spec=spec,
-              objective = 'coherence', truncate = 312, spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, 
-                     spectralmat = out$spectralmat,
+```{r, sim8, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[8]]$nestedmat, 
+                     spectralmat = out[[8]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1.1,1.1),
@@ -182,9 +144,8 @@ Z_{2,i} &\sim 0.9X_2 + \sqrt{1-0.9^2}(\text{Exp}(1)-1)
 \end{align*}
 and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots, n_2 = 625$. By construction, $X,Z$ are nearly uncorrelated across the states of $5 \times 5$, but correlated within states. 
 
-```{r, sim41, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=c(0.001, 0.9), dgm='nested', nest=nest, spec=spec,spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+```{r, sim9, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[9]]$nestedmat, spectralmat = out[[9]]$spectralmat)
 ```
 
 For the spectral DGM, 
@@ -194,10 +155,8 @@ Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}(\text{Exp}(1)-1)
 \end{align*}
 for $i=1, \ldots, 625$ where $\rho_i = 1, 623/624, 622/624, \ldots, 0$. 
 
-```{r, sim42, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=seq(1,0, by = -1/(5^4-1)), dgm='spectral', nest=nest, 
-              spec=spec,spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat)
+```{r, sim10, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[10]]$nestedmat, spectralmat = out[[10]]$spectralmat)
 ```
 
 \newpage
@@ -206,20 +165,16 @@ We repeat simulation 1 and 2 but the outcome model now includes an interaction t
 
 **Nested DGM**
 
-```{r, sim51, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=c(0.9, 0.001), dgm='nested', nest=nest, 
-              spec=spec, outcome = 'interaction', betaxz=-1,spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(-4,4))
+```{r, sim11, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[11]]$nestedmat, spectralmat = out[[11]]$spectralmat, ylim = c(-4,4))
 ```
 
 The bias of the estimates is worse at higher scales but still zero bias at low scales.
 
 **Spectral DGM**
 
-```{r, sim52, cache = T, echo = F, message = F, results = 'hide', warning = F}
-out = simfunc(rhox=seq(0,1, by = 1/(5^4-1)), dgm='spectral', nest=nest, 
-              spec=spec, outcome = 'interaction', betaxz=-1,spectralmethod = 'wls')
-plotfunc(nestedmat = out$nestedmat, spectralmat = out$spectralmat, ylim = c(-4,4))
+```{r, sim12, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(nestedmat = out[[12]]$nestedmat, spectralmat = out[[12]]$spectralmat, ylim = c(-4,4))
 ```
 
 The bias of the estimates is the same as the results without an interaction... CHECK THIS
