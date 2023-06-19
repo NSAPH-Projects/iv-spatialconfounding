@@ -1,6 +1,9 @@
 library(MASS)
 library(stringr)
 library(igraph)
+library(ggplot2)
+library(gridExtra)
+
 
 nested_decomp_mats <- function(groups, append_identity = TRUE) {
   if (!is.matrix(groups)) {
