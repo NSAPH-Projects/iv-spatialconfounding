@@ -21,3 +21,5 @@ decompositions_cache/*
 decompositions_files/*
 decompositions.md
 decompositions_gaussian*
+
+!nested_decomp_basis.png
