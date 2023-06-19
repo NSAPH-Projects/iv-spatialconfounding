@@ -183,240 +183,48 @@ The bias of the estimates is the same as the results without an interaction... C
 # Simulation 6: Nonlinear Outcome Model
 We repeat simulation 1 and 2 but the outcome model now includes a quadratic term of $X$. In particular, $Y_i = 2X_i + X_i^2 -Z_i + \epsilon$. The scale-specific analyses attempt to estimate both coefficients of $X$. Neither method does a good job at recovering either of the coefficients.
 
+
 **Nested DGM**
 
-```{r, sim61, cache = T, echo = F}
-nsims = 100
-nestedmat1 = matrix(NA, nrow = nsims, ncol = 2)
-nestedmat2 = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat1 = matrix(NA, nrow = nsims, ncol = 625)
-spectralmat2 = matrix(NA, nrow = nsims, ncol = 625)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'quadratic', 
-              betax = c(2,1),
-              rhox = c(0.9, 0.001),
-             decomposition = 'nested', 
-             quiet = T,
-             spec = spec
-             )
-  nestedout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  outcome = 'quadratic',
-                  quiet = T,
-                  nest = nest
-                  )
-  nestedmat1[num,] = nestedout[1,]
-  nestedmat2[num,] = nestedout[2,]
-
-  spectralout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  outcome = 'quadratic',
-                  quiet = T,
-                  spec = spec,
-                  spectralmethod = 'wls'
-                  )
-  spectralmat1[num,] = spectralout[1,]
-  spectralmat2[num,] = spectralout[2,]
-}
-```
-
-```{r, sim61plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat1, spectralmat1, nestedmat2, and spectralmat2
-nested_df1 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat1))
-spectral_df1 <- data.frame(Spatial_Scale = 1:625, betahat = colMeans(spectralmat1))
-nested_df2 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat2))
-spectral_df2 <- data.frame(Spatial_Scale = 1:625, betahat = colMeans(spectralmat2))
-
-# Plot for nestedmat1
-plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat-2)) +
-  geom_ribbon(aes(ymin = apply(nestedmat1, 2, quantile, probs = 0.025)-2, 
-                    ymax = apply(nestedmat1, 2, quantile, probs = 0.975)-2), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Nested: Linear Term') +
-  ylim(-2, 2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Plot for spectralmat1
-plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat-2)) +
-  geom_ribbon(aes(ymin = apply(spectralmat1, 2, quantile, probs = 0.025)-2, 
-                    ymax = apply(spectralmat1, 2, quantile, probs = 0.975)-2), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Spectral: Linear Term') +
-  ylim(-2, 2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Plot for nestedmat2
-plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat-1)) +
-  geom_ribbon(aes(ymin = apply(nestedmat2, 2, quantile, probs = 0.025)-1, 
-                    ymax = apply(nestedmat2, 2, quantile, probs = 0.975)-1), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Nested: Quadratic Term') +
-  ylim(-2, 2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Plot for spectralmat2
-plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat-1)) +
-  geom_ribbon(aes(ymin = apply(spectralmat2, 2, quantile, probs = 0.025)-1, 
-                    ymax = apply(spectralmat2, 2, quantile, probs = 0.975)-1), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Spectral: Quadratic Term') +
-  ylim(-2, 2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Arrange the plots
-combined_plots <- grid.arrange(plot_nested1, plot_spectral1, plot_nested2, plot_spectral2, ncol = 2)
-
-# Display the combined plots
-combined_plots
-
+```{r, sim13, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(
+  nestedmat = out[[13]]$nestedmats[, , 1],
+  spectralmat = out[[13]]$spectralmats[, , 1],
+  mains = c('Nested: Linear', 'Spectral:Linear'),
+  ylim = c(-4,4)
+)
 ```
 
 
+```{r, sim131, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(
+  nestedmat = out[[13]]$nestedmats[, , 2],
+  spectralmat = out[[13]]$spectralmats[, , 2],
+  mains = c('Nested: Quadratic', 'Spectral:Quadratic'),
+  ylim = c(-4,4),
+  hline = 1
+)
+```
+
+\newpage
 **Spectral DGM**
 
-```{r, sim62, cache = T, echo = F}
-nestedmat1 = matrix(NA, nrow = nsims, ncol = 2)
-nestedmat2 = matrix(NA, nrow = nsims, ncol = 2)
-spectralmat1 = matrix(NA, nrow = nsims, ncol = 625)
-spectralmat2 = matrix(NA, nrow = nsims, ncol = 625)
-
-for (num in 1:nsims){
-  outsim = sim(n = 5, outcome = 'quadratic', 
-              betax = c(2,1),
-              rhox = seq(0,1, by = 1/(5^4-1)),
-             decomposition = 'spectral', 
-             quiet = T,
-             spec = spec
-             )
-  nestedout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'nested', 
-                  outcome = 'quadratic',
-                  quiet = T,
-                  nest = nest
-                  )
-  nestedmat1[num,] = nestedout[1,]
-  nestedmat2[num,] = nestedout[2,]
-
-  spectralout = analysis(n = 5, A = outsim$A, 
-                  X = outsim$X, 
-                  Y = outsim$Y, 
-                  groups = outsim$groups,
-                  decomposition = 'spectral', 
-                  outcome = 'quadratic',
-                  quiet = T,
-                  spec = spec,
-                  spectralmethod = 'wls'
-                  )
-  spectralmat1[num,] = spectralout[1,]
-  spectralmat2[num,] = spectralout[2,]
-}
+```{r, sim14, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(
+  nestedmat = out[[14]]$nestedmats[, , 1],
+  spectralmat = out[[14]]$spectralmats[, , 1],
+  mains = c('Nested: Linear', 'Spectral:Linear'),
+  ylim = c(-4,4)
+)
 ```
 
-
-```{r, sim62plotsgg, echo = F, message = F, results = 'hide', warning = F}
-# Create data frames for nestedmat1, spectralmat1, nestedmat2, and spectralmat2
-nested_df1 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat1))
-spectral_df1 <- data.frame(Spatial_Scale = 1:625, betahat = colMeans(spectralmat1))
-nested_df2 <- data.frame(Spatial_Scale = 1:2, betahat = colMeans(nestedmat2))
-spectral_df2 <- data.frame(Spatial_Scale = 1:625, betahat = colMeans(spectralmat2))
-
-# Plot for nestedmat1
-plot_nested1 <- ggplot(nested_df1, aes(x = Spatial_Scale, y = betahat-2)) +
-  geom_ribbon(aes(ymin = apply(nestedmat1, 2, quantile, probs = 0.025)-2, 
-                    ymax = apply(nestedmat1, 2, quantile, probs = 0.975)-2), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Nested: Linear Term') +
-  ylim(-2,2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Plot for spectralmat1
-plot_spectral1 <- ggplot(spectral_df1, aes(x = Spatial_Scale, y = betahat-2)) +
-  geom_ribbon(aes(ymin = apply(spectralmat1, 2, quantile, probs = 0.025)-2, 
-                    ymax = apply(spectralmat1, 2, quantile, probs = 0.975)-2), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Spectral: Linear Term') +
-  ylim(-2,2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Plot for nestedmat2
-plot_nested2 <- ggplot(nested_df2, aes(x = Spatial_Scale, y = betahat-1)) +
-  geom_ribbon(aes(ymin = apply(nestedmat2, 2, quantile, probs = 0.025)-1, 
-                    ymax = apply(nestedmat2, 2, quantile, probs = 0.975)-1), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  geom_point(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Nested: Quadratic Term') +
-  ylim(-2, 2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Plot for spectralmat2
-plot_spectral2 <- ggplot(spectral_df2, aes(x = Spatial_Scale, y = betahat-1)) +
-  geom_ribbon(aes(ymin = apply(spectralmat2, 2, quantile, probs = 0.025)-1, 
-                    ymax = apply(spectralmat2, 2, quantile, probs = 0.975)-1), 
-                fill = "lightblue") +
-  geom_line(color = "blue") +
-  xlab('Spatial Scale') +
-  ylab('bias') +
-  ggtitle('Spectral: Quadratic Term') +
-  ylim(-2, 2) +
-  theme_minimal() +
-  geom_hline(yintercept = 0, color = 'red', linetype = 'dashed') +
-  guides(color = FALSE)
-
-# Arrange the plots
-combined_plots <- grid.arrange(plot_nested1, plot_spectral1, plot_nested2, plot_spectral2, ncol = 2)
-
-# Display the combined plots
-combined_plots
-
+```{r, sim141, cache = T, echo = F, message = F, results = 'hide', warning = F}
+plotfunc(
+  nestedmat = out[[14]]$nestedmats[, , 2],
+  spectralmat = out[[14]]$spectralmats[, , 2],
+  mains = c('Nested: Quadratic', 'Spectral:Quadratic'),
+  hline = 1,
+  ylim = c(-7,7)
+)
 ```
-
-
 
