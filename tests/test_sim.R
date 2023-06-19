@@ -26,3 +26,16 @@ analspectral <- analysis(
 )
 nest <- analnested$nest
 spec <- analspectral$spec
+
+out <- simfunc(
+    rhox = c(0.9, 0.001), dgm = "nested", nest = nest, spec = spec,
+    objective = "coherence", spectralmethod = "wls"
+)
+plotfunc(
+    nestedmat = out$nestedmat,
+    spectralmat = out$spectralmat,
+    ylab = "Cor(X,Z)",
+    hline = 0,
+    ylim = c(-1, 1),
+    col = "green"
+)
