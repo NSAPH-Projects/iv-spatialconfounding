@@ -44,7 +44,7 @@ spec = analspectral$spec
 
 out = list()
 # Sim 1
-out[[1]] = simfunc2(
+out[[1]] = simfunc(
   n = 3,
   l = 3,
   rhox = c(0.9, 0.5, 0.001),
@@ -55,7 +55,7 @@ out[[1]] = simfunc2(
 )
 
 # Sim 2
-out[[2]] = simfunc2(
+out[[2]] = simfunc(
   n = 3,
   l = 3,
   rhox = c(0.9, 0.5, 0.001),
@@ -67,7 +67,7 @@ out[[2]] = simfunc2(
 )
 
 # Sim 3
-out[[3]] = simfunc2(
+out[[3]] = simfunc(
   n = 3,
   l = 3,
   rhox = seq(0, 1, by = 1 / (3 ^ 6 - 1)),
@@ -78,7 +78,7 @@ out[[3]] = simfunc2(
 )
 
 # Sim 4
-out[[4]] = simfunc2(
+out[[4]] = simfunc(
   n = 3,
   l = 3,
   rhox = c(rep(0, 3^6 - 100), seq(1 / 100, 1, by = 1 / 100)),
@@ -89,7 +89,7 @@ out[[4]] = simfunc2(
 )
 
 # Sim 5
-out[[5]] = simfunc2(
+out[[5]] = simfunc(
   n = 3,
   l = 3,
   rhox = c(0.9, 0.5, 0.001),
@@ -101,7 +101,7 @@ out[[5]] = simfunc2(
 )
 
 # Sim 6
-out[[6]] = simfunc2(
+out[[6]] = simfunc(
   n = 3,
   l = 3,
   rhox = c(0.9, 0.5, 0.001),
@@ -114,7 +114,7 @@ out[[6]] = simfunc2(
 )
 
 # Sim 7
-out[[7]] = simfunc2(
+out[[7]] = simfunc(
   n = 3,
   l = 3,
   rhox = seq(0, 1, by = 1 / (3 ^ 6 - 1)),
@@ -126,7 +126,7 @@ out[[7]] = simfunc2(
 )
 
 # Sim 8
-out[[8]] = simfunc2(
+out[[8]] = simfunc(
   n = 3,
   l = 3,
   rhox = seq(0, 1, by = 1 / (3 ^ 6 - 1)),
@@ -139,7 +139,7 @@ out[[8]] = simfunc2(
 )
 
 # Sim 9
-out[[9]] = simfunc2(
+out[[9]] = simfunc(
   n = 3,
   l = 3,
   rhox = c(0.001, 0.5, 0.9),
@@ -150,7 +150,7 @@ out[[9]] = simfunc2(
 )
 
 # Sim 10
-out[[10]] = simfunc2(
+out[[10]] = simfunc(
   n = 3,
   l = 3,
   rhox = seq(1, 0, by = -1 / (3 ^ 6 - 1)),
@@ -161,7 +161,7 @@ out[[10]] = simfunc2(
 )
 
 # Sim 11
-out[[11]] = simfunc2(
+out[[11]] = simfunc(
   n = 3,
   l = 3,
   rhox = c(0.9, 0.5, 0.001),
@@ -174,7 +174,7 @@ out[[11]] = simfunc2(
 )
 
 # Sim 12
-out[[12]] = simfunc2(
+out[[12]] = simfunc(
   n = 3,
   l = 3,
   rhox = seq(0, 1, by = 1 / (3 ^ 6 - 1)),
@@ -187,7 +187,7 @@ out[[12]] = simfunc2(
 )
 
 # Sim 13
-out[[13]] = simfunc2(
+out[[13]] = simfunc(
   n = 3,
   l = 3,
   outcome = 'quadratic',
@@ -201,7 +201,7 @@ out[[13]] = simfunc2(
 )
 
 # Sim 14
-out[[14]] = simfunc2(
+out[[14]] = simfunc(
   n = 3,
   l = 3,  
   outcome = 'quadratic', 
