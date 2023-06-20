@@ -417,7 +417,7 @@ coherence = function(n, # subgroups in a group
       if (!quiet){
         print('Perform decomposition')
       }
-      nest = nested_decomp(groups)
+      nest = nested_decomp_mats(groups)
     }
     
     # CHECK because many repeated obs to a state
