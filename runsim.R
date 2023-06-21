@@ -19,6 +19,8 @@ outsim = sim(
   decomposition = 'nested',
   quiet = T
 )
+save(outsim, file = 'outsim.Rdata')
+
 analnested = analysis(
   n = 3,
   A = outsim$A,

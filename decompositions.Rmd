@@ -18,6 +18,29 @@ if (!file.exists('out.Rdata')){
 load('out.Rdata')
 ```
 
+# Plot eigenvectors by eigenvalue
+```{r, eigenplots, cache = T, echo = F}
+library(fields)
+if (file.exists('outsim.Rdata')){
+  load('outsim.Rdata')
+  # extract eigen
+  R = diag(rowSums(outsim$A)) - outsim$A # graph laplacian 
+  E = eigen(R) # eigen component
+  D = E$val
+  G = E$vec
+  #png("eigenR.jpeg", height = 1200, width = 1000, res = 100)
+par(mfrow = c(4,4))
+  for (j in 1:16){
+    ix = 45*(j-1)+1
+    z = G[,ix]
+    image.plot(x=1:27, y=1:27, z = matrix(z, nrow = 27,ncol = 27), 
+               main = paste('lambda =', round(D[ix],2)), col = viridis(n = 20))
+  }
+#dev.off()
+}
+```
+
+
 # Key Findings (so far)
 \begin{itemize}
 \item When the data-generating mechanism is based on the \textbf{nested} decomposition, the outcome model is \textbf{linear}, and confounding dissipates \textbf{locally} (within $5 \times 5$ grids), both the nested and spectral decompositions recover unbiased estimates of the treatment effect at small spatial scales.

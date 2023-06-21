@@ -12,6 +12,7 @@ tl_2010_us_county10*
 archived/*
 *.DS_Store
 out.Rdata
+eigen.py
 
 # vscode
 .vscode/*
