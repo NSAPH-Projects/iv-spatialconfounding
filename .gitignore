@@ -12,6 +12,7 @@ archived/*
 *.DS_Store
 out.Rdata
 eigen.py
+outsim.Rdata
 
 # vscode
 .vscode/*
