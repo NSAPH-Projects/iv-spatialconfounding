@@ -5,7 +5,6 @@ TimeConf.Rmd
 .Rproj.user
 *.txt
 *.png
-*.jpeg
 *.tab
 atmospheric_data.Rmd  # not used
 tl_2010_us_county10*
