@@ -335,11 +335,11 @@ analysis = function(n, # subgroups in a group
       num = n^(2*l-2) # -1
       for (i in 1:(n^2)){ # n
         if (outcome == 'linear'){
-          model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)])
+          model = lm(Ystar[(num*(i-1) + 1):(num*i)] ~ Xstar[(num*(i-1)+1):(num*i)])
           betas = c(betas, model$coefficients[2])
         }
         if (outcome == 'quadratic'){
-          model = lm(Ystar[(num*(i-1)):(num*i)] ~ Xstar[(num*(i-1)):(num*i)] + I(Xstar[(num*(i-1)):(num*i)]^2))
+          model = lm(Ystar[(num*(i-1)+1):(num*i)] ~ Xstar[(num*(i-1)+1):(num*i)] + I(Xstar[(num*(i-1)+1):(num*i)]^2))
           betas = cbind(betas, model$coefficients[2:3])
         }
       }
@@ -420,7 +420,7 @@ coherence = function(n, # subgroups in a group
       cors = c()
       num = n^(2*l-2) # -1
       for (i in 1:(n^2)){ # n
-        cors = c(cors, cor(Zstar[(num*(i-1)):(num*i)],Xstar[(num*(i-1)):(num*i)]))
+        cors = c(cors, cor(Zstar[(num*(i-1)+1):(num*i)],Xstar[(num*(i-1)+1):(num*i)]))
       }
     }
     if (spectralmethod == 'wls'){
@@ -574,17 +574,23 @@ plotfunc = function(n=5,
                     hline = 2,
                     ylim = c(-2,2),
                     col='blue',
-                    mains = c('Nested', 'Spectral')
+                    mains = c('Nested', 'Spectral'),
+                    specscale = NULL
                     ){
   nested_df <- data.frame(Spatial_Scale = 1:ncol(nestedmat), betas = colMeans(nestedmat))
-  spectral_df <- data.frame(Spatial_Scale = 1:ncol(spectralmat), betas = colMeans(spectralmat))
+  if (is.null(specscale)){
+    specscale = 1:ncol(spectralmat)
+  }
+  spectral_df <- data.frame(Spatial_Scale = specscale, betas = colMeans(spectralmat))
   
   # Plot for nestedmat
-  plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betas-hline)) + 
-    geom_ribbon(aes(ymin = apply(nestedmat, 2, quantile, probs = 0.25)-hline, 
+  nested_df$Custom_Labels <- factor(nested_df$Spatial_Scale, levels = c(1, 2, 3),
+                                    labels = c('1x1', '3x3', '9x9'))
+  plot_nested <- ggplot(nested_df, aes(x = Custom_Labels, y = betas-hline)) + 
+    geom_ribbon(aes(x = 1:3, ymin = apply(nestedmat, 2, quantile, probs = 0.25)-hline, 
                     ymax = apply(nestedmat, 2, quantile, probs = 0.75)-hline), 
                 fill = "lightblue") +
-    geom_line(color = col) +
+    geom_line(aes(y = betas-hline, x = Spatial_Scale),color = col) +
     geom_point(color = col) +
     xlab('Spatial Scale') +
     ylab(ylab) +
@@ -592,7 +598,8 @@ plotfunc = function(n=5,
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = 0, color = 'red', linetype = "dashed")
+    geom_hline(yintercept = 0, color = 'red', linetype = "dashed") + 
+    scale_x_discrete(labels = c('1x1', '3x3', '9x9'))
   
   # Plot for spectralmat
   plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betas-hline)) + 
