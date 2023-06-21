@@ -6,7 +6,7 @@ output:
   pdf_document:
     fig_width: 6
     fig_height: 3
-    toc: true
+    toc: yes
 geometry: margin=1cm
 ---
 
@@ -19,7 +19,7 @@ load('out.Rdata')
 ```
 
 # Plot eigenvectors by eigenvalue
-```{r, eigenplots, cache = T, echo = F}
+```{r, eigenplots, cache = T, echo = F, message = F, results = 'hide', warning = F}
 library(fields)
 if (file.exists('outsim.Rdata')){
   load('outsim.Rdata')
@@ -41,7 +41,8 @@ par(mfrow = c(4,4))
 ```
 
 
-# Key Findings (so far)
+
+# Key Findings (CHANGES NEEDED)
 \begin{itemize}
 \item When the data-generating mechanism is based on the \textbf{nested} decomposition, the outcome model is \textbf{linear}, and confounding dissipates \textbf{locally} (within $5 \times 5$ grids), both the nested and spectral decompositions recover unbiased estimates of the treatment effect at small spatial scales.
 \item When the data-generating mechanism is based on the \textbf{spectral} decomposition, the outcome model is \textbf{linear}, and confounding dissipates \textbf{locally} (at high spectral frequencies), the spectral decomposition recovers unbiased estimates of the treatment effect at small spatial scales. If the spectral correlation of exposure and confounder is equal to zero up to a small-enough frequency (big-enough spatial scale) the nested decomposition recovers nearly unbiased estimates at small spatial scales as well.
@@ -55,49 +56,51 @@ par(mfrow = c(4,4))
 \newpage
 # Simulation 1: Nested DGM
 Denote $X$ as exposure $X$, $Z$ as unmeasured confounder, and $Y$ as outcome. 
-We simulate the following scenario 100 times. Across $n_1 = 25$ grids of size $5 \times 5$, which we refer to as states,
+We simulate the following scenario 100 times. 
+\begin{enumerate}
+\item Generate $n = 729$ observations of $Z \sim \text{Expo}(1)$.
+\item Decompose $Z$ using the nested decomposition with three levels: 
 \begin{align*}
-X_{1,s} &\sim \text{Exp}(1)-1\\
-Z_{1,s} &\sim 0.9X_2 + \sqrt{1-0.9^2}(\text{Exp}(1)-1)
+Z(1) &= E(Z|L_1),\\
+Z(2) &= E(Z|L_2)-Z(1)\\
+Z(3) &= Z - Z(1) - Z(2)
 \end{align*}
-for $s = 1, \ldots, n_1 = 25$. Across $n_2 = 625$ grids of size $1 \times 1$, which we refer to as counties, let 
-\begin{align*}
-X_{2,i} &\sim \text{Exp}(1)-1\\
-Z_{2,i} &\sim 0.001X_2 + \sqrt{1-0.001^2}(\text{Exp}(1)-1)
-\end{align*}
-and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots, n_2 = 625$. By construction, $X,Z$ are nearly uncorrelated within the states of $5 \times 5$, but correlated across states. (Note that this DGM exactly follows the nested decomposition.) Let $Y_i = 2X_i -Z_i + \epsilon$ where $\epsilon_i \sim \mathcal{N}(0,1)$ independently across $i$.
+where $L_1$ is a random variable that maps each of the 729 units to their corresponding $9 \times 9$ grid (call this a state) and $L_2$ is a random variable that maps each of the units to their corresponding $3 \times 3$ grid (call this a county). Note that $Z = Z(1) + Z(2) + Z(3)$. 
+\item Repeat the above to generate independent noise: generate $n = 729$ observations of $\zeta \sim \text{Expo}(1)$. Decompose $\zeta$ using the nested decomposition with three levels to obtain $\zeta = \zeta(1) + \zeta(2) + \zeta(3)$.
+\item At each level $l= 1, 2, 3$ create $X(i)$ with the following formula: $$X(i) = \rho_i Z(i) + \sqrt{1-\rho_i^2}\zeta(i)$$ using $\rho = (0.9, 0.5, 0.001)$.
+\item Construct $X$ using the formula $X = X(1) + X(2) + X(3)$.
+\item Let $Y = 2X -Z + \epsilon$ where $\epsilon \sim \mathcal{N}(0,1)$ independently.
+\end{enumerate}
+By construction, $X,Z$ are nearly uncorrelated within the counties of $3 \times 3$, but correlated both within the states of $9 \times 9$ and across states. 
 
-For each of the 100 scenarios, we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis: $\hat{\beta}(\omega)$ is unbiased for low $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
+For each of the 100 scenarios, we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis: $\hat{\beta}(\omega)$ is unbiased at $\omega$ corresponding to finer spatial scales since by construction confounding dissipates locally.
 
 
 ```{r, sim1, cache = T, echo = F, message = F, results = 'hide', warning = F}
 plotfunc(nestedmat = out[[1]]$nestedmat, spectralmat = out[[1]]$spectralmat)
 ```
 
-The true $\beta$ is plotted in red (need to add legend). Looking at the nested plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed nested. Looking at the spectral plot, we see that the spectral decomposition also results in a bias of $0$ for low spatial scales. The curve here takes on an almost-stepwise shape.
-
-Alternatively, suppose $Z$ doesn't vary at all within states. That is, for fixed $5\times 5$ grid $s'$, $Z_i = c \in \mathbb R$ $\forall i$ such that $s(i) = s'$. I accomplish this by letting $Z_{2,i} = 0$ $\forall i$ in the construction above, so $Z_i = Z_{1, s(i)}$. Similar result.
-
-
-```{r, sim2, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[2]]$nestedmat, spectralmat = out[[2]]$spectralmat)
-```
-
+\newpage
 # Simulation 2: Spectral DGM
-We repeat simulation 1 but now the data-generating model originates from the spectral decomposition rather than the nested. In particular, we use the graph Fourier transform to project $X$ and $Z$ into the spectral domain. In the spectral domain, 
-\begin{align*}
-X^*_i &\sim \text{Exp}(1)-1\\
-Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}(\text{Exp}(1)-1)
-\end{align*}
-for $i=1, \ldots, 625$ where $\rho_i = 0, 1/624, 2/624, \ldots, 1$. So the covariance between $X$ and $Z$ goes to $0$ for smaller $i$, which corresponds to larger eigenvalues $\omega$ of the graph Laplacian, or smaller spatial scales. 
+We repeat the following but using the spectral decomposition to generate data.
+\begin{enumerate}
+\item Generate $n = 729$ observations of $Z \sim \text{Expo}(1)$.
+\item Project $Z$ into the spectral domain using the spectral decomposition: 
+$$Z^* = G^T Z$$
+where $G$ is the graph Laplacian.
+\item Repeat the above to generate independent noise: generate $n = 729$ observations of $\zeta \sim \text{Expo}(1)$. Project $\zeta$ into the spectral domain to obtain $\zeta^* = G^T \zeta$.
+\item At each spectral frequency $\omega$ create $X^*$ with the following formula: $$X^*(\omega) = \rho_i Z^*(\omega) + \sqrt{1-\rho_i^2}\zeta^*(\omega)$$ using $\rho = (1, 727/728, \ldots, 1/728, 0)$. The frequencies ($n = 729$) are sorted lowest to highest, so that spatial scale is sorted highest to lowest. By construction, $X$ and $Z$ become less correlated at smaller scales. 
+\item Construct $X$ using the formula $X = G X^*$.
+\item Let $Y = 2X -Z + \epsilon$ where $\epsilon \sim \mathcal{N}(0,1)$ independently.
+\end{enumerate}
 
-Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis:  $\hat{\beta}(\omega)$ is unbiased for low $\omega$ (finer spatial scales) since by construction confounding dissipates locally.
+Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis:  $\hat{\beta}(\omega)$ is unbiased at $\omega$ corresponding to finer spatial scales since by construction confounding dissipates locally.
 
 ```{r, sim3, cache = T, echo = F, message = F, results = 'hide', warning = F}
 plotfunc(nestedmat = out[[3]]$nestedmat, spectralmat = out[[3]]$spectralmat)
 ```
 
-Looking at the spectral plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at both of the two grid levels. I think this makes sense: by construction the covariance is continuously decreasing with spatial scale; within a $5 \times 5$ grid we will observe bias. Let's try $\rho_i = 0$ $\forall i\leq 525$, $\rho_i = (i-525)/100$ for $526 \leq i \leq 625$. 
+Looking at the spectral plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at both of the two grid levels. I think this makes sense: by construction the covariance is continuously decreasing with spatial scale; within a $3 \times 3$ grid we will observe bias. Let's try $\rho_i = 0$ for all but the $100$ lowest frequencies (100 largest scales).
 
 ```{r, sim4, cache = T, echo = F, message = F, results = 'hide', warning = F}
 plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat)
@@ -105,8 +108,9 @@ plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat)
 
 We observe less bias.
 
+\newpage
 # Simulation 3: Correlation by Spatial Scale
-Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 1 (nested decomposition, $\rho = (0.001,0.9)$).
+Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 1 (nested decomposition, $\rho = (0.9, 0.5, 0.001)$).
 
 ```{r, sim5, cache = T, echo = F, message = F, results = 'hide', warning = F}
 plotfunc(nestedmat = out[[5]]$nestedmat, 
@@ -117,19 +121,7 @@ plotfunc(nestedmat = out[[5]]$nestedmat,
                      col='purple')
 ```
 
-Suppose $Z$ doesn't vary at all within states.
-
-```{r, sim6, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[6]]$nestedmat, 
-                     spectralmat = out[[6]]$spectralmat,
-                     ylab='Cor(X,Z)',
-                     hline=0,
-                     ylim=c(-1,1),
-                     col='purple')
-```
-
-\newpage
-Now, let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 2 (spectral decomposition, $\rho_i = 0, 1/624, 2/624, \ldots, 1$).
+Now, let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 2 (spectral decomposition, $\rho = (1, 727/728, \ldots, 1/728, 0)$).
 
 ```{r, sim7, cache = T, echo = F, message = F, results = 'hide', warning = F}
 plotfunc(nestedmat = out[[7]]$nestedmat, 
@@ -140,43 +132,15 @@ plotfunc(nestedmat = out[[7]]$nestedmat,
                      col='purple')
 ```
 
-Suppose $Z$ doesn't vary at all for the half highest frequencies (smallest scales). 
-
-```{r, sim8, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[8]]$nestedmat, 
-                     spectralmat = out[[8]]$spectralmat,
-                     ylab='Cor(X,Z)',
-                     hline=0,
-                     ylim=c(-1.1,1.1),
-                     col='purple')
-```
 
 \newpage
 # Simulation 4: Local Confounding
-We repeat simulations 1 and 2 but now confounding dissipates at larger scales rather than smaller ones.
-
-For the nested DGM, this means
-\begin{align*}
-X_{1,s} &\sim \text{Exp}(1)-1\\
-Z_{1,s} &\sim 0.001X_2 + \sqrt{1-0.001^2}(\text{Exp}(1)-1)
-\end{align*}
-for each $5 \times 5$ state, $s = 1, \ldots, n_1 = 25$. Across $n_2 = 625$ counties of $1 \times 1$ grids, let 
-\begin{align*}
-X_{2,i} &\sim \text{Exp}(1)-1\\
-Z_{2,i} &\sim 0.9X_2 + \sqrt{1-0.9^2}(\text{Exp}(1)-1)
-\end{align*}
-and $X_i = X_{1,s(i)} + X_{2,i}, Z_i = Z_{1,s(i)} + Z_{2,i}$ for $i = 1, \ldots, n_2 = 625$. By construction, $X,Z$ are nearly uncorrelated across the states of $5 \times 5$, but correlated within states. 
+We repeat simulations 1 and 2 but now confounding dissipates at larger scales rather than smaller ones. 
 
 ```{r, sim9, cache = T, echo = F, message = F, results = 'hide', warning = F}
 plotfunc(nestedmat = out[[9]]$nestedmat, spectralmat = out[[9]]$spectralmat)
 ```
 
-For the spectral DGM, 
-\begin{align*}
-X^*_i &\sim \text{Exp}(1)-1\\
-Z^*_i &\sim \rho_iX_2 + \sqrt{1-\rho_i^2}(\text{Exp}(1)-1)
-\end{align*}
-for $i=1, \ldots, 625$ where $\rho_i = 1, 623/624, 622/624, \ldots, 0$. 
 
 ```{r, sim10, cache = T, echo = F, message = F, results = 'hide', warning = F}
 plotfunc(nestedmat = out[[10]]$nestedmat, spectralmat = out[[10]]$spectralmat)
@@ -184,7 +148,7 @@ plotfunc(nestedmat = out[[10]]$nestedmat, spectralmat = out[[10]]$spectralmat)
 
 \newpage
 # Simulation 5: Outcome Model with Interaction
-We repeat simulation 1 and 2 but the outcome model now includes an interaction term between $X$ and $Z$. In particular, let $Y_i = 2X_i -Z_i - X_iZ_i + \epsilon$. 
+We repeat simulation 1 and 2 but the outcome model now includes an interaction term between $X$ and $Z$. In particular, let $Y = 2X -Z - XZ + \epsilon$. 
 
 **Nested DGM**
 
@@ -204,7 +168,7 @@ The bias of the estimates is the same as the results without an interaction... C
 
 \newpage
 # Simulation 6: Nonlinear Outcome Model
-We repeat simulation 1 and 2 but the outcome model now includes a quadratic term of $X$. In particular, $Y_i = 2X_i + X_i^2 -Z_i + \epsilon$. The scale-specific analyses attempt to estimate both coefficients of $X$. Neither method does a good job at recovering either of the coefficients.
+We repeat simulation 1 and 2 but the outcome model now includes a quadratic term of $X$. In particular, $Y = 2X + X^2 -Z + \epsilon$. The scale-specific analyses attempt to estimate both quadratic and linear coefficients of $X$. Neither method does a good job at recovering either of the coefficients.
 
 
 **Nested DGM**
