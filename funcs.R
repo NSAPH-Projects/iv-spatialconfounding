@@ -3,7 +3,7 @@ library(stringr)
 library(igraph)
 library(ggplot2)
 library(gridExtra)
-
+library(abind)
 
 nested_decomp_mats <- function(groups, append_identity = TRUE) {
   if (!is.matrix(groups)) {
@@ -524,10 +524,12 @@ simfunc = function(nsims=100,
                              quiet = quiet, 
                              spec = spec,
                              spectralmethod = spectralmethod)
-      for (d in 1:deg){
-        nestedmats[num,,d] = nestedout[d,]
-        spectralmats[num,,d] = spectralout[d,]
-      }
+      # for (d in 1:deg){
+      #   nestedmats[num,,d] = nestedout[d,]
+      #   spectralmats[num,,d] = spectralout[d,]
+      # }
+      nestedmats = abind(nestedout, along = 0)
+      nestedmats = aperm(nestedmats, c(1,3,2))
     }
     return(list('nestedmats' = nestedmats, 'spectralmats' = spectralmats))
   }
