@@ -62,19 +62,22 @@ for (j in 64:3172){
 
 ```
 
-# Plot eigenvectors
+# Plot eigen on US map
 ```{r}
 gs = list()
+idxs = c(600, 1200, 1800, 2400, 2700, 3100)
+eigens = names(mapdat)[63 + idxs]
 
-gs[[1]] = ggplot(mapdat) +
+for (i in 1:length(eigens)){
+  gs[[i]] = ggplot(mapdat) +
   xlim(-125, -65) + 
   ylim(25, 50) +
-geom_sf(aes(fill = eig600), color = NA)+
+geom_sf(aes_string(fill = eigens[i]), color = NA)+
   scale_fill_gradient2(low = "red", 
                        mid = "lightblue1",
                        high = "blue", 
                        limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[600],2))) + 
+  labs(title = paste('lambda =', round(D[idxs[i]],2))) + 
   theme_minimal() +
   theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
         axis.text.x = element_blank(),
@@ -83,123 +86,20 @@ geom_sf(aes(fill = eig600), color = NA)+
         line = element_blank(),
         axis.title = element_blank(),
         panel.grid.major = element_line(colour = "transparent"))
+}
 
-gs[[2]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig1200), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                       mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[1200],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-
-gs[[3]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig1800), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                       mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[1800],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-
-gs[[4]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig2400), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                      mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[2400],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-gs[[5]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig2700), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                      mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[2700],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-gs[[6]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig3100), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                      mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[3100],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-
-png('images/usmap2.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+png('images/usmap.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
 do.call(grid.arrange,gs)
 dev.off()
-
 ```
 
-# Plot X vs eigen
+
+# Spectral Decomposition: Plot real data component vs spatial scale
 ```{r}
 # 2, 4-37 are the columns with data except cms
 dat_spectransform = t(G) %*% as.matrix(study_map[,c(2,4:37)])
 df <- data.frame(D, dat_spectransform)
 colnames(df) = c('D', colnames(study_map[c(2,4:37)]))
-
-png('images/Xstar.jpeg', height = 1000, width = 1000)
-ggplot(df, aes(x = D, y = Xstar)) +
-  geom_line() +
-  labs(x = "eigenvalue", y = "Xstar", title = "PM2.5") +
-  theme_minimal()
-dev.off()
-
-# Lowest eigenvalues had huge Xstar values so remove the lowest 9 to see more of a trend
-png('images/Xstar_tail.jpeg', height = 800, width = 800, res = 200)
-ggplot(df[1:3100,], aes(x = D, y = Xstar)) +
-  geom_line() +
-  labs(x = "eigenvalue", y = "Xstar", title = "PM2.5") +
-  geom_hline(yintercept = 0, color = "red") +
-  theme_minimal()
-dev.off()
 
 labels = names(df)[-1]
 plts = list()
@@ -216,12 +116,14 @@ png('images/data_spectral.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
 do.call(grid.arrange,plts)
 dev.off()
 
+# cut out nine of the lowest eigen so we can see more.
 dfsub = df[1:3100,]
 labels = names(df)[-1]
+xlab = 'D'
 plts = list()
 for (i in 1:length(labels)){
   label = labels[i]
-  plts[[i]] = ggplot(dfsub, aes_string(x = D, y = label)) + 
+  plts[[i]] = ggplot(dfsub, aes_string(x = xlab, y = label)) + 
       geom_line() +
       labs(x = "eigenvalue", y = "Xstar", title = label) +
       geom_hline(yintercept = 0, color = "red") +
@@ -233,6 +135,7 @@ do.call(grid.arrange,plts)
 dev.off()
 ```
 
+## Nested Decomposition: plot real data component vs spatial scale
 
 
 
