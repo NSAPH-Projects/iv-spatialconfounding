@@ -12,15 +12,38 @@ geometry: margin=1cm
 
 ```{r, include = F}
 source('funcs.R')
+library(raster)
+library(fields)
+
 if (!file.exists('out.Rdata')){
   source('runsim.R')
 }
 load('out.Rdata')
 ```
 
+# Plot grid
+```{r}
+png("images/grid1.jpeg")
+r <- raster(xmn = 0, xmx = 27, ymn = 0, ymx = 27, nrows = 3, ncols = 3)
+r[] <- sample(1:9)
+plot(r, legend = F)
+dev.off()
+
+png("images/grid2.jpeg")
+r <- raster(xmn = 0, xmx = 27, ymn = 0, ymx = 27, nrows = 9, ncols = 9)
+r[] <- sample(1:81)
+plot(r, legend = F)
+dev.off()
+
+png("images/grid3.jpeg")
+r <- raster(xmn = 0, xmx = 27, ymn = 0, ymx = 27, nrows = 27, ncols = 27)
+r[] <- sample(1:729)
+plot(r, legend = F)
+dev.off()
+```
+
 # Plot eigenvectors by eigenvalue
 ```{r, eigenplots, cache = T, echo = F, message = F, results = 'hide', warning = F}
-library(fields)
 if (file.exists('outsim.Rdata')){
   load('outsim.Rdata')
   # extract eigen
@@ -28,16 +51,57 @@ if (file.exists('outsim.Rdata')){
   E = eigen(R) # eigen component
   D = E$val
   G = E$vec
-  #png("eigenR.jpeg", height = 1200, width = 1000, res = 100)
-par(mfrow = c(4,4))
-  for (j in 1:16){
-    ix = 45*(j-1)+1
+  png("eigenR.jpeg", height = 700, width = 1200, res = 100)
+par(mfrow = c(3,6))
+  for (j in 1:18){
+    ix = 40*(j-1)+1
     z = G[,ix]
     image.plot(x=1:27, y=1:27, z = matrix(z, nrow = 27,ncol = 27), 
-               main = paste('lambda =', round(D[ix],2)), col = viridis(n = 20))
+               main = paste('lambda =', round(D[ix],2)), col = viridis(n = 20), zlim = c(-0.10, 0.10))
+    dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, z))    
+    image(dfr, main = paste('lambda =', round(D[ix],2)))
   }
-#dev.off()
+dev.off()
 }
+```
+
+# Visualization of X and Z
+```{r}
+load('outsim.Rdata')
+nest = nested_decomp_mats(outsim$groups)
+X = outsim$X
+Z = outsim$Z
+X1 = nest$decomp_mats[[1]] %*% X
+X2 = nest$decomp_mats[[2]] %*% X
+X3 = nest$decomp_mats[[3]] %*% X
+Z1 = nest$decomp_mats[[1]] %*% Z
+Z2 = nest$decomp_mats[[2]] %*% Z
+Z3 = nest$decomp_mats[[3]] %*% Z
+png("images/XZ.jpeg", width = 1000, height = 600, res = 100)
+par(mfrow = c(2,4))
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X1))    
+image(dfr, main = 'X(1)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X2))              
+image(dfr, main = 'X(2)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X3))              
+image(dfr, main = 'X(3)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X))              
+image(dfr, main = 'X', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z1))              
+image(dfr, main = 'Z(1)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z2))              
+image(dfr, main = 'Z(2)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z3))              
+image(dfr, main = 'Z(3)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z))              
+image(dfr, main = 'Z', xlab = '', ylab = '')
+dev.off()
+
+png(filename = 'images/XZhist.jpeg', width = 1000, height = 500)
+par(mfrow = c(1,2))
+hist(Z)
+hist(X)
+dev.off()
 ```
 
 
@@ -77,12 +141,15 @@ For each of the 100 scenarios, we decompose $X,Z,Y$ at different spatial scales 
 
 
 ```{r, sim1, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[1]]$nestedmat, spectralmat = out[[1]]$spectralmat)
+png("images/nesteddgm.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[1]]$nestedmat, spectralmat = out[[1]]$spectralmat, 
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+dev.off()
 ```
 
 \newpage
 # Simulation 2: Spectral DGM
-We repeat the following but using the spectral decomposition to generate data.
+We repeat the above but using the spectral decomposition to generate data.
 \begin{enumerate}
 \item Generate $n = 729$ observations of $Z \sim \text{Expo}(1)$.
 \item Project $Z$ into the spectral domain using the spectral decomposition: 
@@ -97,13 +164,19 @@ where $G$ is the graph Laplacian.
 Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis:  $\hat{\beta}(\omega)$ is unbiased at $\omega$ corresponding to finer spatial scales since by construction confounding dissipates locally.
 
 ```{r, sim3, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[3]]$nestedmat, spectralmat = out[[3]]$spectralmat)
+png("images/spectraldgm1.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[3]]$nestedmat, spectralmat = out[[3]]$spectralmat, 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
 ```
 
-Looking at the spectral plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at both of the two grid levels. I think this makes sense: by construction the covariance is continuously decreasing with spatial scale; within a $3 \times 3$ grid we will observe bias. Let's try $\rho_i = 0$ for all but the $100$ lowest frequencies (100 largest scales).
+Looking at the spectral plot, it's reassuring to see that the bias of the coefficient is $0$ at low spatial scales when the DGM is indeed spectral. The estimates obtained from the nested decomposition are biased at all of the grid levels. I think this makes sense: by construction the covariance is continuously decreasing with spatial scale; within a $3 \times 3$ grid we will observe bias. Let's try $\rho_i = 0$ for all but the $100$ lowest frequencies (100 largest scales).
 
 ```{r, sim4, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat)
+png("images/spectraldgm2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat, 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
 ```
 
 We observe less bias.
@@ -113,23 +186,41 @@ We observe less bias.
 Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 1 (nested decomposition, $\rho = (0.9, 0.5, 0.001)$).
 
 ```{r, sim5, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/cornesteddgm.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[5]]$nestedmat, 
                      spectralmat = out[[5]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1,1),
-                     col='purple')
+                     col='purple', 
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+dev.off()
 ```
 
 Now, let's plot the correlation between $X$ and $Z$ by spatial scale for both decompositions using the setup from simulation 2 (spectral decomposition, $\rho = (1, 727/728, \ldots, 1/728, 0)$).
 
 ```{r, sim7, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/corspectraldgm.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[7]]$nestedmat, 
                      spectralmat = out[[7]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1.1,1.1),
-                     col='purple')
+                     col='purple', 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r}
+png("images/corspectraldgm2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[15]]$nestedmat, 
+                     spectralmat = out[[15]]$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1.1,1.1),
+                     col='purple', 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
 ```
 
 
@@ -138,12 +229,21 @@ plotfunc(nestedmat = out[[7]]$nestedmat,
 We repeat simulations 1 and 2 but now confounding dissipates at larger scales rather than smaller ones. 
 
 ```{r, sim9, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[9]]$nestedmat, spectralmat = out[[9]]$spectralmat)
+png("images/localnested.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[9]]$nestedmat, spectralmat = out[[9]]$spectralmat, 
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+dev.off()
 ```
 
 
 ```{r, sim10, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[10]]$nestedmat, spectralmat = out[[10]]$spectralmat)
+png("images/localspectral.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(
+  nestedmat = out[[10]]$nestedmat,
+  spectralmat = out[[10]]$spectralmat,
+  mains = c('Nested: Estimation', 'Spectral: Ground Truth')
+)
+dev.off()
 ```
 
 \newpage
@@ -153,7 +253,14 @@ We repeat simulation 1 and 2 but the outcome model now includes an interaction t
 **Nested DGM**
 
 ```{r, sim11, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[11]]$nestedmat, spectralmat = out[[11]]$spectralmat, ylim = c(-4,4))
+png("images/interaction_nested.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(
+  nestedmat = out[[11]]$nestedmat,
+  spectralmat = out[[11]]$spectralmat,
+  ylim = c(-4, 4),
+  mains = c('Nested: Ground Truth', 'Spectral: Estimation')
+)
+dev.off()
 ```
 
 The bias of the estimates is worse at higher scales but still zero bias at low scales.
@@ -161,7 +268,14 @@ The bias of the estimates is worse at higher scales but still zero bias at low s
 **Spectral DGM**
 
 ```{r, sim12, cache = T, echo = F, message = F, results = 'hide', warning = F}
-plotfunc(nestedmat = out[[12]]$nestedmat, spectralmat = out[[12]]$spectralmat, ylim = c(-4,4))
+png("images/interaction_spectral.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(
+  nestedmat = out[[12]]$nestedmat,
+  spectralmat = out[[12]]$spectralmat,
+  ylim = c(-5, 5),
+  mains = c('Nested: Estimation', 'Spectral: Ground Truth')
+)
+dev.off()
 ```
 
 The bias of the estimates is the same as the results without an interaction... CHECK THIS
@@ -174,44 +288,53 @@ We repeat simulation 1 and 2 but the outcome model now includes a quadratic term
 **Nested DGM**
 
 ```{r, sim13, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/quadratic_nested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[13]]$nestedmats[, , 1],
   spectralmat = out[[13]]$spectralmats[, , 1],
-  mains = c('Nested: Linear', 'Spectral:Linear'),
-  ylim = c(-4,4)
+  ylim = c(-10, 10),
+  mains = c('Nested Linear: Ground Truth', 'Spectral Linear: Estimation')
 )
+dev.off()
 ```
 
 
 ```{r, sim131, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/quadratic_nested2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[13]]$nestedmats[, , 2],
   spectralmat = out[[13]]$spectralmats[, , 2],
-  mains = c('Nested: Quadratic', 'Spectral:Quadratic'),
-  ylim = c(-4,4),
-  hline = 1
+  ylim = c(-10, 10),
+  hline = 1,
+  mains = c('Nested Quadratic: Ground Truth', 'Spectral Quadratic: Estimation')
 )
+dev.off()
 ```
 
 \newpage
 **Spectral DGM**
 
 ```{r, sim14, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/quadratic_spectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[14]]$nestedmats[, , 1],
   spectralmat = out[[14]]$spectralmats[, , 1],
-  mains = c('Nested: Linear', 'Spectral:Linear'),
-  ylim = c(-4,4)
+  ylim = c(-10, 10),
+  mains = c('Nested Linear: Estimation', 'Spectral Linear: Ground Truth')
 )
+dev.off()
 ```
 
 ```{r, sim141, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/quadratic_spectral2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[14]]$nestedmats[, , 2],
   spectralmat = out[[14]]$spectralmats[, , 2],
-  mains = c('Nested: Quadratic', 'Spectral:Quadratic'),
   hline = 1,
-  ylim = c(-7,7)
+  ylim = c(-10, 10),
+  mains = c('Nested Quadratic: Estimation', 'Spectral Quadratic: Ground Truth')
 )
+dev.off()
 ```
+
 
