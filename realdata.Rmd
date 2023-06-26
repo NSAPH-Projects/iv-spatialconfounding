@@ -8,6 +8,8 @@ output:
     fig_height: 3
     toc: yes
 geometry: margin=1cm
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r}
@@ -42,7 +44,7 @@ graph = graph_from_adjacency_matrix(as.matrix(adj))
 is_connected(graph) # returns TRUE
 ```
 
-# Plot eigenvectors
+# Create Graph Laplacian
 ```{r}
 R = diag(rowSums(adj)) - adj # graph laplacian 
 E = eigen(R) # eigen component
@@ -58,6 +60,10 @@ for (j in 64:3172){
   names(mapdat)[j] = paste('eig', j-63, sep = '')
 }
 
+```
+
+# Plot eigenvectors
+```{r}
 gs = list()
 
 gs[[1]] = ggplot(mapdat) +
@@ -166,7 +172,7 @@ geom_sf(aes(fill = eig3100), color = NA)+
         axis.title = element_blank(),
         panel.grid.major = element_line(colour = "transparent"))
 
-png('images/usmap.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+png('images/usmap2.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
 do.call(grid.arrange,gs)
 dev.off()
 
@@ -174,10 +180,10 @@ dev.off()
 
 # Plot X vs eigen
 ```{r}
-plot(D, t(G) %*% study_map$qd_mean_pm25, type = 'l')
-
-df <- data.frame(D, t(G) %*% study_map$qd_mean_pm25)
-colnames(df) = c('D', 'Xstar')
+# 2, 4-37 are the columns with data except cms
+dat_spectransform = t(G) %*% as.matrix(study_map[,c(2,4:37)])
+df <- data.frame(D, dat_spectransform)
+colnames(df) = c('D', colnames(study_map[c(2,4:37)]))
 
 png('images/Xstar.jpeg', height = 1000, width = 1000)
 ggplot(df, aes(x = D, y = Xstar)) +
@@ -194,7 +200,40 @@ ggplot(df[1:3100,], aes(x = D, y = Xstar)) +
   geom_hline(yintercept = 0, color = "red") +
   theme_minimal()
 dev.off()
+
+labels = names(df)[-1]
+plts = list()
+for (i in 1:length(labels)){
+  label = labels[i]
+  plts[[i]] = ggplot(df, aes_string(x = D, y = label)) + 
+      geom_line() +
+      labs(x = "eigenvalue", y = "Xstar", title = label) +
+      geom_hline(yintercept = 0, color = "red") +
+      theme_minimal()
+}
+
+png('images/data_spectral.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+do.call(grid.arrange,plts)
+dev.off()
+
+dfsub = df[1:3100,]
+labels = names(df)[-1]
+plts = list()
+for (i in 1:length(labels)){
+  label = labels[i]
+  plts[[i]] = ggplot(dfsub, aes_string(x = D, y = label)) + 
+      geom_line() +
+      labs(x = "eigenvalue", y = "Xstar", title = label) +
+      geom_hline(yintercept = 0, color = "red") +
+      theme_minimal()
+}
+
+png('images/data_spectral_tail.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+do.call(grid.arrange,plts)
+dev.off()
 ```
+
+
 
 
 
