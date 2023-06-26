@@ -1,0 +1,203 @@
+---
+title: "Decompositions"
+author: "Sophie Woodward"
+date: '2023-06-08'
+output:
+  pdf_document:
+    fig_width: 6
+    fig_height: 3
+    toc: yes
+geometry: margin=1cm
+---
+
+```{r}
+library(tidyverse)
+library(sp)
+library("raster")
+library("dplyr")
+library("sf")
+library(fields)
+library(gridExtra)
+```
+
+## Import Synthetic Data
+```{r}
+study = read.csv('/Users/sophie/Documents/SpatialConf/archived/Study_dataset_2010.csv')
+adj = read.csv("/Users/sophie/Documents/SpatialConf/archived/adjacency_matrix.csv",
+               header = F) # created from spacebench script
+
+# Import geographies
+us = map_data('state')
+
+states = st_read(
+  "/Users/sophie/Documents/SpatialConf/archived/tl_2010_us_county10/tl_2010_us_county10.shp"
+)
+
+study$FIPS = str_pad(study$FIPS, 5, pad = '0')
+```
+
+# Check connected Components
+```{r}
+graph = graph_from_adjacency_matrix(as.matrix(adj))
+is_connected(graph) # returns TRUE
+```
+
+# Plot eigenvectors
+```{r}
+R = diag(rowSums(adj)) - adj # graph laplacian 
+E = eigen(R) # eigen component
+D = E$val
+G = E$vec
+study_map = mutate(study, 
+                   STATEFP10 = str_sub(FIPS, 1, 2),
+                   COUNTYFP10 = str_sub(FIPS, 3, 5))
+study_map = cbind.data.frame(study_map, G)
+mapdat = left_join(states, study_map, by = c("STATEFP10", "COUNTYFP10"))
+
+for (j in 64:3172){
+  names(mapdat)[j] = paste('eig', j-63, sep = '')
+}
+
+gs = list()
+
+gs[[1]] = ggplot(mapdat) +
+  xlim(-125, -65) + 
+  ylim(25, 50) +
+geom_sf(aes(fill = eig600), color = NA)+
+  scale_fill_gradient2(low = "red", 
+                       mid = "lightblue1",
+                       high = "blue", 
+                       limits = c(-0.2, 0.2)) +
+  labs(title = paste('lambda =', round(D[600],2))) + 
+  theme_minimal() +
+  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        line = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(colour = "transparent"))
+
+gs[[2]] = ggplot(mapdat) +
+  xlim(-125, -65) + 
+  ylim(25, 50) +
+geom_sf(aes(fill = eig1200), color = NA)+
+  scale_fill_gradient2(low = "red", 
+                       mid = "lightblue1",
+                       high = "blue", 
+                       limits = c(-0.2, 0.2)) +
+  labs(title = paste('lambda =', round(D[1200],2))) + 
+  theme_minimal() +
+  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        line = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(colour = "transparent"))
+
+gs[[3]] = ggplot(mapdat) +
+  xlim(-125, -65) + 
+  ylim(25, 50) +
+geom_sf(aes(fill = eig1800), color = NA)+
+  scale_fill_gradient2(low = "red", 
+                       mid = "lightblue1",
+                       high = "blue", 
+                       limits = c(-0.2, 0.2)) +
+  labs(title = paste('lambda =', round(D[1800],2))) + 
+  theme_minimal() +
+  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        line = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(colour = "transparent"))
+
+gs[[4]] = ggplot(mapdat) +
+  xlim(-125, -65) + 
+  ylim(25, 50) +
+geom_sf(aes(fill = eig2400), color = NA)+
+  scale_fill_gradient2(low = "red", 
+                      mid = "lightblue1",
+                       high = "blue", 
+                       limits = c(-0.2, 0.2)) +
+  labs(title = paste('lambda =', round(D[2400],2))) + 
+  theme_minimal() +
+  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        line = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(colour = "transparent"))
+gs[[5]] = ggplot(mapdat) +
+  xlim(-125, -65) + 
+  ylim(25, 50) +
+geom_sf(aes(fill = eig2700), color = NA)+
+  scale_fill_gradient2(low = "red", 
+                      mid = "lightblue1",
+                       high = "blue", 
+                       limits = c(-0.2, 0.2)) +
+  labs(title = paste('lambda =', round(D[2700],2))) + 
+  theme_minimal() +
+  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        line = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(colour = "transparent"))
+gs[[6]] = ggplot(mapdat) +
+  xlim(-125, -65) + 
+  ylim(25, 50) +
+geom_sf(aes(fill = eig3100), color = NA)+
+  scale_fill_gradient2(low = "red", 
+                      mid = "lightblue1",
+                       high = "blue", 
+                       limits = c(-0.2, 0.2)) +
+  labs(title = paste('lambda =', round(D[3100],2))) + 
+  theme_minimal() +
+  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        line = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_line(colour = "transparent"))
+
+png('images/usmap.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+do.call(grid.arrange,gs)
+dev.off()
+
+```
+
+# Plot X vs eigen
+```{r}
+plot(D, t(G) %*% study_map$qd_mean_pm25, type = 'l')
+
+df <- data.frame(D, t(G) %*% study_map$qd_mean_pm25)
+colnames(df) = c('D', 'Xstar')
+
+png('images/Xstar.jpeg', height = 1000, width = 1000)
+ggplot(df, aes(x = D, y = Xstar)) +
+  geom_line() +
+  labs(x = "eigenvalue", y = "Xstar", title = "PM2.5") +
+  theme_minimal()
+dev.off()
+
+# Lowest eigenvalues had huge Xstar values so remove the lowest 9 to see more of a trend
+png('images/Xstar_tail.jpeg', height = 800, width = 800, res = 200)
+ggplot(df[1:3100,], aes(x = D, y = Xstar)) +
+  geom_line() +
+  labs(x = "eigenvalue", y = "Xstar", title = "PM2.5") +
+  geom_hline(yintercept = 0, color = "red") +
+  theme_minimal()
+dev.off()
+```
+
+
+
+
+
+
