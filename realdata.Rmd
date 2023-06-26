@@ -136,6 +136,35 @@ dev.off()
 ```
 
 ## Nested Decomposition: plot real data component vs spatial scale
+```{r}
+groups = cbind(study$region, study$STATE)
+nest = nested_decomp_mats(groups)
+
+idxs = c(2,4:37)
+plts = list()
+for (i in 1:length(idxs)){
+  idx = idxs[i]
+  X1 = nest$decomp_mats[[1]] %*% study_map[,idx]
+  X2 = nest$decomp_mats[[2]] %*% study_map[,idx]
+  X3 = nest$decomp_mats[[3]] %*% study_map[,idx]
+  
+  df = cbind(X1, X2, X3)
+  df = melt(t(df))
+  colnames(df) = c('Level', 'Confounder', 'Xi')
+  df$Level[df$Level == 1] = 'Region'
+  df$Level[df$Level == 2] = 'State'
+  df$Level[df$Level == 3] = 'County'
+  plts[[i]] = ggplot(df, aes(x = factor(Level, levels = c('Region', 'State', 'County')), 
+                     y = Xi)) + 
+    geom_hline(yintercept = 0, color = "red") +
+    geom_violin() +
+    labs(title=names(study_map)[idx],
+          x ="Level")
+}
+png('images/data_nested.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+do.call(grid.arrange,plts)
+dev.off()
+```
 
 
 
