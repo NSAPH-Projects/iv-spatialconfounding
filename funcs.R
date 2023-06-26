@@ -3,7 +3,7 @@ library(stringr)
 library(igraph)
 library(ggplot2)
 library(gridExtra)
-
+library(abind)
 
 nested_decomp_mats <- function(groups, append_identity = TRUE) {
   if (!is.matrix(groups)) {
@@ -471,6 +471,7 @@ coherence = function(n, # subgroups in a group
 simfunc = function(nsims=100, 
                    n=5, 
                    l=2,
+                   betax = 2,
                    outcome='linear', 
                    rhox, 
                    dgm, 
@@ -482,63 +483,116 @@ simfunc = function(nsims=100,
                    distribution='exponential',
                    betaxz=0,
                    spectralmethod = 'bin'
-                   ){
-  nestedmat = matrix(NA, nrow = nsims, ncol = l)
-  if (spectralmethod == 'bin'){
-    spectralmat = matrix(NA, nrow = nsims, ncol = n^2)
+){
+  if (outcome == 'quadratic'){ # can generalize to other models thru arg coeffs
+    deg = 2
+    nestedmats = array(NA, c(nsims, l, deg))
+    if (spectralmethod == 'bin'){
+      spectralmats = array(NA, c(nsims, n^2,deg))
+    }
+    if (spectralmethod == 'wls'){
+      spectralmats = array(NA, c(nsims, n^(2*l),deg))
+    }
+    for (num in 1:nsims){
+      outsim = sim(n = n, 
+                   l=l,
+                   betax = betax,
+                   outcome = outcome, 
+                   rhox = rhox,
+                   decomposition = dgm, 
+                   truncate = truncate,
+                   quiet = quiet,
+                   distribution = distribution,
+                   betaxz=betaxz,
+                   spec = spec)
+      nestedout = analysis(n = n, 
+                           A = outsim$A, 
+                           X = outsim$X, 
+                           Y = outsim$Y, 
+                           groups = outsim$groups,
+                           decomposition = 'nested', 
+                           outcome = outcome,
+                           quiet = quiet,
+                           nest = nest)
+      spectralout = analysis(n = n, 
+                             A = outsim$A, 
+                             X = outsim$X, 
+                             Y = outsim$Y, 
+                             groups = outsim$groups,
+                             decomposition = 'spectral', 
+                             outcome = outcome,
+                             quiet = quiet, 
+                             spec = spec,
+                             spectralmethod = spectralmethod)
+      # for (d in 1:deg){
+      #   nestedmats[num,,d] = nestedout[d,]
+      #   spectralmats[num,,d] = spectralout[d,]
+      # }
+      nestedmats = abind(nestedout, along = 0)
+      nestedmats = aperm(nestedmats, c(1,3,2))
+    }
+    return(list('nestedmats' = nestedmats, 'spectralmats' = spectralmats))
   }
-  if (spectralmethod == 'wls'){
-    spectralmat = matrix(NA, nrow = nsims, ncol = n^(2*l))
-  }
-  for (num in 1:nsims){
-    outsim = sim(n = n, 
-                 l=l,
-                 outcome = outcome, 
-                 rhox = rhox,
-                 decomposition = dgm, 
-                 truncate = truncate,
-                 quiet = quiet,
-                 distribution = distribution,
-                 betaxz=betaxz,
-                 spec = spec)
-    if (objective == 'analysis'){
-      nestedmat[num,] = analysis(n = n, 
-                                 A = outsim$A, 
-                                 X = outsim$X, 
-                                 Y = outsim$Y, 
-                                 groups = outsim$groups,
-                                 decomposition = 'nested', 
-                                 quiet = quiet,
-                                 nest = nest)
-      spectralmat[num,] = analysis(n = n, 
+  
+  else{
+    nestedmat = matrix(NA, nrow = nsims, ncol = l)
+    if (spectralmethod == 'bin'){
+      spectralmat = matrix(NA, nrow = nsims, ncol = n^2)
+    }
+    if (spectralmethod == 'wls'){
+      spectralmat = matrix(NA, nrow = nsims, ncol = n^(2*l))
+    }
+    for (num in 1:nsims){
+      outsim = sim(n = n, 
+                   l=l,
+                   betax = betax,
+                   outcome = outcome, 
+                   rhox = rhox,
+                   decomposition = dgm, 
+                   truncate = truncate,
+                   quiet = quiet,
+                   distribution = distribution,
+                   betaxz=betaxz,
+                   spec = spec)
+      if (objective == 'analysis'){
+        nestedmat[num,] = analysis(n = n, 
                                    A = outsim$A, 
                                    X = outsim$X, 
                                    Y = outsim$Y, 
                                    groups = outsim$groups,
-                                   decomposition = 'spectral', 
-                                   quiet = quiet, 
-                                   spec = spec,
-                                   spectralmethod = spectralmethod)
-    }
-    if (objective == 'coherence'){
-      nestedmat[num,] = coherence(n = n, 
-                                  A = outsim$A, 
-                                  X = outsim$X, 
-                                  Z = outsim$Z, 
-                                  groups = outsim$groups,
-                                  decomposition = 'nested', 
-                                  quiet = quiet, nest = nest)
-      spectralmat[num,] = coherence(n = n, 
+                                   decomposition = 'nested', 
+                                   quiet = quiet,
+                                   nest = nest)
+        spectralmat[num,] = analysis(n = n, 
+                                     A = outsim$A, 
+                                     X = outsim$X, 
+                                     Y = outsim$Y, 
+                                     groups = outsim$groups,
+                                     decomposition = 'spectral', 
+                                     quiet = quiet, 
+                                     spec = spec,
+                                     spectralmethod = spectralmethod)
+      }
+      if (objective == 'coherence'){
+        nestedmat[num,] = coherence(n = n, 
                                     A = outsim$A, 
                                     X = outsim$X, 
                                     Z = outsim$Z, 
                                     groups = outsim$groups,
-                                    decomposition = 'spectral', 
-                                    quiet = quiet, spec = spec,
-                                    spectralmethod = spectralmethod)
+                                    decomposition = 'nested', 
+                                    quiet = quiet, nest = nest)
+        spectralmat[num,] = coherence(n = n, 
+                                      A = outsim$A, 
+                                      X = outsim$X, 
+                                      Z = outsim$Z, 
+                                      groups = outsim$groups,
+                                      decomposition = 'spectral', 
+                                      quiet = quiet, spec = spec,
+                                      spectralmethod = spectralmethod)
+      }
     }
+    return(list('nestedmat' = nestedmat, 'spectralmat' = spectralmat))
   }
-  return(list('nestedmat' = nestedmat, 'spectralmat' = spectralmat))
 }
 
 
@@ -549,21 +603,22 @@ plotfunc = function(n=5,
                     ylab = 'bias',
                     hline = 2,
                     ylim = c(-2,2),
-                    col='blue'
+                    col='blue',
+                    mains = c('Nested', 'Spectral')
                     ){
   nested_df <- data.frame(Spatial_Scale = 1:ncol(nestedmat), betas = colMeans(nestedmat))
   spectral_df <- data.frame(Spatial_Scale = 1:ncol(spectralmat), betas = colMeans(spectralmat))
   
   # Plot for nestedmat
   plot_nested <- ggplot(nested_df, aes(x = Spatial_Scale, y = betas-hline)) + 
-    geom_ribbon(aes(ymin = apply(nestedmat, 2, quantile, probs = 0.025)-hline, 
-                    ymax = apply(nestedmat, 2, quantile, probs = 0.975)-hline), 
+    geom_ribbon(aes(ymin = apply(nestedmat, 2, quantile, probs = 0.25)-hline, 
+                    ymax = apply(nestedmat, 2, quantile, probs = 0.75)-hline), 
                 fill = "lightblue") +
     geom_line(color = col) +
     geom_point(color = col) +
     xlab('Spatial Scale') +
     ylab(ylab) +
-    ggtitle('Nested') +
+    ggtitle(mains[1]) +
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
@@ -571,13 +626,13 @@ plotfunc = function(n=5,
   
   # Plot for spectralmat
   plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betas-hline)) + 
-    geom_ribbon(aes(ymin = apply(spectralmat, 2, quantile, probs = 0.025)-hline, 
-                    ymax = apply(spectralmat, 2, quantile, probs = 0.975)-hline), 
+    geom_ribbon(aes(ymin = apply(spectralmat, 2, quantile, probs = 0.25)-hline, 
+                    ymax = apply(spectralmat, 2, quantile, probs = 0.75)-hline), 
                 fill = "lightblue") +
     geom_line(color = col) +
     xlab('Spatial Scale') +
     ylab(ylab) +
-    ggtitle('Spectral') +
+    ggtitle(mains[2]) +
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
