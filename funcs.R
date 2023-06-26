@@ -333,12 +333,12 @@ analysis = function(n, # subgroups in a group
     betas = c()
     if (spectralmethod == 'bin'){
       num = n^(2*l-2) # -1
+      zeroeig = which(apply(spec, 1, function(x) length(unique(round(x,10)))) == 1)
       for (i in 1:(n^2)){ # n
         window = (num*(i-1) + 1):(num*i)
-        # Take out observation corresponding to 0 eigenvalue
-        if (i == n^2){
-          window = window[-length(window)]
-        }
+        # Take out observations corresponding to 0 eigenvalue
+        window = setdiff(window, zeroeig)
+        
         if (outcome == 'linear'){
           model = lm(Ystar[window] ~ Xstar[window])
           betas = c(betas, model$coefficients[2])
@@ -424,12 +424,11 @@ coherence = function(n, # subgroups in a group
     if (spectralmethod == 'bin'){
       cors = c()
       num = n^(2*l-2) # -1
+      zeroeig = which(apply(spec, 1, function(x) length(unique(round(x,10)))) == 1)
       for (i in 1:(n^2)){ # n
         window = (num*(i-1)+1):(num*i)
-        # Take out observation corresponding to eigenval 0
-        if (i == n^2){
-          window = window[-length(window)]
-        }
+        # Take out observations corresponding to eigenval 0
+        window = setdiff(window, zeroeig)
         cors = c(cors, cor(Zstar[window],Xstar[window]))
       }
     }
