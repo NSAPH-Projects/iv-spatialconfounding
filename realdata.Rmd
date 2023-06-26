@@ -8,6 +8,8 @@ output:
     fig_height: 3
     toc: yes
 geometry: margin=1cm
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r}
@@ -42,7 +44,7 @@ graph = graph_from_adjacency_matrix(as.matrix(adj))
 is_connected(graph) # returns TRUE
 ```
 
-# Plot eigenvectors
+# Create Graph Laplacian
 ```{r}
 R = diag(rowSums(adj)) - adj # graph laplacian 
 E = eigen(R) # eigen component
@@ -58,17 +60,24 @@ for (j in 64:3172){
   names(mapdat)[j] = paste('eig', j-63, sep = '')
 }
 
+```
+
+# Plot eigen on US map
+```{r}
 gs = list()
+idxs = c(600, 1200, 1800, 2400, 2700, 3100)
+eigens = names(mapdat)[63 + idxs]
 
-gs[[1]] = ggplot(mapdat) +
+for (i in 1:length(eigens)){
+  gs[[i]] = ggplot(mapdat) +
   xlim(-125, -65) + 
   ylim(25, 50) +
-geom_sf(aes(fill = eig600), color = NA)+
+geom_sf(aes_string(fill = eigens[i]), color = NA)+
   scale_fill_gradient2(low = "red", 
                        mid = "lightblue1",
                        high = "blue", 
                        limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[600],2))) + 
+  labs(title = paste('lambda =', round(D[idxs[i]],2))) + 
   theme_minimal() +
   theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
         axis.text.x = element_blank(),
@@ -77,124 +86,86 @@ geom_sf(aes(fill = eig600), color = NA)+
         line = element_blank(),
         axis.title = element_blank(),
         panel.grid.major = element_line(colour = "transparent"))
-
-gs[[2]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig1200), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                       mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[1200],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-
-gs[[3]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig1800), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                       mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[1800],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-
-gs[[4]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig2400), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                      mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[2400],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-gs[[5]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig2700), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                      mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[2700],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
-gs[[6]] = ggplot(mapdat) +
-  xlim(-125, -65) + 
-  ylim(25, 50) +
-geom_sf(aes(fill = eig3100), color = NA)+
-  scale_fill_gradient2(low = "red", 
-                      mid = "lightblue1",
-                       high = "blue", 
-                       limits = c(-0.2, 0.2)) +
-  labs(title = paste('lambda =', round(D[3100],2))) + 
-  theme_minimal() +
-  theme(plot.title = element_text(size = 24 * 2,hjust = 0.5),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks = element_blank(),
-        line = element_blank(),
-        axis.title = element_blank(),
-        panel.grid.major = element_line(colour = "transparent"))
+}
 
 png('images/usmap.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
 do.call(grid.arrange,gs)
 dev.off()
-
 ```
 
-# Plot X vs eigen
+
+# Spectral Decomposition: Plot real data component vs spatial scale
 ```{r}
-plot(D, t(G) %*% study_map$qd_mean_pm25, type = 'l')
+# 2, 4-37 are the columns with data except cms
+dat_spectransform = t(G) %*% as.matrix(study_map[,c(2,4:37)])
+df <- data.frame(D, dat_spectransform)
+colnames(df) = c('D', colnames(study_map[c(2,4:37)]))
 
-df <- data.frame(D, t(G) %*% study_map$qd_mean_pm25)
-colnames(df) = c('D', 'Xstar')
+labels = names(df)[-1]
+plts = list()
+for (i in 1:length(labels)){
+  label = labels[i]
+  plts[[i]] = ggplot(df, aes_string(x = D, y = label)) + 
+      geom_line() +
+      labs(x = "eigenvalue", y = "Xstar", title = label) +
+      geom_hline(yintercept = 0, color = "red") +
+      theme_minimal()
+}
 
-png('images/Xstar.jpeg', height = 1000, width = 1000)
-ggplot(df, aes(x = D, y = Xstar)) +
-  geom_line() +
-  labs(x = "eigenvalue", y = "Xstar", title = "PM2.5") +
-  theme_minimal()
+png('images/data_spectral.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+do.call(grid.arrange,plts)
 dev.off()
 
-# Lowest eigenvalues had huge Xstar values so remove the lowest 9 to see more of a trend
-png('images/Xstar_tail.jpeg', height = 800, width = 800, res = 200)
-ggplot(df[1:3100,], aes(x = D, y = Xstar)) +
-  geom_line() +
-  labs(x = "eigenvalue", y = "Xstar", title = "PM2.5") +
-  geom_hline(yintercept = 0, color = "red") +
-  theme_minimal()
+# cut out nine of the lowest eigen so we can see more.
+dfsub = df[1:3100,]
+labels = names(df)[-1]
+xlab = 'D'
+plts = list()
+for (i in 1:length(labels)){
+  label = labels[i]
+  plts[[i]] = ggplot(dfsub, aes_string(x = xlab, y = label)) + 
+      geom_line() +
+      labs(x = "eigenvalue", y = "Xstar", title = label) +
+      geom_hline(yintercept = 0, color = "red") +
+      theme_minimal()
+}
+
+png('images/data_spectral_tail.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+do.call(grid.arrange,plts)
 dev.off()
 ```
+
+## Nested Decomposition: plot real data component vs spatial scale
+```{r}
+groups = cbind(study$region, study$STATE)
+nest = nested_decomp_mats(groups)
+
+idxs = c(2,4:37)
+plts = list()
+for (i in 1:length(idxs)){
+  idx = idxs[i]
+  X1 = nest$decomp_mats[[1]] %*% study_map[,idx]
+  X2 = nest$decomp_mats[[2]] %*% study_map[,idx]
+  X3 = nest$decomp_mats[[3]] %*% study_map[,idx]
+  
+  df = cbind(X1, X2, X3)
+  df = melt(t(df))
+  colnames(df) = c('Level', 'Confounder', 'Xi')
+  df$Level[df$Level == 1] = 'Region'
+  df$Level[df$Level == 2] = 'State'
+  df$Level[df$Level == 3] = 'County'
+  plts[[i]] = ggplot(df, aes(x = factor(Level, levels = c('Region', 'State', 'County')), 
+                     y = Xi)) + 
+    geom_hline(yintercept = 0, color = "red") +
+    geom_violin() +
+    labs(title=names(study_map)[idx],
+          x ="Level")
+}
+png('images/data_nested.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
+do.call(grid.arrange,plts)
+dev.off()
+```
+
 
 
 
