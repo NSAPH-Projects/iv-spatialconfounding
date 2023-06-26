@@ -216,4 +216,17 @@ out[[14]] = simfunc(
   spectralmethod = 'bin'
 )
 
+# Sim 8
+out[[15]] = simfunc(
+  n = 3,
+  l = 3,
+  rhox = c(rep(0, 3^6 - 100), seq(1 / 100, 1, by = 1 / 100)),
+  dgm = 'spectral',
+  nest = nest,
+  spec = spec,
+  objective = 'coherence',
+  spectralmethod = 'bin'
+)
+
+
 save(out, file = 'out.Rdata')
