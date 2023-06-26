@@ -530,6 +530,8 @@ simfunc = function(nsims=100,
       # }
       nestedmats = abind(nestedout, along = 0)
       nestedmats = aperm(nestedmats, c(1,3,2))
+      spectralmats = abind(spectralout, along = 0)
+      spectralmats = aperm(spectralmats, c(1,3,2))
     }
     return(list('nestedmats' = nestedmats, 'spectralmats' = spectralmats))
   }
