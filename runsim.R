@@ -19,6 +19,8 @@ outsim = sim(
   decomposition = 'nested',
   quiet = T
 )
+save(outsim, file = 'outsim.Rdata')
+
 analnested = analysis(
   n = 3,
   A = outsim$A,
@@ -213,5 +215,18 @@ out[[14]] = simfunc(
   quiet = T,
   spectralmethod = 'bin'
 )
+
+# Sim 8
+out[[15]] = simfunc(
+  n = 3,
+  l = 3,
+  rhox = c(rep(0, 3^6 - 100), seq(1 / 100, 1, by = 1 / 100)),
+  dgm = 'spectral',
+  nest = nest,
+  spec = spec,
+  objective = 'coherence',
+  spectralmethod = 'bin'
+)
+
 
 save(out, file = 'out.Rdata')
