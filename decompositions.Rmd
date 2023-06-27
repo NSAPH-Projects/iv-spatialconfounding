@@ -51,15 +51,15 @@ if (file.exists('outsim.Rdata')){
   E = eigen(R) # eigen component
   D = E$val
   G = E$vec
-  png("eigenR.jpeg", height = 700, width = 1200, res = 100)
+  png("images/eigenR.jpeg", height = 700, width = 1200, res = 100)
 par(mfrow = c(3,6))
   for (j in 1:18){
     ix = 40*(j-1)+1
     z = G[,ix]
     image.plot(x=1:27, y=1:27, z = matrix(z, nrow = 27,ncol = 27), 
                main = paste('lambda =', round(D[ix],2)), col = viridis(n = 20), zlim = c(-0.10, 0.10))
-    dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, z))    
-    image(dfr, main = paste('lambda =', round(D[ix],2)))
+    #dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, z))    
+    #image(dfr, main = paste('lambda =', round(D[ix],2)))
   }
 dev.off()
 }
@@ -67,41 +67,43 @@ dev.off()
 
 # Visualization of X and Z
 ```{r}
-load('outsim.Rdata')
-nest = nested_decomp_mats(outsim$groups)
-X = outsim$X
-Z = outsim$Z
-X1 = nest$decomp_mats[[1]] %*% X
-X2 = nest$decomp_mats[[2]] %*% X
-X3 = nest$decomp_mats[[3]] %*% X
-Z1 = nest$decomp_mats[[1]] %*% Z
-Z2 = nest$decomp_mats[[2]] %*% Z
-Z3 = nest$decomp_mats[[3]] %*% Z
-png("images/XZ.jpeg", width = 1000, height = 600, res = 100)
-par(mfrow = c(2,4))
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X1))    
-image(dfr, main = 'X(1)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X2))              
-image(dfr, main = 'X(2)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X3))              
-image(dfr, main = 'X(3)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X))              
-image(dfr, main = 'X', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z1))              
-image(dfr, main = 'Z(1)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z2))              
-image(dfr, main = 'Z(2)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z3))              
-image(dfr, main = 'Z(3)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z))              
-image(dfr, main = 'Z', xlab = '', ylab = '')
-dev.off()
-
-png(filename = 'images/XZhist.jpeg', width = 1000, height = 500)
-par(mfrow = c(1,2))
-hist(Z)
-hist(X)
-dev.off()
+if (file.exists('outsim.Rdata')){
+  load('outsim.Rdata')
+  nest = nested_decomp_mats(outsim$groups)
+  X = outsim$X
+  Z = outsim$Z
+  X1 = nest$decomp_mats[[1]] %*% X
+  X2 = nest$decomp_mats[[2]] %*% X
+  X3 = nest$decomp_mats[[3]] %*% X
+  Z1 = nest$decomp_mats[[1]] %*% Z
+  Z2 = nest$decomp_mats[[2]] %*% Z
+  Z3 = nest$decomp_mats[[3]] %*% Z
+  png("images/XZ.jpeg", width = 1000, height = 600, res = 100)
+  par(mfrow = c(2,4))
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X1))    
+  image(dfr, main = 'X(1)', xlab = '', ylab = '')
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X2))              
+  image(dfr, main = 'X(2)', xlab = '', ylab = '')
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X3))              
+  image(dfr, main = 'X(3)', xlab = '', ylab = '')
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X))              
+  image(dfr, main = 'X', xlab = '', ylab = '')
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z1))              
+  image(dfr, main = 'Z(1)', xlab = '', ylab = '')
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z2))              
+  image(dfr, main = 'Z(2)', xlab = '', ylab = '')
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z3))              
+  image(dfr, main = 'Z(3)', xlab = '', ylab = '')
+  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z))              
+  image(dfr, main = 'Z', xlab = '', ylab = '')
+  dev.off()
+  
+  png(filename = 'images/XZhist.jpeg', width = 1000, height = 500)
+  par(mfrow = c(1,2))
+  hist(Z)
+  hist(X)
+  dev.off()
+}
 ```
 
 
