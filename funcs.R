@@ -300,7 +300,8 @@ analysis = function(n, # subgroups in a group
         betas = c(betas,modeli$coefficients[2])
       }
       if (outcome == 'quadratic'){
-        modeli = lm(Yi~ Xi + I(Xi^2))
+        Xi2 = nest$decomp_mats[[i]] %*% (X^2)
+        modeli = lm(Yi~ Xi + Xi2)
         betas = cbind(betas, modeli$coefficients[2:3])
       }
     }
@@ -323,10 +324,8 @@ analysis = function(n, # subgroups in a group
       spec = spectral_decomp(A)
     }
     Xstar = spec %*% X
+    Xstar2 = spec %*% (X^2) # only used if model is quadratic
     Ystar = spec %*% Y
-    # TO DO: WHAT IS THE BEST WAY TO Do THIS??
-    # For now just split up the spectral r.v.s into discrete scales
-    # so that I have multiple observations per scale...
     if (!quiet){
       print('Calculate betahats')
     }
@@ -344,7 +343,7 @@ analysis = function(n, # subgroups in a group
           betas = c(betas, model$coefficients[2])
         }
         if (outcome == 'quadratic'){
-          model = lm(Ystar[window] ~ Xstar[window] + I(Xstar[window]^2))
+          model = lm(Ystar[window] ~ Xstar[window] + Xstar2[window])
           betas = cbind(betas, model$coefficients[2:3])
         }
       }
@@ -361,7 +360,7 @@ analysis = function(n, # subgroups in a group
           betas = c(betas, model$coefficients[2])
         }
         if (outcome == 'quadratic'){
-          model = lm(Ystar[window]~Xstar[window] + I(Xstar[window]^2),weights = wt)
+          model = lm(Ystar[window]~Xstar[window] + Xstar2[window],weights = wt)
           betas = cbind(betas, model$coefficients[2:3])
         }
       }
@@ -504,14 +503,8 @@ simfunc = function(nsims=100,
                              quiet = quiet, 
                              spec = spec,
                              spectralmethod = spectralmethod)
-      # for (d in 1:deg){
-      #   nestedmats[num,,d] = nestedout[d,]
-      #   spectralmats[num,,d] = spectralout[d,]
-      # }
-      nestedmats = abind(nestedout, along = 0)
-      nestedmats = aperm(nestedmats, c(1,3,2))
-      spectralmats = abind(spectralout, along = 0)
-      spectralmats = aperm(spectralmats, c(1,3,2))
+      nestedmats[num,,] = t(nestedout)
+      spectralmats[num,,] = t(spectralout)
     }
     return(list('nestedmats' = nestedmats, 'spectralmats' = spectralmats))
   }
