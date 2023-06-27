@@ -16,9 +16,10 @@ library(raster)
 library(fields)
 
 if (!file.exists('out.Rdata')){
-  source('runsim.R')
+  source('runsim.R') 
 }
 load('out.Rdata')
+load('outsim.Rdata')
 ```
 
 # Plot grid
@@ -44,68 +45,121 @@ dev.off()
 
 # Plot eigenvectors by eigenvalue
 ```{r, eigenplots, cache = T, echo = F, message = F, results = 'hide', warning = F}
-if (file.exists('outsim.Rdata')){
-  load('outsim.Rdata')
-  # extract eigen
-  R = diag(rowSums(outsim$A)) - outsim$A # graph laplacian 
-  E = eigen(R) # eigen component
-  D = E$val
-  G = E$vec
-  png("images/eigenR.jpeg", height = 700, width = 1200, res = 100)
+# extract eigen
+R = diag(rowSums(outsim$A)) - outsim$A # graph laplacian 
+E = eigen(R) # eigen component
+D = E$val
+G = E$vec
+png("images/eigenR.jpeg", height = 700, width = 1200, res = 100)
 par(mfrow = c(3,6))
   for (j in 1:18){
     ix = 40*(j-1)+1
     z = G[,ix]
     image.plot(x=1:27, y=1:27, z = matrix(z, nrow = 27,ncol = 27), 
-               main = paste('lambda =', round(D[ix],2)), col = viridis(n = 20), zlim = c(-0.10, 0.10))
+               main = paste('lambda =', round(D[ix],2)), col = viridis(n = 20), 
+               zlim = c(-0.10, 0.10))
     #dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, z))    
     #image(dfr, main = paste('lambda =', round(D[ix],2)))
   }
 dev.off()
-}
+png('images/histD.jpeg', height = 700, width = 700, res = 100)
+hist(D, main = 'Histogram of Eigenvalues', xlab = 'lambda')
+dev.off()
 ```
 
 # Visualization of X and Z
 ```{r}
-if (file.exists('outsim.Rdata')){
-  load('outsim.Rdata')
-  nest = nested_decomp_mats(outsim$groups)
-  X = outsim$X
-  Z = outsim$Z
-  X1 = nest$decomp_mats[[1]] %*% X
-  X2 = nest$decomp_mats[[2]] %*% X
-  X3 = nest$decomp_mats[[3]] %*% X
-  Z1 = nest$decomp_mats[[1]] %*% Z
-  Z2 = nest$decomp_mats[[2]] %*% Z
-  Z3 = nest$decomp_mats[[3]] %*% Z
-  png("images/XZ.jpeg", width = 1000, height = 600, res = 100)
-  par(mfrow = c(2,4))
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X1))    
-  image(dfr, main = 'X(1)', xlab = '', ylab = '')
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X2))              
-  image(dfr, main = 'X(2)', xlab = '', ylab = '')
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X3))              
-  image(dfr, main = 'X(3)', xlab = '', ylab = '')
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X))              
-  image(dfr, main = 'X', xlab = '', ylab = '')
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z1))              
-  image(dfr, main = 'Z(1)', xlab = '', ylab = '')
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z2))              
-  image(dfr, main = 'Z(2)', xlab = '', ylab = '')
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z3))              
-  image(dfr, main = 'Z(3)', xlab = '', ylab = '')
-  dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z))              
-  image(dfr, main = 'Z', xlab = '', ylab = '')
-  dev.off()
-  
-  png(filename = 'images/XZhist.jpeg', width = 1000, height = 500)
-  par(mfrow = c(1,2))
-  hist(Z)
-  hist(X)
-  dev.off()
-}
+nest = nested_decomp_mats(outsim$groups)
+X = outsim$X
+Z = outsim$Z
+X1 = nest$decomp_mats[[1]] %*% X
+X2 = nest$decomp_mats[[2]] %*% X
+X3 = nest$decomp_mats[[3]] %*% X
+Z1 = nest$decomp_mats[[1]] %*% Z
+Z2 = nest$decomp_mats[[2]] %*% Z
+Z3 = nest$decomp_mats[[3]] %*% Z
+png("images/XZ.jpeg", width = 1000, height = 600, res = 100)
+par(mfrow = c(2,4))
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X1))    
+image(dfr, main = 'X(1)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X2))              
+image(dfr, main = 'X(2)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X3))              
+image(dfr, main = 'X(3)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X))              
+image(dfr, main = 'X', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z1))              
+image(dfr, main = 'Z(1)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z2))              
+image(dfr, main = 'Z(2)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z3))              
+image(dfr, main = 'Z(3)', xlab = '', ylab = '')
+dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z))              
+image(dfr, main = 'Z', xlab = '', ylab = '')
+dev.off()
+
+png(filename = 'images/XZhist.jpeg', width = 1000, height = 500)
+par(mfrow = c(1,2))
+hist(Z)
+hist(X)
+dev.off()
 ```
 
+## Visualizations of X,Y,Z in the spectral domain
+```{r}
+# extract eigen
+R = diag(rowSums(outsim$A)) - outsim$A # graph laplacian 
+E = eigen(R) # eigen component
+D = E$val
+G = E$vec
+n = 3
+l = 3
+Jks = list()
+Bks = list()
+num = n^(2*l-2)
+zeroeig = which(apply(t(G), 1, function(x) length(unique(round(x,10)))) == 1)
+for (i in 1:(n^2)){ 
+  window = (num*(i-1) + 1):(num*i)
+  window = setdiff(window, zeroeig)
+  k = rep(0, n^(2*l))
+  k[window] = 1
+  Jks[[i]] = diag(k)
+  Bks[[i]] = G %*% diag(k) %*% t(G)
+}
+
+png('images/spatial_Xstar.jpeg', width = 1000, height = 1000, res = 150)
+par(mfrow = c(3,3))
+for (i in 1:length(Bks)){
+  window = (num*(i-1) + 1):(num*i)
+  window = setdiff(window, zeroeig)
+  image.plot(x=1:27, y=1:27, z = matrix(Bks[[i]] %*% outsim$X, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20), zlim = c(-1.5,1.5),
+             main = paste('avglambda =', round(mean(D[window]),2)))
+}
+dev.off()
+
+png('images/spatial_Ystar.jpeg', width = 1000, height = 1000, res = 150)
+par(mfrow = c(3,3))
+for (i in 1:length(Bks)){
+  window = (num*(i-1) + 1):(num*i)
+  window = setdiff(window, zeroeig)
+  image.plot(x=1:27, y=1:27, z = matrix(Bks[[i]] %*% outsim$Y, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20), zlim = c(-3,3),
+             main = paste('avglambda =', round(mean(D[window]),2)))
+}
+dev.off()
+
+png('images/spatial_Zstar.jpeg', width = 1000, height = 1000, res = 150)
+par(mfrow = c(3,3))
+for (i in 1:length(Bks)){
+  window = (num*(i-1) + 1):(num*i)
+  window = setdiff(window, zeroeig)
+  image.plot(x=1:27, y=1:27, z = matrix(Bks[[i]] %*% outsim$Z, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20), zlim = c(-1.5,1.5),
+             main = paste('avglambda =', round(mean(D[window]),2)))
+}
+dev.off()
+```
 
 
 # Key Findings (CHANGES NEEDED)
@@ -338,5 +392,7 @@ plotfunc(
 )
 dev.off()
 ```
+
+
 
 
