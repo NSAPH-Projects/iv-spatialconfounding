@@ -181,18 +181,6 @@ for (j in 1:3){
 dev.off()
 ```
 
-
-# Key Findings (CHANGES NEEDED)
-\begin{itemize}
-\item When the data-generating mechanism is based on the \textbf{nested} decomposition, the outcome model is \textbf{linear}, and confounding dissipates \textbf{locally} (within $5 \times 5$ grids), both the nested and spectral decompositions recover unbiased estimates of the treatment effect at small spatial scales.
-\item When the data-generating mechanism is based on the \textbf{spectral} decomposition, the outcome model is \textbf{linear}, and confounding dissipates \textbf{locally} (at high spectral frequencies), the spectral decomposition recovers unbiased estimates of the treatment effect at small spatial scales. If the spectral correlation of exposure and confounder is equal to zero up to a small-enough frequency (big-enough spatial scale) the nested decomposition recovers nearly unbiased estimates at small spatial scales as well.
-\item When the data-generating mechanism is based on the \textbf{nested} decomposition, the outcome model is \textbf{linear}, and confounding dissipates \textbf{globally} (confounding within $5 \times 5$ grids but not across), I thought the plots would be the same as the previous, but x axis (spatial scale) flipped. They are not exactly.
-\item When there is an \textbf{interaction} between $X$ and $Z$ but confounding still dissipates locally, there is still near-zero bias at small spatial scales under both DGMs. At higher spatial scales bias is worse.
-\item Neither decomposition can recover unbiased estimates at any scale when there is a \textbf{quadratic} term of exposure $X$ is included in the outcome model.
-\end{itemize}
-
-**Note**: in the following plots, I mark the x axis by spatial scale. If I plot results from the nested decomposition, then there are only two points: spatial scale equal to $1$ is the so-called county level ($1 \times 1$ grid) and spatial scale equal to $2$ is the so-called state level ($5 \times 5$ grid). If I plot results from the spectral decomposition, then the spatial scale indexes the ordered eigenvalues of the graph Laplacian. So the spatial scales between spectral and nested plots should not be directly compared. 
-
 \newpage
 # Simulation 1: Nested DGM
 Denote $X$ as exposure $X$, $Z$ as unmeasured confounder, and $Y$ as outcome. 
