@@ -19,7 +19,8 @@ outsim = sim(
   decomposition = 'nested',
   quiet = T
 )
-save(outsim, file = 'outsim.Rdata')
+# Save one nested DGM sim for exploration
+save(outsim, file = 'outsim.Rdata') 
 
 analnested = analysis(
   n = 3,
