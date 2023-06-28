@@ -146,7 +146,6 @@ make_coords_df = function(n, l, quiet=FALSE) {
                                   str_pad((df$ycoord)%/%(n^(l-i)),2,pad = '0'),
                                   sep = ''))
   }
-  df = df[order(df[,(l+1)]),] # ordering by finest grid level should order by the coarser grids too
 
   # Create adjacency matrix
   if (!quiet){
