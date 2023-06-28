@@ -80,22 +80,38 @@ Z2 = nest$decomp_mats[[2]] %*% Z
 Z3 = nest$decomp_mats[[3]] %*% Z
 png("images/XZ.jpeg", width = 1000, height = 600, res = 100)
 par(mfrow = c(2,4))
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X1))    
-image(dfr, main = 'X(1)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X2))              
-image(dfr, main = 'X(2)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X3))              
-image(dfr, main = 'X(3)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, X))              
-image(dfr, main = 'X', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z1))              
-image(dfr, main = 'Z(1)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z2))              
-image(dfr, main = 'Z(2)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z3))              
-image(dfr, main = 'Z(3)', xlab = '', ylab = '')
-dfr = rasterFromXYZ(cbind.data.frame(outsim$coord, Z))              
-image(dfr, main = 'Z', xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(X1, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'X(1)',
+             xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(X2, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'X(2)',
+             xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(X3, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'X(3)',
+             xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(X, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'X',
+             xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(Z1, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'Z(1)',
+             xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(Z2, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'Z(2)',
+             xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(Z3, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'Z(3)',
+             xlab = '', ylab = '')
+image.plot(x=1:27, y=1:27, z = matrix(Z, nrow = 27,ncol = 27), 
+                 col = viridis(n = 20),
+             main = 'Z',
+             xlab = '', ylab = '')
 dev.off()
 
 png(filename = 'images/XZhist.jpeg', width = 1000, height = 500)
