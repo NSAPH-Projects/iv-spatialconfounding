@@ -62,8 +62,9 @@ par(mfrow = c(3,6))
     #image(dfr, main = paste('lambda =', round(D[ix],2)))
   }
 dev.off()
-png('images/histD.jpeg', height = 700, width = 700, res = 100)
-hist(D, main = 'Histogram of Eigenvalues', xlab = 'lambda')
+png('images/histDsim.jpeg', height = 700, width = 700, res = 100)
+hist(D, main = 'Histogram of Eigenvalues: Simulated Data', 
+     xlab = 'eigenvalue', breaks = 20)
 dev.off()
 ```
 
