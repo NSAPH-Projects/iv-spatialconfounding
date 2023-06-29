@@ -597,7 +597,6 @@ plotfunc = function(n=5,
     speceigen = bineigen(D, bins = ncol(spectralmat))
   }
   spectral_df <- data.frame(Spatial_Scale = speceigen, betas = colMeans(spectralmat))
-  #rug <- data.frame(D = D)
   # Plot for nestedmat
   nested_df$Custom_Labels <- factor(nested_df$Spatial_Scale, levels = c(1, 2, 3),
                                     labels = c('9x9', '3x3', '1x1'))
@@ -622,16 +621,13 @@ plotfunc = function(n=5,
                     ymax = apply(spectralmat, 2, quantile, probs = 0.75)-hline), 
                 fill = "lightblue") +
     geom_line(color = col) +
-    #geom_rug(data = rug, aes(x = D), sides = "b", color = "green", inherit.aes = F) +  # Add rug
     xlab('Eigenvalue of Laplacian') +
     ylab(ylab) +
     ggtitle(mains[2]) +
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = 0, color = 'red', linetype = "dashed")  #+
-    # Add histogram
-    #geom_histogram(data = rug, aes(x = D), fill = "lightgray", alpha = 0.7, inherit.aes = F)
+    geom_hline(yintercept = 0, color = 'red', linetype = "dashed") 
   
   # Arrange and center the plots
   combined_plots = grid.arrange(plot_nested, plot_spectral, nrow = 1)
