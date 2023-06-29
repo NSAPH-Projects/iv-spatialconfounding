@@ -304,13 +304,6 @@ analysis = function(n, # subgroups in a group
         betas = cbind(betas, modeli$coefficients[2:3])
       }
     }
-    #betas = rev(betas) # flip order since want small scale to big
-    if (outcome == 'linear'){
-      betas = rev(betas)
-    }
-    if (outcome == 'quadratic'){
-      betas = betas[,ncol(betas):1]
-    }
     if (return_decomps){
       return(list('betas' = betas, 'nest' = nest))
     }
@@ -405,7 +398,6 @@ coherence = function(n, # subgroups in a group
       Zi = nest$decomp_mats[[i]] %*% Z
       cors = c(cors,cor(Xi,Zi))
     }
-    cors = rev(cors)
   }
   if (decomposition == 'spectral'){
     if (is.null(spec)){
@@ -570,6 +562,20 @@ simfunc = function(nsims=100,
   }
 }
 
+bineigen = function(D, bins){
+  speceigen = rep(NA, bins)
+  num = floor(length(D)/bins)
+  for (i in 1:bins){
+    if (i == bins){
+      window = (num*(i-1) + 1):length(D)
+    }
+    else{
+      window = (num*(i-1) + 1):(num*i)
+    }
+    speceigen[i] = mean(D[window])
+  }
+  return(speceigen)
+}
 
 plotfunc = function(n=5,
                     l=2,
@@ -580,31 +586,35 @@ plotfunc = function(n=5,
                     ylim = c(-2,2),
                     col='blue',
                     mains = c('Nested', 'Spectral'),
-                    specscale = NULL
+                    D = NULL
                     ){
   nested_df <- data.frame(Spatial_Scale = 1:ncol(nestedmat), betas = colMeans(nestedmat))
-  if (is.null(specscale)){
-    specscale = 1:ncol(spectralmat)
-  }
-  spectral_df <- data.frame(Spatial_Scale = specscale, betas = colMeans(spectralmat))
   
+  if (is.null(D)){
+    speceigen = 1:ncol(spectralmat)
+  }
+  else{
+    speceigen = bineigen(D, bins = ncol(spectralmat))
+  }
+  spectral_df <- data.frame(Spatial_Scale = speceigen, betas = colMeans(spectralmat))
+  #rug <- data.frame(D = D)
   # Plot for nestedmat
   nested_df$Custom_Labels <- factor(nested_df$Spatial_Scale, levels = c(1, 2, 3),
-                                    labels = c('1x1', '3x3', '9x9'))
+                                    labels = c('9x9', '3x3', '1x1'))
   plot_nested <- ggplot(nested_df, aes(x = Custom_Labels, y = betas-hline)) + 
     geom_ribbon(aes(x = 1:3, ymin = apply(nestedmat, 2, quantile, probs = 0.25)-hline, 
                     ymax = apply(nestedmat, 2, quantile, probs = 0.75)-hline), 
                 fill = "lightblue") +
     geom_line(aes(y = betas-hline, x = Spatial_Scale),color = col) +
     geom_point(color = col) +
-    xlab('Spatial Scale') +
+    xlab('Level') +
     ylab(ylab) +
     ggtitle(mains[1]) +
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
     geom_hline(yintercept = 0, color = 'red', linetype = "dashed") + 
-    scale_x_discrete(labels = c('1x1', '3x3', '9x9'))
+    scale_x_discrete(labels = c('9x9', '3x3', '1x1'))
   
   # Plot for spectralmat
   plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betas-hline)) + 
@@ -612,13 +622,16 @@ plotfunc = function(n=5,
                     ymax = apply(spectralmat, 2, quantile, probs = 0.75)-hline), 
                 fill = "lightblue") +
     geom_line(color = col) +
-    xlab('Spatial Scale') +
+    #geom_rug(data = rug, aes(x = D), sides = "b", color = "green", inherit.aes = F) +  # Add rug
+    xlab('Eigenvalue of Laplacian') +
     ylab(ylab) +
     ggtitle(mains[2]) +
     ylim(ylim[1],ylim[2]) +
     theme_minimal() +
     theme(legend.position = 'topright') +
-    geom_hline(yintercept = 0, color = 'red', linetype = "dashed")
+    geom_hline(yintercept = 0, color = 'red', linetype = "dashed")  #+
+    # Add histogram
+    #geom_histogram(data = rug, aes(x = D), fill = "lightgray", alpha = 0.7, inherit.aes = F)
   
   # Arrange and center the plots
   combined_plots = grid.arrange(plot_nested, plot_spectral, nrow = 1)
