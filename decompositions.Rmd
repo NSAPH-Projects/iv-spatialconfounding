@@ -222,10 +222,10 @@ By construction, $X,Z$ are nearly uncorrelated within the counties of $3 \times 
 
 For each of the 100 scenarios, we decompose $X,Z,Y$ at different spatial scales using 1) nested decomposition and 2) spectral decomposition. At each spatial scale $\omega$, we obtain an estimate $\hat{\beta}(\omega)$ of $\beta =2$ from a linear regression of $Y(\omega)$ on $X(\omega)$. Hypothesis: $\hat{\beta}(\omega)$ is unbiased at $\omega$ corresponding to finer spatial scales since by construction confounding dissipates locally.
 
-
 ```{r, sim1, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/nesteddgm.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[1]]$nestedmat, spectralmat = out[[1]]$spectralmat, 
+         D=D,
          mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
 dev.off()
 ```
@@ -249,6 +249,7 @@ Again, for each of the 100 scenarios we decompose $X,Z,Y$ at different spatial s
 ```{r, sim3, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/spectraldgm1.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[3]]$nestedmat, spectralmat = out[[3]]$spectralmat, 
+         D=D,
          mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
 dev.off()
 ```
@@ -258,6 +259,7 @@ Looking at the spectral plot, it's reassuring to see that the bias of the coeffi
 ```{r, sim4, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/spectraldgm2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat, 
+          D=D,
          mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
 dev.off()
 ```
@@ -272,6 +274,7 @@ Let's plot the correlation between $X$ and $Z$ by spatial scale for both decompo
 png("images/cornesteddgm.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[5]]$nestedmat, 
                      spectralmat = out[[5]]$spectralmat,
+                      D=D,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1,1),
@@ -285,7 +288,8 @@ Now, let's plot the correlation between $X$ and $Z$ by spatial scale for both de
 ```{r, sim7, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/corspectraldgm.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[7]]$nestedmat, 
-                     spectralmat = out[[7]]$spectralmat,
+                  D=D,
+                  spectralmat = out[[7]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1.1,1.1),
@@ -297,7 +301,8 @@ dev.off()
 ```{r}
 png("images/corspectraldgm2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[15]]$nestedmat, 
-                     spectralmat = out[[15]]$spectralmat,
+                       D=D,
+                      spectralmat = out[[15]]$spectralmat,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1.1,1.1),
@@ -314,6 +319,7 @@ We repeat simulations 1 and 2 but now confounding dissipates at larger scales ra
 ```{r, sim9, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/localnested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[9]]$nestedmat, spectralmat = out[[9]]$spectralmat, 
+         D=D,
          mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
 dev.off()
 ```
@@ -324,6 +330,7 @@ png("images/localspectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[10]]$nestedmat,
   spectralmat = out[[10]]$spectralmat,
+  D=D,
   mains = c('Nested: Estimation', 'Spectral: Ground Truth')
 )
 dev.off()
@@ -340,6 +347,7 @@ png("images/interaction_nested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[11]]$nestedmat,
   spectralmat = out[[11]]$spectralmat,
+  D=D,
   ylim = c(-4, 4),
   mains = c('Nested: Ground Truth', 'Spectral: Estimation')
 )
@@ -355,6 +363,7 @@ png("images/interaction_spectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[12]]$nestedmat,
   spectralmat = out[[12]]$spectralmat,
+  D=D,
   ylim = c(-5, 5),
   mains = c('Nested: Estimation', 'Spectral: Ground Truth')
 )
@@ -375,6 +384,7 @@ png("images/quadratic_nested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[13]]$nestedmats[, , 1],
   spectralmat = out[[13]]$spectralmats[, , 1],
+  D=D,
   ylim = c(-2, 2),
   mains = c('Nested Linear: Ground Truth', 'Spectral Linear: Estimation')
 )
@@ -387,6 +397,7 @@ png("images/quadratic_nested2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[13]]$nestedmats[, , 2],
   spectralmat = out[[13]]$spectralmats[, , 2],
+  D=D,
   ylim = c(-2, 2),
   hline = 1,
   mains = c('Nested Quadratic: Ground Truth', 'Spectral Quadratic: Estimation')
@@ -402,6 +413,7 @@ png("images/quadratic_spectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[14]]$nestedmats[, , 1],
   spectralmat = out[[14]]$spectralmats[, , 1],
+  D=D,
   ylim = c(-2, 2),
   mains = c('Nested Linear: Estimation', 'Spectral Linear: Ground Truth')
 )
@@ -413,6 +425,7 @@ png("images/quadratic_spectral2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
   nestedmat = out[[14]]$nestedmats[, , 2],
   spectralmat = out[[14]]$spectralmats[, , 2],
+  D=D,
   hline = 1,
   ylim = c(-2, 2),
   mains = c('Nested Quadratic: Estimation', 'Spectral Quadratic: Ground Truth')
