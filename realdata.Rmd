@@ -172,25 +172,25 @@ dev.off()
 ## Visualizing spatial-spectral
 ```{r}
 # Plots of X Z (spectral) and nested
-# Divide 3108 eigs into 12 bins
+# Divide the larges 250 eigenvalues into 10 bins
 Jks = list()
 Bks = list()
-num = 259
-avgeigs = rep(NA, 15)
+num = 25
+avgeigs = rep(NA, 10 + 3)
 # This takes a long time to run due to the size of the matrices
-for (i in 1:12){ 
-  window = (num*(i-1) + 1):(num*i)
+for (i in 1:10){ 
+  window = 2858 + (num*(i-1) + 1):(num*i)
   avgeigs[i] = paste('avglambda =', round(mean(D[window]),2))
   k = rep(0, 3109)
   k[window] = 1
   Jks[[i]] = diag(k)
   Bks[[i]] = G %*% diag(k) %*% t(G)
 }
-avgeigs[13:15] = c('Region', 'State', 'County')
+avgeigs[11:13] = c('Region', 'State', 'County')
 
 # PM2.5 spatial-spectral
-projectedPM = matrix(data = NA, nrow = 3109, ncol = 12)
-for (i in 1:12){
+projectedPM = matrix(data = NA, nrow = 3109, ncol = 10)
+for (i in 1:10){
   projectedPM[,i] = Bks[[i]] %*% study$qd_mean_pm25
 }
 # PM2.5 nested
@@ -205,15 +205,15 @@ study_map = mutate(study,
                    STATEFP10 = str_sub(FIPS, 1, 2),
                    COUNTYFP10 = str_sub(FIPS, 3, 5))
 study_map = cbind.data.frame(study_map, projectedPM, nestedPM)
-for (j in 49:63){
+for (j in 49:61){
   names(study_map)[j] = paste('PM', j-48, sep = '')
 }
 mapdat = left_join(states, study_map, by = c("STATEFP10", "COUNTYFP10"))
 
-labels = names(mapdat)[64:78]
+labels = names(mapdat)[64:76]
 # Create plots
 gs = list()
-for (i in 1:15){
+for (i in 1:13){
   gs[[i]] = ggplot(mapdat) +
   xlim(-125, -65) + 
   ylim(25, 50) +
@@ -231,7 +231,7 @@ geom_sf(aes_string(fill = labels[i]), color = NA) +
         axis.title = element_blank(),
         panel.grid.major = element_line(colour = "transparent"))
 }
-
+gs= gs[-1]
 png('images/spatial_spectral_PM.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
 do.call(grid.arrange,gs)
 dev.off()
