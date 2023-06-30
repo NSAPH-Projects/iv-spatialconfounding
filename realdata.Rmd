@@ -61,7 +61,7 @@ for (j in 64:3172){
   names(mapdat)[j] = paste('eig', j-63, sep = '')
 }
 png('images/histDreal.jpeg', height = 500, width = 500)
-hist(D, main = 'Histogram of Frequencies: US Map', xlab = 'eigenvalue')
+hist(D, main = 'Histogram of Eigenvalues: US Map', xlab = 'eigenvalue')
 dev.off()
 ```
 
