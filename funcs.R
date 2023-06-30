@@ -187,8 +187,8 @@ sim = function(n,
   }
   # Create Z in the spatial domain
   if (distribution == 'exponential'){
-    Z = rexp(n^(2*l))
-    noise = rexp(n^(2*l))
+    Z = rexp(n^(2*l))-1
+    noise = rexp(n^(2*l))-1
   }
   if (distribution == 'gaussian'){
     Z = rnorm(n^(2*l))
