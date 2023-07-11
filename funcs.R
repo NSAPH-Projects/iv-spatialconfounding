@@ -172,15 +172,24 @@ sim = function(n,
                quiet = F,
                nest = NULL,
                spec = NULL,
-               Z = NULL
+               Z = NULL,
+               G = NULL
 ){
   decomp = match.arg(decomposition)
   outcome = match.arg(outcome)
   
-  lattice = make_coords_df(n, l, quiet = quiet)
-  df = lattice$df
-  groups = as.matrix(df[,3:(l+1)], nrow = nrow(df), ncol = ncol(df[,3:(l+1)]))
-  A = lattice$adjacency_mat
+  if (is.null(G)){
+    lattice = make_coords_df(n, l, quiet = quiet)
+    df = lattice$df
+    groups = as.matrix(df[,3:(l+1)], nrow = nrow(df), ncol = ncol(df[,3:(l+1)]))
+    A = lattice$adjacency_mat
+    N = n^(2*l)
+  }
+  
+  else{
+    # TO DO
+    return(NULL)
+  }
   
   # Simulate X and Z
   if (!quiet){
@@ -189,21 +198,21 @@ sim = function(n,
   # Create Z in the spatial domain
   if (distribution == 'exponential'){
     if (is.null(Z)){
-      Z = rexp(n^(2*l))-1
+      Z = rexp(N)-1
     }
     else{
-      stopifnot(length(Z) == n^(2*l))
+      stopifnot(length(Z) == N)
     }
-    noise = rexp(n^(2*l))-1
+    noise = rexp(N)-1
   }
   if (distribution == 'gaussian'){
     if (is.null(Z)){
-      Z = rnorm(n^(2*l))
+      Z = rnorm(N)
     }
     else{
-      stopifnot(length(Z) == n^(2*l))
+      stopifnot(length(Z) == N)
     }
-    noise = rnorm(n^(2*l))
+    noise = rnorm(N)
   }
   # Project to nested domain and get X
   if (decomp == 'nested'){ 
@@ -213,12 +222,12 @@ sim = function(n,
     if (is.null(nest)){
       nest = nested_decomp_mats(groups)
     }
-    Zmat = matrix(NA, nrow = n^(2*l), ncol = l)
-    Xmat = matrix(NA, nrow = n^(2*l), ncol = l)
+    Zmat = matrix(NA, nrow = N, ncol = l)
+    Xmat = matrix(NA, nrow = N, ncol = l)
     
     for (i in 1:l){ 
       if (i > truncate){
-        Zmat[,i] = rep(0, n^(2*l))
+        Zmat[,i] = rep(0, N)
         Xmat[,i] = nest$decomp_mats[[i]]%*%noise
       }
       else{
@@ -238,8 +247,8 @@ sim = function(n,
     Zstar = spec %*% Z
     Xstar = rhox*Zstar + sqrt(1-rhox^2)*(spec %*% noise)
     if (!is.null(truncate)){
-      Zstar = c(Zstar[1:truncate], rep(0,n^(2*l)-truncate))
-      Xstar = c(Xstar[1:truncate], (spec %*% noise)[(truncate+1):(n^(2*l))])
+      Zstar = c(Zstar[1:truncate], rep(0,N-truncate))
+      Xstar = c(Xstar[1:truncate], (spec %*% noise)[(truncate+1):N])
     }
     df$Z = t(spec) %*% Zstar
     df$X = t(spec) %*% Xstar
@@ -250,16 +259,16 @@ sim = function(n,
     print('Simulating outcome')
   }
   if (outcome == 'linear'){
-    df$Y = betax*df$X + betaz*df$Z + rnorm(length(df$X), mean = 0, 
+    df$Y = betax*df$X + betaz*df$Z + rnorm(N, mean = 0, 
                                            sd = sig)
   }
   if (outcome == 'quadratic'){
     stopifnot(length(betax)>=2)
-    df$Y = betax[1]*df$X + betax[2]*df$X^2 + betaz*df$Z + rnorm(length(df$X), mean = 0, 
+    df$Y = betax[1]*df$X + betax[2]*df$X^2 + betaz*df$Z + rnorm(N, mean = 0, 
                                                                 sd = sig)
   }
   if (outcome == 'interaction'){
-    df$Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(length(df$X), 
+    df$Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(N, 
                                                               mean = 0, sd = sig)
   }
   return(list(
