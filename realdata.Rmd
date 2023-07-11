@@ -59,7 +59,9 @@ mapdat = left_join(states, study_map, by = c("STATEFP10", "COUNTYFP10"))
 for (j in 64:3172){
   names(mapdat)[j] = paste('eig', j-63, sep = '')
 }
-
+png('images/histDreal.jpeg', height = 500, width = 500)
+hist(D, main = 'Histogram of Frequencies: US Map', xlab = 'eigenvalue')
+dev.off()
 ```
 
 # Plot eigen on US map
@@ -165,6 +167,9 @@ png('images/data_nested.jpeg', height = 1024 * 0.6 * 2, width = 1024 * 2)
 do.call(grid.arrange,plts)
 dev.off()
 ```
+
+
+
 
 
 
