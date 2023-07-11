@@ -171,7 +171,8 @@ sim = function(n,
                truncate = NULL, # after this spatial level Z will not vary
                quiet = F,
                nest = NULL,
-               spec = NULL
+               spec = NULL,
+               Z = NULL
 ){
   decomp = match.arg(decomposition)
   outcome = match.arg(outcome)
@@ -187,11 +188,21 @@ sim = function(n,
   }
   # Create Z in the spatial domain
   if (distribution == 'exponential'){
-    Z = rexp(n^(2*l))-1
+    if (is.null(Z)){
+      Z = rexp(n^(2*l))-1
+    }
+    else{
+      stopifnot(length(Z) == n^(2*l))
+    }
     noise = rexp(n^(2*l))-1
   }
   if (distribution == 'gaussian'){
-    Z = rnorm(n^(2*l))
+    if (is.null(Z)){
+      Z = rnorm(n^(2*l))
+    }
+    else{
+      stopifnot(length(Z) == n^(2*l))
+    }
     noise = rnorm(n^(2*l))
   }
   # Project to nested domain and get X
@@ -452,7 +463,8 @@ simfunc = function(nsims=100,
                    truncate=NULL,
                    distribution='exponential',
                    betaxz=0,
-                   spectralmethod = 'bin'
+                   spectralmethod = 'bin',
+                   Z = NULL
 ){
   if (outcome == 'quadratic'){ # can generalize to other models thru arg coeffs
     deg = 2
@@ -474,7 +486,8 @@ simfunc = function(nsims=100,
                    quiet = quiet,
                    distribution = distribution,
                    betaxz=betaxz,
-                   spec = spec)
+                   spec = spec,
+                   Z = Z)
       nestedout = analysis(n = n, 
                            A = outsim$A, 
                            X = outsim$X, 
@@ -520,7 +533,8 @@ simfunc = function(nsims=100,
                    distribution = distribution,
                    betaxz=betaxz,
                    nest = nest,
-                   spec = spec)
+                   spec = spec,
+                   Z = Z)
       if (objective == 'analysis'){
         nestedmat[num,] = analysis(n = n, 
                                    A = outsim$A, 
