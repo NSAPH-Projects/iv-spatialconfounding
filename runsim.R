@@ -5,7 +5,12 @@ library(gridExtra)
 library(ggplot2)
 library(reshape2)
 library(dplyr)
-library(scatterplot3d) # update later with scatter3d (interactive)
+library(tidyverse)
+library(sp)
+library(raster)
+library(sf)
+library(fields)
+
 set.seed(2)
 
 source('funcs.R')
@@ -229,5 +234,66 @@ out[[15]] = simfunc(
   spectralmethod = 'bin'
 )
 
+# Real data simulations
+study = read.csv('/Users/sophie/Documents/SpatialConf/archived/Study_dataset_2010.csv')
+A = read.csv("/Users/sophie/Documents/SpatialConf/archived/adjacency_matrix.csv",
+               header = F) # created from spacebench script
+study$FIPS = str_pad(study$FIPS, 5, pad = '0')
+
+# Create Graph Laplacian
+R = diag(rowSums(A)) - A # graph laplacian 
+E = eigen(R) # eigen component
+D = E$val
+G = E$vec
+
+Z = study$gmet_mean_tmmn
+groups = cbind(study$region, study$STATE)
+nest = nested_decomp_mats(groups)
+spec = t(G)
+out[[16]] = simfunc(
+  A = A,
+  Z = Z,
+  groups = groups,
+  rhox = c(0.9, 0.5, 0.001),
+  dgm = 'nested',
+  nest = nest,
+  spec = spec,
+  spectralmethod = 'bin'
+)
+
+out[[17]] = simfunc(
+  A = A,
+  Z = Z,
+  groups = groups,
+  rhox = seq(0, 1, by = 1 / (length(Z) - 1)),
+  dgm = 'spectral',
+  nest = nest,
+  spec = spec,
+  spectralmethod = 'bin'
+)
+
+out[[18]] = simfunc(
+  A = A,
+  Z = Z,
+  groups = groups,
+  rhox = c(0.9, 0.5, 0.001),
+  dgm = 'nested',
+  nest = nest,
+  spec = spec,
+  objective = 'coherence',
+  spectralmethod = 'bin'
+)
+
+out[[19]] = simfunc(
+  A = A,
+  Z = Z,
+  groups = groups,
+  rhox = seq(0, 1, by = 1 / (length(Z) - 1)),
+  dgm = 'spectral',
+  nest = nest,
+  spec = spec,
+  objective = 'coherence',
+  spectralmethod = 'bin'
+)
 
 save(out, file = 'out.Rdata')
