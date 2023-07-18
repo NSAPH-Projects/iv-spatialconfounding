@@ -1,5 +1,5 @@
 ---
-title: "Decompositions"
+title: "Spectral and Nested Decomposition: Application to Real Data"
 author: "Sophie Woodward"
 date: '2023-06-08'
 output:
