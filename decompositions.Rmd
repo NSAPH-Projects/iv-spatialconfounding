@@ -201,36 +201,12 @@ for (j in 1:3){
 dev.off()
 ```
 
+# Simulations: 27x27 grid
+
 ```{r, sim1, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/nesteddgm.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[1]]$nestedmat, spectralmat = out[[1]]$spectralmat, 
-         D=D,
-         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
-dev.off()
-```
-
-```{r, sim3, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/spectraldgm1.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[3]]$nestedmat, spectralmat = out[[3]]$spectralmat, 
-         D=D,
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
-dev.off()
-```
-
-```{r, sim4, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/spectraldgm2.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat, 
-          D=D,
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
-dev.off()
-```
-
-# Simulation 3: Correlation by Spatial Scale
-
-```{r, sim5, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/cornesteddgm.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[5]]$nestedmat, 
-                     spectralmat = out[[5]]$spectralmat,
+plotfunc(nestedmat = out[[1]]$nestedmat, 
+                     spectralmat = out[[1]]$spectralmat,
                       D=D,
                      ylab='Cor(X,Z)',
                      hline=0,
@@ -240,62 +216,80 @@ plotfunc(nestedmat = out[[5]]$nestedmat,
 dev.off()
 ```
 
-```{r, sim7, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/corspectraldgm.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[7]]$nestedmat, 
-                  D=D,
-                  spectralmat = out[[7]]$spectralmat,
-                     ylab='Cor(X,Z)',
-                     hline=0,
-                     ylim=c(-1.1,1.1),
-                     col='purple', 
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
-dev.off()
-```
-
-```{r}
-png("images/corspectraldgm2.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[15]]$nestedmat, 
-                       D=D,
-                      spectralmat = out[[15]]$spectralmat,
-                     ylab='Cor(X,Z)',
-                     hline=0,
-                     ylim=c(-1.1,1.1),
-                     col='purple', 
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
-dev.off()
-```
-
-
-# Simulation 4: Local Confounding
-
-```{r, sim9, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/localnested.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[9]]$nestedmat, spectralmat = out[[9]]$spectralmat, 
+```{r, sim2, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/nesteddgm.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[2]]$nestedmat, spectralmat = out[[2]]$spectralmat, 
          D=D,
          mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
 dev.off()
 ```
 
+```{r, sim3, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/corspectraldgm1.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[3]]$nestedmat, 
+                  D=D,
+                  spectralmat = out[[3]]$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1.1,1.1),
+                     col='purple', 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
 
-```{r, sim10, cache = T, echo = F, message = F, results = 'hide', warning = F}
+```{r, sim4, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/spectraldgm1.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[4]]$nestedmat, spectralmat = out[[4]]$spectralmat, 
+         D=D,
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r, sim5, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/corspectraldgm2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[5]]$nestedmat, 
+                       D=D,
+                      spectralmat = out[[5]]$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1.1,1.1),
+                     col='purple', 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r, sim6, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/spectraldgm2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[6]]$nestedmat, spectralmat = out[[6]]$spectralmat, 
+          D=D,
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r, sim7, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/localnested.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[7]]$nestedmat, spectralmat = out[[7]]$spectralmat, 
+         D=D,
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+dev.off()
+```
+
+```{r, sim8, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/localspectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[10]]$nestedmat,
-  spectralmat = out[[10]]$spectralmat,
+  nestedmat = out[[8]]$nestedmat,
+  spectralmat = out[[8]]$spectralmat,
   D=D,
   mains = c('Nested: Estimation', 'Spectral: Ground Truth')
 )
 dev.off()
 ```
 
-# Simulation 5: Outcome Model with Interaction
-
-```{r, sim11, cache = T, echo = F, message = F, results = 'hide', warning = F}
+```{r, sim9, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/interaction_nested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[11]]$nestedmat,
-  spectralmat = out[[11]]$spectralmat,
+  nestedmat = out[[9]]$nestedmat,
+  spectralmat = out[[9]]$spectralmat,
   D=D,
   ylim = c(-4, 4),
   mains = c('Nested: Ground Truth', 'Spectral: Estimation')
@@ -303,11 +297,11 @@ plotfunc(
 dev.off()
 ```
 
-```{r, sim12, cache = T, echo = F, message = F, results = 'hide', warning = F}
+```{r, sim10, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/interaction_spectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[12]]$nestedmat,
-  spectralmat = out[[12]]$spectralmat,
+  nestedmat = out[[10]]$nestedmat,
+  spectralmat = out[[10]]$spectralmat,
   D=D,
   ylim = c(-5, 5),
   mains = c('Nested: Estimation', 'Spectral: Ground Truth')
@@ -315,26 +309,21 @@ plotfunc(
 dev.off()
 ```
 
-# Simulation 6: Nonlinear Outcome Model
-
-```{r, sim13, cache = T, echo = F, message = F, results = 'hide', warning = F}
+```{r, sim11, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/quadratic_nested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[13]]$nestedmats[, , 1],
-  spectralmat = out[[13]]$spectralmats[, , 1],
+  nestedmat = out[[11]]$nestedmats[, , 1],
+  spectralmat = out[[11]]$spectralmats[, , 1],
   D=D,
   ylim = c(-2, 2),
   mains = c('Nested Linear: Ground Truth', 'Spectral Linear: Estimation')
 )
 dev.off()
-```
 
-
-```{r, sim131, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/quadratic_nested2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[13]]$nestedmats[, , 2],
-  spectralmat = out[[13]]$spectralmats[, , 2],
+  nestedmat = out[[11]]$nestedmats[, , 2],
+  spectralmat = out[[11]]$spectralmats[, , 2],
   D=D,
   ylim = c(-2, 2),
   hline = 1,
@@ -343,23 +332,21 @@ plotfunc(
 dev.off()
 ```
 
-```{r, sim14, cache = T, echo = F, message = F, results = 'hide', warning = F}
+```{r, sim12, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/quadratic_spectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[14]]$nestedmats[, , 1],
-  spectralmat = out[[14]]$spectralmats[, , 1],
+  nestedmat = out[[12]]$nestedmats[, , 1],
+  spectralmat = out[[12]]$spectralmats[, , 1],
   D=D,
   ylim = c(-2, 2),
   mains = c('Nested Linear: Estimation', 'Spectral Linear: Ground Truth')
 )
 dev.off()
-```
 
-```{r, sim141, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/quadratic_spectral2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[14]]$nestedmats[, , 2],
-  spectralmat = out[[14]]$spectralmats[, , 2],
+  nestedmat = out[[12]]$nestedmats[, , 2],
+  spectralmat = out[[12]]$spectralmats[, , 2],
   D=D,
   hline = 1,
   ylim = c(-2, 2),
@@ -368,62 +355,215 @@ plotfunc(
 dev.off()
 ```
 
-# Real data sim
-```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/realsim1.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(
-  nestedmat = out[[16]]$nestedmat,
-  spectralmat = out[[16]]$spectralmat,
-  D=D,
-  ylim = c(-2.5,2.5),
-   nestlabels = c('Region', 'State', 'County'),
-  mains = c('Nested: Ground Truth', 'Spectral: Estimation')
-)
+# Simulations: US graph, real covariate
+
+```{r, sim13, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realcornesteddgm.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[13]]$nestedmat, 
+                     spectralmat = out[[13]]$spectralmat,
+                      D=D,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1,1),
+                     col='purple', 
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+dev.off()
+```
+
+```{r, sim14, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realnesteddgm.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[14]]$nestedmat, spectralmat = out[[14]]$spectralmat, 
+         D=D,
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
 dev.off()
 ```
 
 ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/realsim2.jpeg", height = 600, width = 1300, res = 200)
+png("images/realcorspectraldgm1.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[15]]$nestedmat, 
+                  D=D,
+                  spectralmat = out[[15]]$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1.1,1.1),
+                     col='purple', 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r, sim16, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realspectraldgm1.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[16]]$nestedmat, spectralmat = out[[16]]$spectralmat, 
+         D=D,
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r, sim17, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realcorspectraldgm2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[17]]$nestedmat, 
+                       D=D,
+                      spectralmat = out[[17]]$spectralmat,
+                     ylab='Cor(X,Z)',
+                     hline=0,
+                     ylim=c(-1.1,1.1),
+                     col='purple', 
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r, sim18, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realspectraldgm2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[18]]$nestedmat, spectralmat = out[[18]]$spectralmat, 
+          D=D,
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+dev.off()
+```
+
+```{r, sim19, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/reallocalnested.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(nestedmat = out[[19]]$nestedmat, spectralmat = out[[19]]$spectralmat, 
+         D=D,
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+dev.off()
+```
+
+```{r, sim20, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/reallocalspectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[17]]$nestedmat,
-  spectralmat = out[[17]]$spectralmat,
+  nestedmat = out[[20]]$nestedmat,
+  spectralmat = out[[20]]$spectralmat,
   D=D,
-  ylim = c(-1.5, 1.5),
-   nestlabels = c('Region', 'State', 'County'),
   mains = c('Nested: Estimation', 'Spectral: Ground Truth')
 )
 dev.off()
 ```
 
-```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/realsim3.jpeg", height = 600, width = 1300, res = 200)
+```{r, sim21, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realinteraction_nested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[18]]$nestedmat,
-  spectralmat = out[[18]]$spectralmat,
+  nestedmat = out[[21]]$nestedmat,
+  spectralmat = out[[21]]$spectralmat,
   D=D,
-  ylim = c(-1, 1),
-  nestlabels = c('Region', 'State', 'County'),
-  hline = 0,
-  ylab = 'correlation',
+  ylim = c(-4, 4),
   mains = c('Nested: Ground Truth', 'Spectral: Estimation')
 )
 dev.off()
 ```
 
-```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F}
-png("images/realsim4.jpeg", height = 600, width = 1300, res = 200)
+```{r, sim22, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realinteraction_spectral.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(
-  nestedmat = out[[19]]$nestedmat,
-  spectralmat = out[[19]]$spectralmat,
+  nestedmat = out[[22]]$nestedmat,
+  spectralmat = out[[22]]$spectralmat,
   D=D,
-  ylim = c(-1, 1),
-  hline = 0,
-  ylab = 'correlation',
- nestlabels = c('Region', 'State', 'County'),
- mains = c('Nested: Estimation', 'Spectral: Ground Truth')
+  ylim = c(-5, 5),
+  mains = c('Nested: Estimation', 'Spectral: Ground Truth')
 )
 dev.off()
 ```
 
+```{r, sim23, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realquadratic_nested.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(
+  nestedmat = out[[23]]$nestedmats[, , 1],
+  spectralmat = out[[23]]$spectralmats[, , 1],
+  D=D,
+  ylim = c(-2, 2),
+  mains = c('Nested Linear: Ground Truth', 'Spectral Linear: Estimation')
+)
+dev.off()
+
+png("images/realquadratic_nested2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(
+  nestedmat = out[[23]]$nestedmats[, , 2],
+  spectralmat = out[[23]]$spectralmats[, , 2],
+  D=D,
+  ylim = c(-2, 2),
+  hline = 1,
+  mains = c('Nested Quadratic: Ground Truth', 'Spectral Quadratic: Estimation')
+)
+dev.off()
+```
+
+```{r, sim24, cache = T, echo = F, message = F, results = 'hide', warning = F}
+png("images/realquadratic_spectral.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(
+  nestedmat = out[[24]]$nestedmats[, , 1],
+  spectralmat = out[[24]]$spectralmats[, , 1],
+  D=D,
+  ylim = c(-2, 2),
+  mains = c('Nested Linear: Estimation', 'Spectral Linear: Ground Truth')
+)
+dev.off()
+
+png("images/realquadratic_spectral2.jpeg", height = 600, width = 1300, res = 200)
+plotfunc(
+  nestedmat = out[[24]]$nestedmats[, , 2],
+  spectralmat = out[[24]]$spectralmats[, , 2],
+  D=D,
+  hline = 1,
+  ylim = c(-2, 2),
+  mains = c('Nested Quadratic: Estimation', 'Spectral Quadratic: Ground Truth')
+)
+dev.off()
+```
+
+<!-- # Real data sim -->
+<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
+<!-- png("images/realsim1.jpeg", height = 600, width = 1300, res = 200) -->
+<!-- plotfunc( -->
+<!--   nestedmat = out[[16]]$nestedmat, -->
+<!--   spectralmat = out[[16]]$spectralmat, -->
+<!--   D=D, -->
+<!--   ylim = c(-2.5,2.5), -->
+<!--    nestlabels = c('Region', 'State', 'County'), -->
+<!--   mains = c('Nested: Ground Truth', 'Spectral: Estimation') -->
+<!-- ) -->
+<!-- dev.off() -->
+<!-- ``` -->
+
+<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
+<!-- png("images/realsim2.jpeg", height = 600, width = 1300, res = 200) -->
+<!-- plotfunc( -->
+<!--   nestedmat = out[[17]]$nestedmat, -->
+<!--   spectralmat = out[[17]]$spectralmat, -->
+<!--   D=D, -->
+<!--   ylim = c(-1.5, 1.5), -->
+<!--    nestlabels = c('Region', 'State', 'County'), -->
+<!--   mains = c('Nested: Estimation', 'Spectral: Ground Truth') -->
+<!-- ) -->
+<!-- dev.off() -->
+<!-- ``` -->
+
+<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
+<!-- png("images/realsim3.jpeg", height = 600, width = 1300, res = 200) -->
+<!-- plotfunc( -->
+<!--   nestedmat = out[[18]]$nestedmat, -->
+<!--   spectralmat = out[[18]]$spectralmat, -->
+<!--   D=D, -->
+<!--   ylim = c(-1, 1), -->
+<!--   nestlabels = c('Region', 'State', 'County'), -->
+<!--   hline = 0, -->
+<!--   ylab = 'correlation', -->
+<!--   mains = c('Nested: Ground Truth', 'Spectral: Estimation') -->
+<!-- ) -->
+<!-- dev.off() -->
+<!-- ``` -->
+
+<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
+<!-- png("images/realsim4.jpeg", height = 600, width = 1300, res = 200) -->
+<!-- plotfunc( -->
+<!--   nestedmat = out[[19]]$nestedmat, -->
+<!--   spectralmat = out[[19]]$spectralmat, -->
+<!--   D=D, -->
+<!--   ylim = c(-1, 1), -->
+<!--   hline = 0, -->
+<!--   ylab = 'correlation', -->
+<!--  nestlabels = c('Region', 'State', 'County'), -->
+<!--  mains = c('Nested: Estimation', 'Spectral: Ground Truth') -->
+<!-- ) -->
+<!-- dev.off() -->
+<!-- ``` -->
 
 
