@@ -195,7 +195,7 @@ out[[12]] = simfunc(
   spectralmethod = 'bin'
 )
 
-# Real data simulations
+# Real data simulations: These take a little while to run due to the size of the graph
 study = read.csv('/Users/sophie/Documents/SpatialConf/archived/Study_dataset_2010.csv')
 A = read.csv("/Users/sophie/Documents/SpatialConf/archived/adjacency_matrix.csv",
                header = F) # created from spacebench script
@@ -207,17 +207,21 @@ E = eigen(R) # eigen component
 D = E$val
 G = E$vec
 
-Z = scale(study$gmet_mean_tmmn)
+Z = scale(study$gmet_mean_summer_rmn)
 groups = cbind(study$region, study$STATE)
 nest = nested_decomp_mats(groups)
 spec = t(G)
+
+# Region  gmet_mean_summer_rmn  0.1590144282
+# State   gmet_mean_summer_rmn -0.0808694934
+# County  gmet_mean_summer_rmn -0.0190646048
 
 # Sim 13: Real data, nested DGM, correlation
 out[[13]] = simfunc(
   A = A,
   Z = Z,
   groups = groups,
-  rhox = c(0.9, 0.5, 0.001),
+  rhox = c(0.159, -0.0809, -0.0191),
   dgm = 'nested',
   nest = nest,
   spec = spec,
@@ -230,7 +234,7 @@ out[[14]] = simfunc(
   A = A,
   Z = Z,
   groups = groups,
-  rhox = c(0.9, 0.5, 0.001),
+  rhox = c(0.159, -0.0809, -0.0191),
   dgm = 'nested',
   nest = nest,
   spec = spec,
@@ -292,7 +296,7 @@ out[[19]] = simfunc(
   A = A,
   Z = Z,
   groups = groups,
-  rhox = c(0.001, 0.5, 0.9),
+  rhox = c(-0.0191, -0.0809, 0.159),
   dgm = 'nested',
   nest = nest,
   spec = spec,
@@ -316,7 +320,7 @@ out[[21]] = simfunc(
   A = A,
   Z = Z,
   groups = groups,
-  rhox = c(0.9, 0.5, 0.001),
+  rhox = c(0.159, -0.0809, -0.0191),
   dgm = 'nested',
   nest = nest,
   spec = spec,
@@ -346,7 +350,7 @@ out[[23]] = simfunc(
   groups = groups,
   outcome = 'quadratic',
   betax = c(2, 1),
-  rhox = c(0.9, 0.5, 0.001),
+  rhox = c(0.159, -0.0809, -0.0191),
   dgm = 'nested',
   nest = nest,
   spec = spec,

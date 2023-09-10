@@ -1,10 +1,11 @@
-.RData
+*.RData
 .Rhistory
 TimeConf.Rmd
 *.csv
 .Rproj.user
 *.txt
 *.png
+*.jpeg
 *.tab
 atmospheric_data.Rmd  # not used
 tl_2010_us_county10*
@@ -14,6 +15,7 @@ out.Rdata
 eigen.py
 outsim.Rdata
 images/*
+tl*
 
 # vscode
 .vscode/*
