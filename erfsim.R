@@ -1,51 +1,54 @@
-simfunc = function(nreps, dgm = c('linear', 'quadratic', 'interaction'),
-                   interactionsd = 3){
-  outcomemod = match.arg(dgm)
-  xcoeffs = rep(NA, nreps)
-  vvtxcoeffs = rep(NA, nreps)
-  vvtyxcoeffs = rep(NA, nreps)
-  vvtyvvtxcoeffs = rep(NA, nreps)
-  for (i in 1:nreps){
-    n = 10
-    A = matrix(rexp(n^2), nrow = n, ncol = n)
-    v = svd(A)$u[,c(1,2)] # by construction orthonormal
-    vvt = v%*%t(v)
-    x = rexp(n)
-    if (outcomemod == 'linear'){
-      y = 2*x
-    }
-    if (outcomemod == 'quadratic'){
-      y = 2*x^2
-    }
-    if (outcomemod == 'interaction'){
-      c = rnorm(n, mean = 0, sd = interactionsd) # mean 1
-      y = 2*x + x*c
-    }
-    vvtx = vvt%*%x
-    rx = x - vvtx
-    vvty = vvt%*%y
-    xcoeffs[i] = summary(lm(y~x))$coefficients[2,1]
-    vvtxcoeffs[i] = summary(lm(y~vvtx + rx))$coefficients[2,1] 
-    vvtyxcoeffs[i] = summary(lm(vvty ~ x))$coefficients[2,1]
-    vvtyvvtxcoeffs[i] = summary(lm(vvty ~ vvtx + rx))$coefficients[2,1] 
-  }
-  df = data.frame(matrix(c(mean(xcoeffs),
-                           mean(vvtxcoeffs),
-                           mean(vvtyxcoeffs),
-                           mean(vvtyvvtxcoeffs),
-                           sd(xcoeffs),
-                           sd(vvtxcoeffs),
-                           sd(vvtyxcoeffs),
-                           sd(vvtyvvtxcoeffs)), nrow = 4, ncol = 2, byrow = F), 
-                  row.names = c('y~x', 'y~vvtx+rx', 'vvty~x', 'vvty ~ vvtx + rx'))
-  colnames(df) = c('mean', 'sd')
+library(ggplot2)
+library(gridExtra)
+
+erfsim = function(n, beta1, beta2, betaxc, betac, sig){
+  x = rexp(n)-1 # mean zero
+  cov = rgamma(n, shape = 2, rate = 1)
+  y = beta1*x + beta2*x^2+ betaxc*x*cov + betac*cov + rnorm(n, mean = 0, sd = sig)
+  lm1 = lm(y~ x + I(x^2) + x:cov + cov)
+  pred1 = predict(lm1, newdata = data.frame(x = seq(-1, 1-2/n, by = 2/n), 
+                                            cov = rgamma(n, shape = 2, rate = 1)))
+
+  A = matrix(rexp(n^2), nrow = n, ncol = n)
+  v = svd(A)$u[,1:10] # by construction orthonormal
+  vvt = v%*%t(v)
+  vvtx = as.numeric(vvt%*%x)
+  print(mean(vvtx))
+  rx = x - vvtx
+  lm2 = lm(y ~ vvtx + I(vvtx^2) + cov + cov:vvtx + rx + I(rx^2) + cov:rx + rx:I(vvtx^2))
+  pred2 = predict(lm2, newdata = data.frame(vvtx = seq(-1, 1-2/n, by = 2/n), rx = rep(0, n), 
+                                            cov = rnorm(n, mean = 2, sd = 0.5)))
+  pred3 = predict(lm1)
+  pred4 = predict(lm2)
+  df = cbind.data.frame(x,
+                         vvtx, 
+                         seq(-1, 1-2/n, by = 2/n),
+                         pred1,
+                         pred2, 
+                        pred3, 
+                        pred4)
+  colnames(df) = c('obs_x', 'obs_vvtx', 'predx', 'lm1_pred', 'lm2_pred', 'lm3_pred', 'lm4_pred')
+  # average across values of x to create ERF
+  #dffinal = aggregate(df, 
+  #                    by=list(cut(df1$predx,seq(-1,1,0.1))), 
+  #                    mean) 
   return(df)
 }
-
-set.seed(111)
-simfunc(1000, dgm = 'linear')
-simfunc(1000, dgm = 'interaction', interactionsd = 1)
-simfunc(1000, dgm = 'interaction', interactionsd = 5)
-simfunc(1000, dgm = 'interaction', interactionsd = 10)
-
-
+# ERF: average over COVARIATE DISTRIBUTION
+nreps = 9
+gs = list()
+for (rep in 1:nreps){
+  dfrep = erfsim(n=500, beta1=2, beta2=0, betaxc=0, betac=0, sig=1)
+  gs[[rep]] = ggplot(dfrep, aes(x = predx)) + 
+    geom_line(aes(y = lm1_pred, color = 'ERF from x')) + 
+    geom_line(aes(y = lm2_pred, color = 'ERF from proj x')) + 
+    geom_rug(aes(x = obs_vvtx), sides = 'b') + 
+    labs(title = 'ERF', y = 'prediction', x = 'x or proj x') + 
+    scale_colour_manual("", 
+                        breaks = c("ERF from x", "ERF from proj x"),
+                        values = c("blue", "red")) + 
+    theme_minimal()
+}
+png('images/erfs.jpeg', height = 1024 * 2, width = 1024 * 2)
+do.call(grid.arrange,gs)
+dev.off()
