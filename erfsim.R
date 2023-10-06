@@ -20,35 +20,34 @@ erfsim = function(n, beta1, beta2, betaxc, betac, sig){
                                             cov = rnorm(n, mean = 2, sd = 0.5)))
   pred3 = predict(lm1)
   pred4 = predict(lm2)
-  df = cbind.data.frame(x,
-                         vvtx, 
-                         seq(-1, 1-2/n, by = 2/n),
+  df = cbind.data.frame(seq(-1, 1-2/n, by = 2/n),
                          pred1,
                          pred2, 
                         pred3, 
                         pred4)
-  colnames(df) = c('obs_x', 'obs_vvtx', 'predx', 'lm1_pred', 'lm2_pred', 'lm3_pred', 'lm4_pred')
-  # average across values of x to create ERF
-  #dffinal = aggregate(df, 
-  #                    by=list(cut(df1$predx,seq(-1,1,0.1))), 
-  #                    mean) 
-  return(df)
+  colnames(df) = c('predx', 'lm1_pred', 'lm2_pred', 'lm3_pred', 'lm4_pred')
+  # average across values of x (binning) to create ERF: ok since cov indep of x?
+  dffinal = aggregate(df, 
+                      by=list(cut(df$predx,seq(-1,1,0.1))), 
+                      mean) 
+  return(list('df' = dffinal, 'vvtx' = data.frame('obs_vvtx' = vvtx)))
 }
-# ERF: average over COVARIATE DISTRIBUTION
+# ERF: average over COVARIATE DISTRIBUTION.. but covariate indep X so ok?
 nreps = 9
 gs = list()
 for (rep in 1:nreps){
-  dfrep = erfsim(n=500, beta1=2, beta2=0, betaxc=0, betac=0, sig=1)
-  gs[[rep]] = ggplot(dfrep, aes(x = predx)) + 
+  dfrep = erfsim(n=300, beta1=2, beta2=0, betaxc=0, betac=0, sig=1)
+  gs[[rep]] = ggplot(dfrep$df, aes(x = predx)) + 
     geom_line(aes(y = lm1_pred, color = 'ERF from x')) + 
     geom_line(aes(y = lm2_pred, color = 'ERF from proj x')) + 
-    geom_rug(aes(x = obs_vvtx), sides = 'b') + 
+    geom_rug(data=dfrep$vvtx, aes(x = obs_vvtx), sides = 'b', inherit.aes = F) + 
     labs(title = 'ERF', y = 'prediction', x = 'x or proj x') + 
     scale_colour_manual("", 
                         breaks = c("ERF from x", "ERF from proj x"),
-                        values = c("blue", "red")) + 
+                        values = c("blue", "red")) +
+    ylim(-3,3) +
     theme_minimal()
 }
-png('images/erfs.jpeg', height = 1024 * 2, width = 1024 * 2)
+png('images/erfs.jpeg', height = 1024, width = 1200)
 do.call(grid.arrange,gs)
 dev.off()
