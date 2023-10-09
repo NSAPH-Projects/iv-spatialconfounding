@@ -171,15 +171,30 @@ sim = function(n,
                truncate = NULL, # after this spatial level Z will not vary
                quiet = F,
                nest = NULL,
-               spec = NULL
+               spec = NULL,
+               Z = NULL,
+               A = NULL,
+               groups = NULL
 ){
   decomp = match.arg(decomposition)
   outcome = match.arg(outcome)
   
-  lattice = make_coords_df(n, l, quiet = quiet)
-  df = lattice$df
-  groups = as.matrix(df[,3:(l+1)], nrow = nrow(df), ncol = ncol(df[,3:(l+1)]))
-  A = lattice$adjacency_mat
+  # If adjacency matrix is not provided, create a n^l x n^l grid
+  if (is.null(A)){ 
+    lattice = make_coords_df(n, l, quiet = quiet)
+    df = lattice$df
+    groups = as.matrix(df[,3:(l+1)], nrow = nrow(df), ncol = ncol(df[,3:(l+1)]))
+    A = lattice$adjacency_mat
+    N = n^(2*l)
+    coords = cbind(df$xcoord, df$ycoord)
+  }
+  
+  else{
+    stopifnot(!is.null(groups))
+    N = nrow(A)
+    coords = NULL # not necessary to provide
+    l = ncol(groups) + 1
+  }
   
   # Simulate X and Z
   if (!quiet){
@@ -187,12 +202,22 @@ sim = function(n,
   }
   # Create Z in the spatial domain
   if (distribution == 'exponential'){
-    Z = rexp(n^(2*l))-1
-    noise = rexp(n^(2*l))-1
+    if (is.null(Z)){
+      Z = rexp(N)-1
+    }
+    else{
+      stopifnot(length(Z) == N)
+    }
+    noise = rexp(N)-1
   }
   if (distribution == 'gaussian'){
-    Z = rnorm(n^(2*l))
-    noise = rnorm(n^(2*l))
+    if (is.null(Z)){
+      Z = rnorm(N)
+    }
+    else{
+      stopifnot(length(Z) == N)
+    }
+    noise = rnorm(N)
   }
   # Project to nested domain and get X
   if (decomp == 'nested'){ 
@@ -202,22 +227,23 @@ sim = function(n,
     if (is.null(nest)){
       nest = nested_decomp_mats(groups)
     }
-    Zmat = matrix(NA, nrow = n^(2*l), ncol = l)
-    Xmat = matrix(NA, nrow = n^(2*l), ncol = l)
+    Zmat = matrix(NA, nrow = N, ncol = l)
+    Xmat = matrix(NA, nrow = N, ncol = l)
     
     for (i in 1:l){ 
       if (i > truncate){
-        Zmat[,i] = rep(0, n^(2*l))
+        Zmat[,i] = rep(0, N)
         Xmat[,i] = nest$decomp_mats[[i]]%*%noise
       }
       else{
+        stopifnot(length(rhox) == l)
         Zi = nest$decomp_mats[[i]] %*% Z
         Zmat[,i] = Zi
-        Xmat[,i] = rhox[i]*Zi + sqrt(1-rhox[i]^2)*(nest$decomp_mats[[i]] %*% noise)
+        Xmat[,i] = rhox[i]*scale(Zi) + sqrt(1-rhox[i]^2)*scale(nest$decomp_mats[[i]] %*% noise)
       }
     }
-    df$Z = rowSums(Zmat) 
-    df$X = rowSums(Xmat)
+    Z = rowSums(Zmat) 
+    X = rowSums(Xmat)
   }
   # Project to spectral domain and get X
   if (decomp == 'spectral'){
@@ -225,13 +251,14 @@ sim = function(n,
       spec = spectral_decomp(A)
     }
     Zstar = spec %*% Z
+    stopifnot(length(rhox) == N)
     Xstar = rhox*Zstar + sqrt(1-rhox^2)*(spec %*% noise)
     if (!is.null(truncate)){
-      Zstar = c(Zstar[1:truncate], rep(0,n^(2*l)-truncate))
-      Xstar = c(Xstar[1:truncate], (spec %*% noise)[(truncate+1):(n^(2*l))])
+      Zstar = c(Zstar[1:truncate], rep(0,N-truncate))
+      Xstar = c(Xstar[1:truncate], (spec %*% noise)[(truncate+1):N])
     }
-    df$Z = t(spec) %*% Zstar
-    df$X = t(spec) %*% Xstar
+    Z = t(spec) %*% Zstar
+    X = t(spec) %*% Xstar
   }
 
   # Simulate the outcome
@@ -239,30 +266,26 @@ sim = function(n,
     print('Simulating outcome')
   }
   if (outcome == 'linear'){
-    df$Y = betax*df$X + betaz*df$Z + rnorm(length(df$X), mean = 0, 
-                                           sd = sig)
+    Y = betax*X + betaz*Z + rnorm(N, mean = 0, sd = sig)
   }
   if (outcome == 'quadratic'){
     stopifnot(length(betax)>=2)
-    df$Y = betax[1]*df$X + betax[2]*df$X^2 + betaz*df$Z + rnorm(length(df$X), mean = 0, 
-                                                                sd = sig)
+    Y = betax[1]*X + betax[2]*X^2 + betaz*Z + rnorm(N, mean = 0, sd = sig)
   }
   if (outcome == 'interaction'){
-    df$Y = betax*df$X + betaz*df$Z + betaxz*df$X*df$Z + rnorm(length(df$X), 
-                                                              mean = 0, sd = sig)
+    Y = betax*X + betaz*Z + betaxz*X*Z + rnorm(N, mean = 0, sd = sig)
   }
   return(list(
-    'coord' = cbind(df$xcoord, df$ycoord),
+    'coord' = coords,
     'A'=A,#adjacency mat
-    'X'=df$X,#exposure
-    'Y'=df$Y,#outcome
-    'Z'=df$Z, #confounder
+    'X'=X,#exposure
+    'Y'=Y,#outcome
+    'Z'=Z, #confounder
     'groups' = groups #nested group
   ))
 }
 
-analysis = function(n, # subgroups in a group
-                    A, # adjacency
+analysis = function(A, # adjacency
                     X, # exposure
                     Y, # outcome
                     groups, # nested group
@@ -278,7 +301,6 @@ analysis = function(n, # subgroups in a group
   l = ncol(groups) + 1
   if (decomposition == 'nested'){
     # Regress Y on X at each level
-    
     if (is.null(nest)){
       if (!quiet){
         print('Perform decomposition')
@@ -323,10 +345,16 @@ analysis = function(n, # subgroups in a group
     }
     betas = c()
     if (spectralmethod == 'bin'){
-      num = n^(2*l-2) # -1
+      bins = 10 # can change
+      num = floor(length(X)/bins)
       zeroeig = which(apply(spec, 1, function(x) length(unique(round(x,10)))) == 1)
-      for (i in 1:(n^2)){ # n
-        window = (num*(i-1) + 1):(num*i)
+      for (i in 1:bins){ 
+        if (i == bins){
+          window = (num*(i-1) + 1):length(X)
+        }
+        else{
+          window = (num*(i-1) + 1):(num*i)
+        }
         # Take out observations corresponding to 0 eigenvalue
         window = setdiff(window, zeroeig)
         
@@ -365,8 +393,7 @@ analysis = function(n, # subgroups in a group
   return(betas)
 }
 
-coherence = function(n, # subgroups in a group
-                    A, # adjacency
+coherence = function(A, # adjacency
                     X, # exposure
                     Z, # confounder
                     groups, # nested group
@@ -392,11 +419,11 @@ coherence = function(n, # subgroups in a group
     if (!quiet){
       print('Calculate correlations')
     }
-    cors = c() # CHANGED from rep(NA,)
+    cors = rep(NA, l)
     for (i in 1:l){ 
       Xi = nest$decomp_mats[[i]] %*% X
       Zi = nest$decomp_mats[[i]] %*% Z
-      cors = c(cors,cor(Xi,Zi))
+      cors[i] = cor(Xi,Zi)
     }
   }
   if (decomposition == 'spectral'){
@@ -411,26 +438,32 @@ coherence = function(n, # subgroups in a group
     if (!quiet){
       print('Calculate correlations')
     }
+        
     if (spectralmethod == 'bin'){
-      cors = c()
-      num = n^(2*l-2) # -1
+      bins = 10 # can change
+      cors = rep(NA, bins)
+      num = floor(length(X)/bins)
       zeroeig = which(apply(spec, 1, function(x) length(unique(round(x,10)))) == 1)
-      for (i in 1:(n^2)){ # n
-        window = (num*(i-1)+1):(num*i)
-        # Take out observations corresponding to eigenval 0
+      for (i in 1:bins){
+        if (i == bins){
+          window = (num*(i-1) + 1):length(X)
+        }
+        else{
+          window = (num*(i-1) + 1):(num*i)
+        }
+        # Take out observations corresponding to 0 eigenvalue
         window = setdiff(window, zeroeig)
-        cors = c(cors, cor(Zstar[window],Xstar[window]))
+        cors[i] = cor(Zstar[window],Xstar[window])
       }
     }
     if (spectralmethod == 'wls'){
-      # TO DO
-      cors = c()
+      cors = rep(NA, length(Xstar))
       k = 10
       for (i in 1:length(Xstar)){
         window = seq(max(1, i-k), min(i+k, length(Xstar)), by = 1)
         wt = exp(-0.1*abs(window-i))
         wt = wt/sum(wt)
-        cors = c(cors, cov.wt(cbind(Xstar[window],Zstar[window]),wt=wt,cor = T)$cor[1,2])
+        cors[i] = cov.wt(cbind(Xstar[window],Zstar[window]),wt=wt,cor = T)$cor[1,2]
       }
     }
     
@@ -452,16 +485,26 @@ simfunc = function(nsims=100,
                    truncate=NULL,
                    distribution='exponential',
                    betaxz=0,
-                   spectralmethod = 'bin'
+                   spectralmethod = 'bin',
+                   Z = NULL,
+                   A = NULL,
+                   groups = NULL
 ){
+  if (!is.null(A)){
+    l = ncol(groups) + 1
+    N = nrow(A)
+  }
+  else{
+    N = n^(2*l)
+  }
   if (outcome == 'quadratic'){ # can generalize to other models thru arg coeffs
     deg = 2
     nestedmats = array(NA, c(nsims, l, deg))
     if (spectralmethod == 'bin'){
-      spectralmats = array(NA, c(nsims, n^2,deg))
+      spectralmats = array(NA, c(nsims, 10, deg)) # for bins = 10
     }
     if (spectralmethod == 'wls'){
-      spectralmats = array(NA, c(nsims, n^(2*l),deg))
+      spectralmats = array(NA, c(nsims, N,deg))
     }
     for (num in 1:nsims){
       outsim = sim(n = n, 
@@ -474,9 +517,11 @@ simfunc = function(nsims=100,
                    quiet = quiet,
                    distribution = distribution,
                    betaxz=betaxz,
-                   spec = spec)
-      nestedout = analysis(n = n, 
-                           A = outsim$A, 
+                   spec = spec,
+                   Z = Z,
+                   A = A, 
+                   groups = groups)
+      nestedout = analysis(A = outsim$A, 
                            X = outsim$X, 
                            Y = outsim$Y, 
                            groups = outsim$groups,
@@ -484,8 +529,7 @@ simfunc = function(nsims=100,
                            outcome = outcome,
                            quiet = quiet,
                            nest = nest)
-      spectralout = analysis(n = n, 
-                             A = outsim$A, 
+      spectralout = analysis(A = outsim$A, 
                              X = outsim$X, 
                              Y = outsim$Y, 
                              groups = outsim$groups,
@@ -503,10 +547,10 @@ simfunc = function(nsims=100,
   else{
     nestedmat = matrix(NA, nrow = nsims, ncol = l)
     if (spectralmethod == 'bin'){
-      spectralmat = matrix(NA, nrow = nsims, ncol = n^2)
+      spectralmat = matrix(NA, nrow = nsims, ncol = 10)
     }
     if (spectralmethod == 'wls'){
-      spectralmat = matrix(NA, nrow = nsims, ncol = n^(2*l))
+      spectralmat = matrix(NA, nrow = nsims, ncol = N)
     }
     for (num in 1:nsims){
       outsim = sim(n = n, 
@@ -520,18 +564,19 @@ simfunc = function(nsims=100,
                    distribution = distribution,
                    betaxz=betaxz,
                    nest = nest,
-                   spec = spec)
+                   spec = spec,
+                   Z = Z,
+                   A = A, 
+                   groups = groups)
       if (objective == 'analysis'){
-        nestedmat[num,] = analysis(n = n, 
-                                   A = outsim$A, 
+        nestedmat[num,] = analysis(A = outsim$A, 
                                    X = outsim$X, 
                                    Y = outsim$Y, 
                                    groups = outsim$groups,
                                    decomposition = 'nested', 
                                    quiet = quiet,
                                    nest = nest)
-        spectralmat[num,] = analysis(n = n, 
-                                     A = outsim$A, 
+        spectralmat[num,] = analysis(A = outsim$A, 
                                      X = outsim$X, 
                                      Y = outsim$Y, 
                                      groups = outsim$groups,
@@ -541,15 +586,13 @@ simfunc = function(nsims=100,
                                      spectralmethod = spectralmethod)
       }
       if (objective == 'coherence'){
-        nestedmat[num,] = coherence(n = n, 
-                                    A = outsim$A, 
+        nestedmat[num,] = coherence(A = outsim$A, 
                                     X = outsim$X, 
                                     Z = outsim$Z, 
                                     groups = outsim$groups,
                                     decomposition = 'nested', 
                                     quiet = quiet, nest = nest)
-        spectralmat[num,] = coherence(n = n, 
-                                      A = outsim$A, 
+        spectralmat[num,] = coherence(A = outsim$A, 
                                       X = outsim$X, 
                                       Z = outsim$Z, 
                                       groups = outsim$groups,
@@ -586,7 +629,8 @@ plotfunc = function(n=5,
                     ylim = c(-2,2),
                     col='blue',
                     mains = c('Nested', 'Spectral'),
-                    D = NULL
+                    D = NULL,
+                    nestlabels = c('9x9', '3x3', '1x1')
                     ){
   nested_df <- data.frame(Spatial_Scale = 1:ncol(nestedmat), betas = colMeans(nestedmat))
   
@@ -599,7 +643,7 @@ plotfunc = function(n=5,
   spectral_df <- data.frame(Spatial_Scale = speceigen, betas = colMeans(spectralmat))
   # Plot for nestedmat
   nested_df$Custom_Labels <- factor(nested_df$Spatial_Scale, levels = c(1, 2, 3),
-                                    labels = c('9x9', '3x3', '1x1'))
+                                    labels = nestlabels)
   plot_nested <- ggplot(nested_df, aes(x = Custom_Labels, y = betas-hline)) + 
     geom_ribbon(aes(x = 1:3, ymin = apply(nestedmat, 2, quantile, probs = 0.25)-hline, 
                     ymax = apply(nestedmat, 2, quantile, probs = 0.75)-hline), 
@@ -613,7 +657,7 @@ plotfunc = function(n=5,
     theme_minimal() +
     theme(legend.position = 'topright') +
     geom_hline(yintercept = 0, color = 'red', linetype = "dashed") + 
-    scale_x_discrete(labels = c('9x9', '3x3', '1x1'))
+    scale_x_discrete(labels = nestlabels)
   
   # Plot for spectralmat
   plot_spectral <- ggplot(spectral_df, aes(x = Spatial_Scale, y = betas-hline)) + 
