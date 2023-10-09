@@ -359,14 +359,15 @@ dev.off()
 
 ```{r, sim13, cache = T, echo = F, message = F, results = 'hide', warning = F}
 png("images/realcornesteddgm.jpeg", height = 600, width = 1300, res = 200)
-plotfunc(nestedmat = out[[13]]$nestedmat, 
+ plotfunc(nestedmat = out[[13]]$nestedmat, 
                      spectralmat = out[[13]]$spectralmat,
                       D=D,
                      ylab='Cor(X,Z)',
                      hline=0,
                      ylim=c(-1,1),
                      col='purple', 
-         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'),
+  nestlabels = c('Region', 'State', 'County'))
 dev.off()
 ```
 
@@ -374,7 +375,8 @@ dev.off()
 png("images/realnesteddgm.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[14]]$nestedmat, spectralmat = out[[14]]$spectralmat, 
          D=D,
-         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'),
+  nestlabels = c('Region', 'State', 'County'))
 dev.off()
 ```
 
@@ -387,7 +389,8 @@ plotfunc(nestedmat = out[[15]]$nestedmat,
                      hline=0,
                      ylim=c(-1.1,1.1),
                      col='purple', 
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County'))
 dev.off()
 ```
 
@@ -395,7 +398,8 @@ dev.off()
 png("images/realspectraldgm1.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[16]]$nestedmat, spectralmat = out[[16]]$spectralmat, 
          D=D,
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County'))
 dev.off()
 ```
 
@@ -408,7 +412,8 @@ plotfunc(nestedmat = out[[17]]$nestedmat,
                      hline=0,
                      ylim=c(-1.1,1.1),
                      col='purple', 
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County'))
 dev.off()
 ```
 
@@ -416,7 +421,8 @@ dev.off()
 png("images/realspectraldgm2.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[18]]$nestedmat, spectralmat = out[[18]]$spectralmat, 
           D=D,
-         mains = c('Nested: Estimation', 'Spectral: Ground Truth'))
+         mains = c('Nested: Estimation', 'Spectral: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County'))
 dev.off()
 ```
 
@@ -424,7 +430,8 @@ dev.off()
 png("images/reallocalnested.jpeg", height = 600, width = 1300, res = 200)
 plotfunc(nestedmat = out[[19]]$nestedmat, spectralmat = out[[19]]$spectralmat, 
          D=D,
-         mains = c('Nested: Ground Truth', 'Spectral: Estimation'))
+         mains = c('Nested: Ground Truth', 'Spectral: Estimation'),
+  nestlabels = c('Region', 'State', 'County'))
 dev.off()
 ```
 
@@ -434,7 +441,9 @@ plotfunc(
   nestedmat = out[[20]]$nestedmat,
   spectralmat = out[[20]]$spectralmat,
   D=D,
-  mains = c('Nested: Estimation', 'Spectral: Ground Truth')
+  mains = c('Nested: Estimation', 'Spectral: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County')#,
+  #ylim = c(-20,20)
 )
 dev.off()
 ```
@@ -446,7 +455,8 @@ plotfunc(
   spectralmat = out[[21]]$spectralmat,
   D=D,
   ylim = c(-4, 4),
-  mains = c('Nested: Ground Truth', 'Spectral: Estimation')
+  mains = c('Nested: Ground Truth', 'Spectral: Estimation'),
+  nestlabels = c('Region', 'State', 'County')
 )
 dev.off()
 ```
@@ -458,7 +468,8 @@ plotfunc(
   spectralmat = out[[22]]$spectralmat,
   D=D,
   ylim = c(-5, 5),
-  mains = c('Nested: Estimation', 'Spectral: Ground Truth')
+  mains = c('Nested: Estimation', 'Spectral: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County')
 )
 dev.off()
 ```
@@ -469,8 +480,8 @@ plotfunc(
   nestedmat = out[[23]]$nestedmats[, , 1],
   spectralmat = out[[23]]$spectralmats[, , 1],
   D=D,
-  ylim = c(-2, 2),
-  mains = c('Nested Linear: Ground Truth', 'Spectral Linear: Estimation')
+  mains = c('Nested Linear: Ground Truth', 'Spectral Linear: Estimation'),
+  nestlabels = c('Region', 'State', 'County')
 )
 dev.off()
 
@@ -479,9 +490,9 @@ plotfunc(
   nestedmat = out[[23]]$nestedmats[, , 2],
   spectralmat = out[[23]]$spectralmats[, , 2],
   D=D,
-  ylim = c(-2, 2),
   hline = 1,
-  mains = c('Nested Quadratic: Ground Truth', 'Spectral Quadratic: Estimation')
+  mains = c('Nested Quadratic: Ground Truth', 'Spectral Quadratic: Estimation'),
+  nestlabels = c('Region', 'State', 'County')
 )
 dev.off()
 ```
@@ -493,7 +504,8 @@ plotfunc(
   spectralmat = out[[24]]$spectralmats[, , 1],
   D=D,
   ylim = c(-2, 2),
-  mains = c('Nested Linear: Estimation', 'Spectral Linear: Ground Truth')
+  mains = c('Nested Linear: Estimation', 'Spectral Linear: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County')
 )
 dev.off()
 
@@ -504,66 +516,11 @@ plotfunc(
   D=D,
   hline = 1,
   ylim = c(-2, 2),
-  mains = c('Nested Quadratic: Estimation', 'Spectral Quadratic: Ground Truth')
+  mains = c('Nested Quadratic: Estimation', 'Spectral Quadratic: Ground Truth'),
+  nestlabels = c('Region', 'State', 'County')
 )
 dev.off()
 ```
 
-<!-- # Real data sim -->
-<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
-<!-- png("images/realsim1.jpeg", height = 600, width = 1300, res = 200) -->
-<!-- plotfunc( -->
-<!--   nestedmat = out[[16]]$nestedmat, -->
-<!--   spectralmat = out[[16]]$spectralmat, -->
-<!--   D=D, -->
-<!--   ylim = c(-2.5,2.5), -->
-<!--    nestlabels = c('Region', 'State', 'County'), -->
-<!--   mains = c('Nested: Ground Truth', 'Spectral: Estimation') -->
-<!-- ) -->
-<!-- dev.off() -->
-<!-- ``` -->
-
-<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
-<!-- png("images/realsim2.jpeg", height = 600, width = 1300, res = 200) -->
-<!-- plotfunc( -->
-<!--   nestedmat = out[[17]]$nestedmat, -->
-<!--   spectralmat = out[[17]]$spectralmat, -->
-<!--   D=D, -->
-<!--   ylim = c(-1.5, 1.5), -->
-<!--    nestlabels = c('Region', 'State', 'County'), -->
-<!--   mains = c('Nested: Estimation', 'Spectral: Ground Truth') -->
-<!-- ) -->
-<!-- dev.off() -->
-<!-- ``` -->
-
-<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
-<!-- png("images/realsim3.jpeg", height = 600, width = 1300, res = 200) -->
-<!-- plotfunc( -->
-<!--   nestedmat = out[[18]]$nestedmat, -->
-<!--   spectralmat = out[[18]]$spectralmat, -->
-<!--   D=D, -->
-<!--   ylim = c(-1, 1), -->
-<!--   nestlabels = c('Region', 'State', 'County'), -->
-<!--   hline = 0, -->
-<!--   ylab = 'correlation', -->
-<!--   mains = c('Nested: Ground Truth', 'Spectral: Estimation') -->
-<!-- ) -->
-<!-- dev.off() -->
-<!-- ``` -->
-
-<!-- ```{r, sim15, cache = T, echo = F, message = F, results = 'hide', warning = F} -->
-<!-- png("images/realsim4.jpeg", height = 600, width = 1300, res = 200) -->
-<!-- plotfunc( -->
-<!--   nestedmat = out[[19]]$nestedmat, -->
-<!--   spectralmat = out[[19]]$spectralmat, -->
-<!--   D=D, -->
-<!--   ylim = c(-1, 1), -->
-<!--   hline = 0, -->
-<!--   ylab = 'correlation', -->
-<!--  nestlabels = c('Region', 'State', 'County'), -->
-<!--  mains = c('Nested: Estimation', 'Spectral: Ground Truth') -->
-<!-- ) -->
-<!-- dev.off() -->
-<!-- ``` -->
 
 
