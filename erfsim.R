@@ -56,11 +56,14 @@ erfplot = function(n, A, v, nreps, beta1=2, beta2=0, betaxc=0, betac=0, sig=1, f
   }
   gs[[nreps + 1]] = ggplot(allpred, aes(predx, pred, color = model)) +
     stat_smooth(aes(group = interaction(sim, model)), method = 'loess', se = FALSE, lty = 3) +
-    stat_smooth(method = 'loess', se = FALSE, lty = 1) + 
+    stat_smooth(method = 'loess', se = FALSE, lty = 1, size = 2) + 
     labs(title = 'All ERFs, with Loess')
-  png(paste('images/erfplots/', filename, '.jpeg', sep = ''), height = 1024, width = 1200)
-  # Just plot 8 of them
-  do.call(grid.arrange,gs[c(1:8, nreps+1)])
+  png(paste('images/erfplots/', filename, '.jpeg', sep = ''), height = 1024, width = 2000)
+  # Just plot 9 of them
+  lay <- rbind(c(1,2,3,10, 10, 10),
+               c(4,5,6,10,10,10),
+               c(7,8,9,10,10,10))
+  grid.arrange(grobs = gs[c(1:9, nreps+1)], layout_matrix = lay)
   dev.off()
 }
 
