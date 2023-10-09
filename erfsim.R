@@ -57,7 +57,7 @@ erfplot = function(n, A, v, nreps, beta1=2, beta2=0, betaxc=0, betac=0, sig=1, f
   gs[[nreps + 1]] = ggplot(allpred, aes(predx, pred, color = model)) +
     stat_smooth(aes(group = interaction(sim, model)), method = 'loess', se = FALSE, lty = 3) +
     stat_smooth(method = 'loess', se = FALSE, lty = 1) + 
-    labs(title = 'ERFs on a single plot')
+    labs(title = 'All ERFs, with Loess')
   png(paste('images/erfplots/', filename, '.jpeg', sep = ''), height = 1024, width = 1200)
   # Just plot 8 of them
   do.call(grid.arrange,gs[c(1:8, nreps+1)])
