@@ -37,7 +37,7 @@ erfsim = function(v, # matrix used for projection vvt
   for (i in 1:length(newx)){
     newdata = data.frame('vvtx' = vvtx, 'cov' = cov, 'rx' = rx)
     newdata$vvtx = newx[i]
-    newdata$rx = rep(0, n)
+    #newdata$rx = rep(0, n)
     res = predict(lm2, newdata =  newdata)
     erf2[i] = mean(res)
   }
