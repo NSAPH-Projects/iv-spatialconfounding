@@ -1,7 +1,15 @@
 library(ggplot2)
 library(gridExtra)
 
-erfsim = function(v, beta1, beta2, betaxc, betac, sig, x, cov) {
+erfsim = function(v, # matrix used for projection vvt
+                  beta1, # coeff of x
+                  beta2, # coeff of x^2
+                  betaxc, # coeff of x*cov
+                  betac, # coeff of cov
+                  sig, # gaussian error sd
+                  x, # treatment
+                  cov # covariate 
+                  ) {
   vvt = v %*% t(v)
   vvtx = as.numeric(vvt %*% x)
   rx = x - vvtx
@@ -41,17 +49,17 @@ erfsim = function(v, beta1, beta2, betaxc, betac, sig, x, cov) {
 }
 
 # fxn to create plots and run simulation
-erfplot = function(n,
-                   v,
-                   nreps,
-                   beta1 = 2,
-                   beta2 = 0,
-                   betaxc = 0,
-                   betac = 0,
-                   sig = 1,
-                   x = rexp(n) - 1,
+erfplot = function(n, # sample size
+                   v, # matrix used for projection vvt
+                   nreps, # number of times that new y vector created
+                   beta1 = 2, # coeff x
+                   beta2 = 0, # coeff x^2
+                   betaxc = 0, # coeff x*cov
+                   betac = 0, # coeff cov
+                   sig = 1, # gaussian error variance
+                   x = rexp(n) - 1, # exposure
                    cov = rgamma(n, shape = 2, rate = 1), # can I do this
-                   filename) {
+                   filename) { # filename for jpeg output
   gs = list()
   # stores predictions across simulations.
   allpred = data.frame(matrix(nrow = 2*n*nreps, ncol = 4))
@@ -88,6 +96,7 @@ erfplot = function(n,
   lay <- rbind(c(1,2,3,10, 10, 10),
                c(4,5,6,10,10,10),
                c(7,8,9,10,10,10))
+  # plot the 9 in a grid next to the plot of loess curves
   grid.arrange(grobs = gs[c(1:9, nreps+1)], layout_matrix = lay)
   dev.off()
 }
@@ -117,7 +126,7 @@ adj = read.csv("/Users/sophie/Documents/SpatialConf/archived/adjacency_matrix.cs
 R = diag(rowSums(adj)) - adj # graph laplacian 
 E = eigen(R) # eigen component
 G = E$vectors
-v = G[,3108] # 3099:3108 #1:10 
+v = G[,1:10] # 3099:3108 #1:10 
 x = study$qd_mean_pm25 - mean(study$qd_mean_pm25)
 cov = scale(study$gmet_mean_summer_rmn)
 n = 3109
