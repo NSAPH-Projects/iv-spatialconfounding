@@ -1,7 +1,7 @@
 library(ggplot2)
 library(gridExtra)
 
-erfsim = function(v, # matrix used for projection vvt
+erfsim = function(vvt, # projection matrix
                   beta1, # coeff of x
                   beta2, # coeff of x^2
                   betaxc, # coeff of x*cov
@@ -10,17 +10,17 @@ erfsim = function(v, # matrix used for projection vvt
                   x, # treatment
                   cov # covariate 
                   ) {
-  vvt = v %*% t(v)
   vvtx = as.numeric(vvt %*% x)
   rx = x - vvtx
-  n = nrow(v)
+  n = nrow(vvt)
   err = rnorm(n, mean = 0, sd = sig)
   # Generate outcome
   y = beta1*x + beta2*x^2 + betaxc*x*cov + betac*cov + err
   # Estimate ERF with original data
   lm1 = lm(y ~ x + I(x^2) + x:cov + cov)
   # Predict for each value of x and average
-  newx = seq(-1, 1 - 2 / n, by = 2 / n)
+  #newx = seq(-1, 1 - 2 / n, by = 2 / n)
+  newx = x + 1
   erf1 = rep(NA, length(newx))
   for (i in 1:length(newx)){
     newdata = data.frame('x' = x, 'cov' = cov)
@@ -32,16 +32,16 @@ erfsim = function(v, # matrix used for projection vvt
   # Estimate ERF with projected exposure
   lm2 = lm(y ~ vvtx + I(vvtx^2) + cov + cov:vvtx + rx + I(rx^2) + cov:rx + rx:vvtx)
   # Predict for each value of x and average
-  newx = seq(-1, 1 - 2 / n, by = 2 / n)
+  #newx = seq(-1, 1 - 2 / n, by = 2 / n)
   erf2 = rep(NA, length(newx))
   for (i in 1:length(newx)){
     newdata = data.frame('vvtx' = vvtx, 'cov' = cov, 'rx' = rx)
-    newdata$vvtx = newx[i]
+    newdata$vvtx = newx[i]-rx #newx[i] #newx[i] - rx
     #newdata$rx = rep(0, n)
-    res = predict(lm2, newdata =  newdata)
+    res = predict(lm2, newdata = newdata)
     erf2[i] = mean(res)
   }
-  df = cbind.data.frame(seq(-1, 1 - 2 / n, by = 2 / n),
+  df = cbind.data.frame(x,#seq(-1, 1 - 2 / n, by = 2 / n),
                         erf1,
                         erf2)
   colnames(df) = c('predx', 'lm1_pred', 'lm2_pred')
@@ -50,7 +50,7 @@ erfsim = function(v, # matrix used for projection vvt
 
 # fxn to create plots and run simulation
 erfplot = function(n, # sample size
-                   v, # matrix used for projection vvt
+                   vvt, # projection matrix
                    nreps, # number of times that new y vector created
                    beta1 = 2, # coeff x
                    beta2 = 0, # coeff x^2
@@ -65,7 +65,7 @@ erfplot = function(n, # sample size
   allpred = data.frame(matrix(nrow = 2*n*nreps, ncol = 4))
   names(allpred) = c('predx', 'pred', 'model', 'sim')
   for (r in 1:nreps){
-    dfrep = erfsim(v=v, beta1=beta1, beta2=beta2, betaxc=betaxc, betac=betac, sig=sig, x=x, cov=cov)
+    dfrep = erfsim(vvt=vvt, beta1=beta1, beta2=beta2, betaxc=betaxc, betac=betac, sig=sig, x=x, cov=cov)
     allpred[(2*n*(r-1)+1):((2*r-1)*n),] = cbind.data.frame(dfrep$df$predx, 
                                                            dfrep$df$lm1_pred, 
                                                            rep('x', n), 
@@ -76,22 +76,22 @@ erfplot = function(n, # sample size
                                                          rep(r, n))
     # Plot data from a single run
     gs[[r]] = ggplot(dfrep$df, aes(x = predx)) + 
-      geom_line(aes(y = lm1_pred, color = 'ERF from x')) + 
-      geom_line(aes(y = lm2_pred, color = 'ERF from proj x')) + 
+      geom_line(aes(y = lm1_pred, color = 'x ERF')) + 
+      geom_line(aes(y = lm2_pred, color = 'proj x ERF')) + 
       geom_rug(data=dfrep$vvtx, aes(x = obs_vvtx), sides = 'b', inherit.aes = F) + 
       labs(y = 'prediction', x = 'x or proj x') + 
       scale_colour_manual("", 
-                          breaks = c("ERF from x", "ERF from proj x"),
+                          breaks = c("x ERF", "proj x ERF"),
                           values = c("blue", "red")) +
-      ylim(-4,4) +
-      xlim(-1,1) +
+      ylim(-10,10) +
+      # xlim(-1,1) +
       theme_minimal()
   }
   gs[[nreps + 1]] = ggplot(allpred, aes(predx, pred, color = model)) +
     stat_smooth(aes(group = interaction(sim, model)), method = 'loess', se = FALSE, lty = 3) +
     stat_smooth(method = 'loess', se = FALSE, lty = 1, size = 2) + 
     labs(title = 'All ERFs, with Loess')
-  png(paste('images/erfplots/', filename, '.jpeg', sep = ''), height = 1024, width = 2000)
+  png(paste('images/erfplots/', filename, '.jpeg', sep = ''), height = 1000, width = 2000, res = 100)
   # Just plot 9 of them
   lay <- rbind(c(1,2,3,10, 10, 10),
                c(4,5,6,10,10,10),
@@ -102,38 +102,76 @@ erfplot = function(n, # sample size
 }
 
 # Synthetic data
-n = 300
+n = 100
 A = matrix(rexp(n^2), nrow = n, ncol = n)
-v = svd(A)$u[,291:300]
+v = svd(A)$u[,91:100] #291:300 # 1:10
+vvt = v %*% t(v)
 nreps = 20
 filename = 'linear'
-erfplot(n=n, v=v, nreps=nreps, filename=filename)
+erfplot(n=n, vvt=vvt, nreps=nreps, filename=filename)
 
 filename = 'quadratic'
-erfplot(n=n, v=v, beta2=-1, nreps=nreps, filename=filename)
+erfplot(n=n, vvt=vvt, beta2=-1, nreps=nreps, filename=filename)
 
 filename = 'linearinteraction'
-erfplot(n=n, v=v, betaxc=1, betac = 1, nreps=nreps, filename=filename)
+erfplot(n=n, vvt=vvt, betaxc=1, betac = 1, nreps=nreps, filename=filename)
 
 filename = 'linearquadraticinteraction'
-erfplot(n=n, v=v, betaxc=1, beta2=-2, betac=1, nreps=nreps, filename=filename)
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps, filename=filename)
 
 # Real data
 set.seed(20)
 study = read.csv('/Users/sophie/Documents/SpatialConf/archived/Study_dataset_2010.csv')
 adj = read.csv("/Users/sophie/Documents/SpatialConf/archived/adjacency_matrix.csv",
                header = F) # created from spacebench script
-R = diag(rowSums(adj)) - adj # graph laplacian 
-E = eigen(R) # eigen component
-G = E$vectors
-v = G[,1:10] # 3099:3108 #1:10 
 x = study$qd_mean_pm25 - mean(study$qd_mean_pm25)
 cov = scale(study$gmet_mean_summer_rmn)
 n = 3109
 nreps = 20
-filename = 'real_linear'
-erfplot(n=n, v=as.matrix(v), nreps=nreps, x = as.numeric(x), cov = as.numeric(cov), 
-        filename=filename, sig = 1)
-filename = 'real_linearquadraticinteraction'
-erfplot(n=n, v=as.matrix(v), betaxc=1, beta2=-2, betac=1, nreps=nreps,  x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+R = diag(rowSums(adj)) - adj # graph laplacian 
+E = eigen(R) # eigen component
+G = E$vectors
 
+v = G[,1:1000] # 3099:3108 #1:10 
+vvt = v %*% t(v)
+filename = 'real_linearquadraticinteraction_spectral1'
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps,  
+        x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+v = G[,1001:2000] 
+vvt = v %*% t(v)
+filename = 'real_linearquadraticinteraction_spectral2'
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps,  
+        x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+v = G[,2001:3000]
+vvt = v %*% t(v)
+filename = 'real_linearquadraticinteraction_spectral3'
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps,  
+        x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+v = G[,3099:3108] # 3099:3108 #1:10 
+vvt = v %*% t(v)
+filename = 'real_linearquadraticinteraction_spectral4'
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps,  
+        x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+
+# Nested
+groups = cbind(study$region, study$STATE)
+nest = nested_decomp_mats(groups)
+vvt = nest$decomp_mats[[1]]
+filename = 'real_linearquadraticinteraction_nested1'
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps,  
+        x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+vvt = nest$decomp_mats[[2]]
+filename = 'real_linearquadraticinteraction_nested2'
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps,  
+        x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+vvt = nest$decomp_mats[[3]]
+filename = 'real_linearquadraticinteraction_nested3'
+erfplot(n=n, vvt=vvt, betaxc=1, beta2=-2, betac=1, nreps=nreps,  
+        x = as.numeric(x), cov = as.numeric(cov), filename=filename)
+
+# # variance by eigen
+# sds = rep(NA, n)
+# for (i in 1:3109){
+#   sds[i] = sd(G[,i]%*%t(G[,i])%*%x)
+# }
+# plot()
