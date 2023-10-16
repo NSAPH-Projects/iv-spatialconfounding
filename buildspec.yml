@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     commands:
-      - wget -O ./cxcli.tar.gz "https://github.com/Checkmarx/ast-cli/releases/download/${CX_VERSION}/ast-cli_${CX_VERSION}_linux_x64.tar.gz"
+      - wget -O ./cxcli.tar.gz "https://github.com/Checkmarx/ast-cli/releases/download/2.0.59/ast-cli_2.0.59_linux_x64.tar.gz"
       - tar xzvf ./cxcli.tar.gz
   build:
     commands:
