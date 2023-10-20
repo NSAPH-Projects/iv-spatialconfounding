@@ -208,7 +208,7 @@ E = eigen(A)
 #v = E$vectors[,1:30] 
 v = E$vectors[,20:49]
 vvt = v %*% t(v)
-cors = matrix(NA, nrow = nreps, ncol = 5) 
+cors = matrix(NA, nrow = nreps, ncol = 6) 
 # x cov, x1 cov1, x2 cov1, x2 co1, x2 cov2
 for (i in 1:nreps){
   x = rt(n, ncp = -1, df = 2)
@@ -217,11 +217,12 @@ for (i in 1:nreps){
   cov_noconf = vvt %*% rnorm(n, mean = 2, sd = 1)
   cov_conf = 0.8*scale(x_conf) + sqrt(1-0.8^2)*(scale((diag(1,n)-vvt) %*% rnorm(n, mean = 0.5)))
   cov = as.numeric(cov_conf + cov_noconf)
-  cors[i,] = c(cor(x, cov), # cor 0.75
-               cor(x_noconf, cov_noconf), # correlation mean zero
-               cor(x_conf, cov_noconf), # not correlated
-               cor(x_noconf, cov_conf), # not correlated
-               cor(x_conf, cov_conf)) #  corr 0.8
+  cors[i,] = c(mean(x*cov), # 1-8
+               mean(x_noconf*cov_noconf), # -.16-.16
+               mean(x_conf*cov_noconf), # 0
+               mean(x_noconf*cov_conf), # 0
+               mean(x_conf*cov_conf), # 1-8
+               mean(x_noconf*cov)) # -.16-.16
 }
 summary(cors)
 
