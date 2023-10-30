@@ -17,16 +17,16 @@ erfsim = function(vvt, # projection matrix
   n = nrow(vvt)
   err = rnorm(n, mean = 0, sd = sig)
   # Generate outcome
-  y = beta1*x + beta2*x^2 + beta3*x^3 + betaxc*x*cov + betaxc2*x^2*cov + betac*cov + err
+  y = beta1*x + beta2*x^2 + beta3*x^3 + betaxc*x*cov + betaxc2*x*cov^2 + betac*cov + err
   # Estimate ERF with original data
-  lm1 = lm(y ~ I(x^2) + I(x^3) + x*cov + I(x^2):cov)
+  lm1 = lm(y ~ I(x^2) + I(x^3) + x*cov + I(cov^2):x)
   lm3 = lm(y ~ x + I(x^2) + I(x^3)) # excludes covariates
-  
+
   # Predict for each value of x and average
   # Choose newx range that is either shifted original or that vvtx covers well
   #newx = x + 1
   #newx = seq(-2.5, 2.5, 5/(n-1))
-  newx = seq(-4,0.5, 4.5/(n-1))
+  newx = seq(-0.1,1, 1.1/(n-1))
   erf1 = rep(NA, length(newx))
   erf3 = rep(NA, length(newx))
   for (i in 1:length(newx)){
@@ -46,7 +46,8 @@ erfsim = function(vvt, # projection matrix
              rx + I(rx^2) + I(rx^3) + 
              cov + cov:vvtx + cov:rx + rx:vvtx + 
              I(vvtx^2):rx + I(rx^2):vvtx + 
-             I(vvtx^2):cov + I(rx^2):cov + vvtx:rx:cov)
+             #I(vvtx^2):cov + I(rx^2):cov + vvtx:rx:cov
+             I(cov^2):vvtx + I(cov^2):rx)
   lm4 = lm(y ~ vvtx + I(vvtx^2) + I(vvtx^3) + 
              rx + I(rx^2) + I(rx^3) + 
              rx:vvtx + 
@@ -56,16 +57,25 @@ erfsim = function(vvt, # projection matrix
   erf4 = rep(NA, length(newx))
   
   for (i in 1:length(newx)){
-    newdata2 = data.frame('vvtx' = vvtx, 'cov' = cov, 'rx' = rx)
     newdata4 = data.frame('vvtx' = vvtx, 'rx' = rx)
-    
-    newdata2$vvtx = newx[i]-rx
     newdata4$vvtx = newx[i]-rx
-    res2 = predict(lm2, newdata = newdata2)
-    erf2[i] = mean(res2) # technically should be doing differently (two means)
-    # but ok for now because red curves look great
     res4 = predict(lm4, newdata = newdata4)
     erf4[i] = mean(res4)
+    
+    newdata2 = data.frame('vvtx' = vvtx, 'cov' = cov, 'rx' = rx)
+    newdata2$vvtx = newx[i]-rx
+    res2 = predict(lm2, newdata = newdata2)
+    erf2[i] = mean(res2)
+    
+    # erf2s = rep(NA, length(cov))
+    # for (j in 1:length(cov)){ # two expectations, over cov and rx
+    #   newdata2 = data.frame('vvtx' = vvtx, 'cov' = cov, 'rx' = rx)
+    #   newdata2$vvtx = newx[i]-rx
+    #   newdata2$cov = cov[j]
+    #   res2 = predict(lm2, newdata = newdata2)
+    #   erf2s[j] = mean(res2) 
+    # }
+    # erf2[i] = mean(erf2s)
   }
   df = cbind.data.frame(newx, #x
                         erf1,
@@ -101,12 +111,14 @@ erfplot = function(n, # sample size
         cov = rgamma(n, shape = 2, rate = 1)
       }
       if (confounding){
-        x = rt(n, ncp = -1, df = 2)
+        x = rexp(n)
         x_noconf = vvt %*% x
         x_conf = x - x_noconf
-        cov_noconf = vvt %*% rnorm(n, mean = 2, sd = 1)
-        cov_conf = 0.8*scale(x_conf) + sqrt(1-0.8^2)*(scale((diag(1,n)-vvt) %*% rnorm(n, mean = 0.5)))
+        cov_noconf = rnorm(n, mean = 2, sd = 0.25) 
+        cov_conf = 0.8^2*scale(x_conf) + sqrt(1-0.8^2)*rnorm(n)#x_conf
         cov = as.numeric(cov_conf + cov_noconf)
+        #0.8*scale(x_conf) + sqrt(1-0.8^2)*rnorm(n)
+        # x conf #vvt %*% 
       }
     }
     if (realdat){
@@ -145,84 +157,118 @@ erfplot = function(n, # sample size
         scale_colour_manual("", 
                             breaks = c("x ERF", "proj x ERF", "x ERF no cov", "proj x ERF no cov"),
                             values = c("blue", "red", "darkturquoise", "coral")) +
-        ylim(-10,10) +
+        ylim(-10,5) +
         theme_minimal()
     }
   }
   # Plot ERFs across runs
   gs[[10]] = ggplot(allpred, aes(predx, pred, color = model)) +
-    geom_line(aes(group = interaction(sim, model)), lty = 3, size = 0.5) +
-    stat_smooth(se = F, lty = 1, size = 2) + 
+    #geom_line(aes(group = interaction(sim, model)), lty = 3, size = 0.5) +
+    stat_smooth(se = F, lty = 1, size = 1) + 
     labs(title = 'All ERFs') + 
     scale_colour_manual("", 
                         values = c(x = "blue", 
                                    proj_x = "red", 
                                    x_nocov = "darkturquoise", 
                                    proj_x_nocov = "coral")) +
-    ylim(-10,10)
+    ylim(-10,5)
   return(gs)
 }
 
-# Synthetic data
 set.seed(15)
 n = 50
-A = matrix(rexp(n^2), nrow = n, ncol = n)
-A[lower.tri(A)] = t(A)[lower.tri(A)]
+A = matrix(rnorm(n^2), nrow = n, ncol = n)
+A = t(A) %*% A
 E = eigen(A)
 v = E$vectors[,1:30] 
 #v = E$vectors[,20:49]
 vvt = v %*% t(v)
-nreps = 100
+nreps = 500
 
 # Create plots
 gs = erfplot(n=n, vvt=vvt,nreps=nreps, confounding =T)
-g1 = gs[[10]] + labs(title = 'simple linear') 
+g1 = gs[[10]] + labs(title = 'simple linear') + ylim(-2.5,2.5)
 gs = erfplot(n=n, vvt=vvt,nreps=nreps, confounding =T,
              beta1 = 4, beta2 = -2, beta3 = -1) 
-g2 = gs[[10]] + labs(title = 'cubic') 
+g2 = gs[[10]] + labs(title = 'cubic') + ylim(-2.5,2.5)
 gs = erfplot(n=n, vvt=vvt,nreps=nreps, confounding =T,
-             beta1 = 1, beta2 = -0.5, beta3 = -0.25, betac = -1)
-g3 = gs[[10]] + labs(title = 'cubic x + additive confounder effect')  
+             #beta1 = 1, beta2 = -0.5, beta3 = -0.25, 
+             betac = -1)
+g3 = gs[[10]] + labs(title = 'additive confounder effect') + ylim(-5,0)# cubic x +  
 gs = erfplot(n=n, vvt=vvt,nreps=nreps, confounding =T,
-             beta1 = 1, beta2 = -0.5, beta3 = -0.25, betac = -1, betaxc = -1) 
-g4 = gs[[10]] + labs(title = 'cubix x + interaction') 
+             #beta1 = 1, beta2 = -0.5, beta3 = -0.25, 
+             betac = -1, betaxc = -1) 
+g4 = gs[[10]] + labs(title = 'interaction') + ylim(-5,0) #cubix x + 
 gs = erfplot(n=n, vvt=vvt,nreps=nreps, confounding =T,
-             betac = -5, betaxc = -1, betaxc2 = 2)
-g5 = gs[[10]] + labs(title = 'quadratic confounder interaction')
+             betac = 0.5, betaxc = -1, betaxc2 = 2)
+g5 = gs[[10]] + labs(title = 'quadratic confounder interaction') + ylim(-5,10)
 gs = erfplot(n=n, vvt=vvt,nreps=nreps, confounding =T,
-             beta2 = -2, beta3 = 2, betac = -1, betaxc = -1, betaxc2 = 2)
-g6 = gs[[10]] + labs(title = 'cubic x + quadratic confounder interaction') + ylim(-15,15) 
+             beta2 = -2, beta3 = -1, betac = -1, betaxc = -1, betaxc2 = 2)
+g6 = gs[[10]] + labs(title = 'cubic x + quadratic confounder interaction') + ylim(-5,10)
 
-filename = 'plots_combined_130_100_imperfect'
+filename = 'plots_combined_130_100_imperfect33_2_oct24'
 #filename = 'plots_combined_2049_100_imperfect'
 png(paste('images/erfplots/', filename, '.jpeg', sep = ''), height = 2000, width = 2000, res = 100)
 grid.arrange(grobs = list(g1, g2, g3, g4, g5, g6), 
              layout = matrix(1:6, nrow = 3, ncol = 2))
 dev.off()
 
-# Exploratory data analysis
-n = 500
-A = matrix(rexp(n^2), nrow = n, ncol = n)
-A[lower.tri(A)] = t(A)[lower.tri(A)]
-E = eigen(A)
-#v = E$vectors[,1:30] 
-v = E$vectors[,20:49]
-vvt = v %*% t(v)
-cors = matrix(NA, nrow = nreps, ncol = 6) 
-# x cov, x1 cov1, x2 cov1, x2 co1, x2 cov2
+
+
+
+
+#################
+
+qs = matrix(NA, nrow = nreps, ncol = 2)
 for (i in 1:nreps){
-  x = rt(n, ncp = -1, df = 2)
+  x = rexp(n)
+  x_noconf = vvt %*% x
+  qs[i,] = quantile(x_noconf, probs = c(0.25, 0.75))
+}
+colMeans(qs)
+
+set.seed(15)
+n = 50
+A = matrix(rexp(n^2), nrow = n, ncol = n)
+A = t(A) %*% A
+E = eigen(A)
+v = E$vectors[,c(10:30)] 
+cors = rep(NA, nreps)
+means = matrix(NA, nrow = nreps, ncol = 2)
+for (i in 1:nreps){
+  x = rexp(n)#rnorm(n)#rt(n, ncp = -1, df = 2) #rexp(n)
   x_noconf = vvt %*% x
   x_conf = x - x_noconf
-  cov_noconf = vvt %*% rnorm(n, mean = 2, sd = 1)
-  cov_conf = 0.8*scale(x_conf) + sqrt(1-0.8^2)*(scale((diag(1,n)-vvt) %*% rnorm(n, mean = 0.5)))
-  cov = as.numeric(cov_conf + cov_noconf)
-  cors[i,] = c(mean(x*cov), # 1-8
-               mean(x_noconf*cov_noconf), # -.16-.16
-               mean(x_conf*cov_noconf), # 0
-               mean(x_noconf*cov_conf), # 0
-               mean(x_conf*cov_conf), # 1-8
-               mean(x_noconf*cov)) # -.16-.16
+  cors[i] = cor(x_noconf, x_conf)
+  means[i,] = c(mean(x_noconf), mean(x_conf))
 }
 summary(cors)
+summary(means)
+
+##########
+
+
+# Exploratory data analysis
+n = 50
+A = matrix(rnorm(n^2), nrow = n, ncol = n)
+A = t(A) %*% A
+E = eigen(A)
+v = E$vectors[,1:30] 
+vvt = v %*% t(v)
+means = matrix(NA, nrow = nreps, ncol = 3)
+covs = matrix(NA, nrow = nreps, ncol = n)
+# x cov, x1 cov1, x2 cov1, x2 co1, x2 cov2
+for (i in 1:nreps){
+  x = rexp(n)
+  x_noconf = vvt %*% x
+  x_conf = x - x_noconf
+  cov_noconf = vvt %*% rnorm(n, mean = 0, sd = 1)
+  cov_conf = x_conf^3#0.8*scale(x_conf) + sqrt(1-0.8^2)*(scale((diag(1,n)-vvt) %*% rnorm(n, mean = 0.5)))
+  cov = as.numeric(cov_conf + cov_noconf)
+  means[i,] = c(mean(cov_noconf), mean(cov_conf), mean(cov))
+  covs[i,] = cov
+}
+
+summary(colMeans(covs))
+summary(means)
 
