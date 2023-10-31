@@ -16,7 +16,9 @@ eigen.py
 outsim.Rdata
 images/*
 tl*
-
+townssurvey*
+playing*
+*.RData*
 # vscode
 .vscode/*
 launch.json
