@@ -28,5 +28,6 @@ decompositions_cache/*
 decompositions_files/*
 decompositions.md
 decompositions_gaussian*
+!boston_spatial_files/figure-markdown_github/*.png
 
 !nested_decomp_basis.png
