@@ -1,71 +1,13 @@
 ``` r
 library(gasper)
 library(spData)
-```
-
-    ## To access larger datasets in this package, install the spDataLarge
-    ## package with: `install.packages('spDataLarge',
-    ## repos='https://nowosad.github.io/drat/', type='source')`
-
-``` r
 library(sf)
-```
-
-    ## Linking to GEOS 3.11.0, GDAL 3.5.3, PROJ 9.1.0; sf_use_s2() is TRUE
-
-``` r
 library(spdep)
 library(dplyr)
-```
-
-    ## 
-    ## Attaching package: 'dplyr'
-
-    ## The following objects are masked from 'package:stats':
-    ## 
-    ##     filter, lag
-
-    ## The following objects are masked from 'package:base':
-    ## 
-    ##     intersect, setdiff, setequal, union
-
-``` r
 library(gridExtra)
-```
-
-    ## 
-    ## Attaching package: 'gridExtra'
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     combine
-
-``` r
 library(ggplot2)
 source('funcs.R')
 ```
-
-    ## 
-    ## Attaching package: 'MASS'
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     select
-
-    ## 
-    ## Attaching package: 'igraph'
-
-    ## The following objects are masked from 'package:dplyr':
-    ## 
-    ##     as_data_frame, groups, union
-
-    ## The following objects are masked from 'package:stats':
-    ## 
-    ##     decompose, spectrum
-
-    ## The following object is masked from 'package:base':
-    ## 
-    ##     union
 
 ## Import and Process Data
 
