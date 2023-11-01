@@ -82,7 +82,7 @@ hist(bosmerged$logCRIM)
 hist(bosmerged$logDIS)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png | width=300)
 
 ``` r
 g1 = ggplot(bosmerged) +
@@ -112,7 +112,7 @@ g2 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g1, g2))
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png | width=300)
 
 ## Nested Filtering
 
@@ -160,7 +160,7 @@ g5 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g3,g4,g5), ncol = 3)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png | width=300)
 
 ``` r
 corcounty = cor(bosmerged$nested_county, bosmerged$logDIS)
@@ -181,7 +181,7 @@ ggplot(datnested, aes(x = Level, y = Correlation)) +
   scale_x_discrete(labels = c('County', 'Town', 'Tract'))
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png | width=300)
 
 ## Fourier Filtering
 
@@ -243,7 +243,7 @@ for (i in 1:10){
 grid.arrange(grobs = gs)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png | width=300)
 
 ``` r
 # Plot correlations
@@ -255,4 +255,4 @@ ggplot(data.frame(maxevals = maxevals, cors = cors), aes(x = maxevals, y = cors)
   theme_minimal()
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png | width=300)
