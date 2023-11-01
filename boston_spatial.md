@@ -1,71 +1,20 @@
+In Case Study A, the task is to examine the potential impact of crime on
+adverse pregnancy outcomes in the Greater Boston area for the year 1970.
+Various underlying factors that are highly correlated with proximity to
+Boston city center may influence both the prevalence of criminal
+activities in a given municipality and a community’s access to
+healthcare, thereby affecting the risk of adverse pregnancy outcomes.
+
 ``` r
 library(gasper)
 library(spData)
-```
-
-    ## To access larger datasets in this package, install the spDataLarge
-    ## package with: `install.packages('spDataLarge',
-    ## repos='https://nowosad.github.io/drat/', type='source')`
-
-``` r
 library(sf)
-```
-
-    ## Linking to GEOS 3.11.0, GDAL 3.5.3, PROJ 9.1.0; sf_use_s2() is TRUE
-
-``` r
 library(spdep)
 library(dplyr)
-```
-
-    ## 
-    ## Attaching package: 'dplyr'
-
-    ## The following objects are masked from 'package:stats':
-    ## 
-    ##     filter, lag
-
-    ## The following objects are masked from 'package:base':
-    ## 
-    ##     intersect, setdiff, setequal, union
-
-``` r
 library(gridExtra)
-```
-
-    ## 
-    ## Attaching package: 'gridExtra'
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     combine
-
-``` r
 library(ggplot2)
 source('funcs.R')
 ```
-
-    ## 
-    ## Attaching package: 'MASS'
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     select
-
-    ## 
-    ## Attaching package: 'igraph'
-
-    ## The following objects are masked from 'package:dplyr':
-    ## 
-    ##     as_data_frame, groups, union
-
-    ## The following objects are masked from 'package:stats':
-    ## 
-    ##     decompose, spectrum
-
-    ## The following object is masked from 'package:base':
-    ## 
-    ##     union
 
 ## Import and Process Data
 
@@ -132,6 +81,13 @@ length(unique(bosmerged$FIPS))
 
 ## Crime and Distance: Exploratory Analysis
 
+Below we plot 1) weighted distance to five Boston employment centers,
+serving as a proxy for distance to Boston’s city center (confounder),
+and 2) the per-capita crime rate (exposure) across municipalities. It is
+visually evident that the spatial confounder, distance to Boston’s city
+center, varies more smoothly in space in comparison with the exposure
+variable, the per-capita crime rate.
+
 ``` r
 bosmerged$logCRIM = log(bosmerged$CRIM)
 bosmerged$logDIS = log(bosmerged$DIS)
@@ -140,7 +96,7 @@ hist(bosmerged$logCRIM)
 hist(bosmerged$logDIS)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png)
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png" width="80%" />
 
 ``` r
 g1 = ggplot(bosmerged) +
@@ -170,9 +126,12 @@ g2 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g1, g2))
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png)
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png" width="80%" />
 
 ## Nested Filtering
+
+Is Cor(*V**V*<sup>*t*</sup>*X*,*U*) is smaller with finer level in the
+nested decomposition? Yes.
 
 ``` r
 groups = cbind(bosmerged$FIPS, bosmerged$TOWN)
@@ -218,7 +177,7 @@ g5 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g3,g4,g5), ncol = 3)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png)
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png" width="80%" />
 
 ``` r
 corcounty = cor(bosmerged$nested_county, bosmerged$logDIS)
@@ -239,13 +198,17 @@ ggplot(datnested, aes(x = Level, y = Correlation)) +
   scale_x_discrete(labels = c('County', 'Town', 'Tract'))
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png)
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png" width="80%" />
 
 ## Fourier Filtering
+
+Is Cor(*V**V*<sup>*t*</sup>*X*,*U*) is smaller with higher eigenvalue in
+the Fourier decomposition? Yes.
 
 ``` r
 nbsbos = poly2nb(bosmerged) 
 bosadj = nb2mat(neighbours = nbsbos, style = 'B', zero.policy = T)
+edges = sum(bosadj)
 L = diag(rowSums(bosadj)) - bosadj
 E = eigen(L)
 evalues = E$values
@@ -260,7 +223,6 @@ for (i in 1:10){
   maxeval = evalues[(i-1)*50+6]
   maxevals[i] = maxeval
   name = paste('eigen', round(maxeval,2), sep = '')
-  print(name)
   eigenpart = V%*%t(V) %*% bosmerged$logCRIM
   bosmerged[[name]] = eigenpart
   gs[[i]] = ggplot(bosmerged) +
@@ -278,8 +240,6 @@ for (i in 1:10){
 }
 ```
 
-    ## [1] "eigen11.8"
-
     ## Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
     ## ℹ Please use tidy evaluation idioms with `aes()`.
     ## ℹ See also `vignette("ggplot2-in-packages")` for more information.
@@ -287,21 +247,11 @@ for (i in 1:10){
     ## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
     ## generated.
 
-    ## [1] "eigen9.35"
-    ## [1] "eigen8.35"
-    ## [1] "eigen7.47"
-    ## [1] "eigen6.72"
-    ## [1] "eigen5.95"
-    ## [1] "eigen5.04"
-    ## [1] "eigen3.9"
-    ## [1] "eigen2.88"
-    ## [1] "eigen1.47"
-
 ``` r
 grid.arrange(grobs = gs)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png)
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png" width="80%" />
 
 ``` r
 # Plot correlations
@@ -313,4 +263,49 @@ ggplot(data.frame(maxevals = maxevals, cors = cors), aes(x = maxevals, y = cors)
   theme_minimal()
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png)
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png" width="80%" />
+
+## Wavelet Filtering
+
+``` r
+gridbos = list('sA' = bosadj, 'xy' = cbind(bosmerged$LON, bosmerged$LAT))
+bfilters = seq(0.1,3.7,by = 0.4)
+cors = rep(NA, length(bfilters))
+gs = list()
+for (i in 1:length(bfilters)){
+  b = bfilters[i]
+  tf = tight_frame(evalues, evectors, 2)
+  coef = gasper::analysis(bosmerged$logCRIM, tf)
+  beta = betathresh(coef, b, 2)
+  logcrim_smooth = synthesis(beta, tf)
+  name = paste('beta', b, sep = '')
+  bosmerged[[name]] = logcrim_smooth
+  #plot_signal(gridbos, logcrim_smooth, size = 2)
+  gs[[i]] = ggplot(bosmerged) +
+    geom_sf(aes_string(fill = name), color = NA) +
+    scale_fill_viridis_c() + 
+    labs(title = name) + 
+    theme_minimal() +
+    theme(axis.text.x = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks = element_blank(),
+          line = element_blank(),
+          axis.title = element_blank(),
+          panel.grid.major = element_line(colour = "transparent"))
+  cors[i] = cor(bosmerged$logDIS, logcrim_smooth)
+}
+grid.arrange(grobs = gs)
+```
+
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-6-1.png" width="80%" />
+
+``` r
+ggplot(data.frame(bfilters = bfilters, cors = cors), aes(x = bfilters, y = cors)) +
+  geom_point(shape = 19) +
+  geom_hline(yintercept = cor(bosmerged$logCRIM, bosmerged$logDIS), linetype = "dashed", 
+             color = "red") +
+  labs(x = "b threshold", y = "Corr(U, smoothed X)") +
+  theme_minimal()
+```
+
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-6-2.png" width="80%" />
