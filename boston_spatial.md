@@ -1,13 +1,71 @@
 ``` r
 library(gasper)
 library(spData)
+```
+
+    ## To access larger datasets in this package, install the spDataLarge
+    ## package with: `install.packages('spDataLarge',
+    ## repos='https://nowosad.github.io/drat/', type='source')`
+
+``` r
 library(sf)
+```
+
+    ## Linking to GEOS 3.11.0, GDAL 3.5.3, PROJ 9.1.0; sf_use_s2() is TRUE
+
+``` r
 library(spdep)
 library(dplyr)
+```
+
+    ## 
+    ## Attaching package: 'dplyr'
+
+    ## The following objects are masked from 'package:stats':
+    ## 
+    ##     filter, lag
+
+    ## The following objects are masked from 'package:base':
+    ## 
+    ##     intersect, setdiff, setequal, union
+
+``` r
 library(gridExtra)
+```
+
+    ## 
+    ## Attaching package: 'gridExtra'
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     combine
+
+``` r
 library(ggplot2)
 source('funcs.R')
 ```
+
+    ## 
+    ## Attaching package: 'MASS'
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     select
+
+    ## 
+    ## Attaching package: 'igraph'
+
+    ## The following objects are masked from 'package:dplyr':
+    ## 
+    ##     as_data_frame, groups, union
+
+    ## The following objects are masked from 'package:stats':
+    ## 
+    ##     decompose, spectrum
+
+    ## The following object is masked from 'package:base':
+    ## 
+    ##     union
 
 ## Import and Process Data
 
@@ -82,7 +140,7 @@ hist(bosmerged$logCRIM)
 hist(bosmerged$logDIS)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png | width=300)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png)
 
 ``` r
 g1 = ggplot(bosmerged) +
@@ -112,7 +170,7 @@ g2 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g1, g2))
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png | width=300)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png)
 
 ## Nested Filtering
 
@@ -160,7 +218,7 @@ g5 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g3,g4,g5), ncol = 3)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png | width=300)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png)
 
 ``` r
 corcounty = cor(bosmerged$nested_county, bosmerged$logDIS)
@@ -181,7 +239,7 @@ ggplot(datnested, aes(x = Level, y = Correlation)) +
   scale_x_discrete(labels = c('County', 'Town', 'Tract'))
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png | width=300)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png)
 
 ## Fourier Filtering
 
@@ -243,7 +301,7 @@ for (i in 1:10){
 grid.arrange(grobs = gs)
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png | width=300)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png)
 
 ``` r
 # Plot correlations
@@ -255,4 +313,4 @@ ggplot(data.frame(maxevals = maxevals, cors = cors), aes(x = maxevals, y = cors)
   theme_minimal()
 ```
 
-![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png | width=300)
+![](boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png)
