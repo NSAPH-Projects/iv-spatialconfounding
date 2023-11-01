@@ -96,7 +96,7 @@ hist(bosmerged$logCRIM)
 hist(bosmerged$logDIS)
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-3-1.png" width="100%" />
 
 ``` r
 g1 = ggplot(bosmerged) +
@@ -126,12 +126,12 @@ g2 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g1, g2))
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-3-2.png" width="100%" />
 
 ## Nested Filtering
 
-Is Cor(*V**V*<sup>*t*</sup>*X*,*U*) is smaller with finer level in the
-nested decomposition? Yes.
+Is \|Cor(*V**V*<sup>*t*</sup>*X*,*U*)\| is smaller with finer level in
+the nested decomposition? Yes.
 
 ``` r
 groups = cbind(bosmerged$FIPS, bosmerged$TOWN)
@@ -177,7 +177,7 @@ g5 = ggplot(bosmerged) +
 grid.arrange(grobs = list(g3,g4,g5), ncol = 3)
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-4-1.png" width="100%" />
 
 ``` r
 corcounty = cor(bosmerged$nested_county, bosmerged$logDIS)
@@ -198,12 +198,12 @@ ggplot(datnested, aes(x = Level, y = Correlation)) +
   scale_x_discrete(labels = c('County', 'Town', 'Tract'))
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-4-2.png" width="100%" />
 
 ## Fourier Filtering
 
-Is Cor(*V**V*<sup>*t*</sup>*X*,*U*) is smaller with higher eigenvalue in
-the Fourier decomposition? Yes.
+Is \|Cor(*V**V*<sup>*t*</sup>*X*,*U*)\| is smaller with higher
+eigenvalue in the Fourier decomposition? Yes.
 
 ``` r
 nbsbos = poly2nb(bosmerged) 
@@ -251,7 +251,7 @@ for (i in 1:10){
 grid.arrange(grobs = gs)
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-5-1.png" width="100%" />
 
 ``` r
 # Plot correlations
@@ -263,7 +263,7 @@ ggplot(data.frame(maxevals = maxevals, cors = cors), aes(x = maxevals, y = cors)
   theme_minimal()
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-5-2.png" width="100%" />
 
 ## Wavelet Filtering
 
@@ -297,7 +297,7 @@ for (i in 1:length(bfilters)){
 grid.arrange(grobs = gs)
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-6-1.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-6-1.png" width="100%" />
 
 ``` r
 ggplot(data.frame(bfilters = bfilters, cors = cors), aes(x = bfilters, y = cors)) +
@@ -308,4 +308,4 @@ ggplot(data.frame(bfilters = bfilters, cors = cors), aes(x = bfilters, y = cors)
   theme_minimal()
 ```
 
-<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-6-2.png" width="80%" />
+<img src="boston_spatial_files/figure-markdown_github/unnamed-chunk-6-2.png" width="100%" />
