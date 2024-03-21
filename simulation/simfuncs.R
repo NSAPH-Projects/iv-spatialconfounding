@@ -302,40 +302,6 @@ spectral_discrete = function(y,
   return(list('erf' = erf))#, 'lconf'= lconf, 'uconf' = uconf))
 }
 
-# spectral_continuous = function(y,
-#                                a,
-#                                x,
-#                                a.vals,
-#                                latnorm,
-#                                longnorm,
-#                                iters = 2e2) {
-#   savebetaX = NULL
-#   alldic = NULL
-#   
-#   subsample = sample(1:length(latnorm), 500)
-#   X.expand = a
-#   s.expand = cbind(latnorm,longnorm)
-#   s.s = cbind(latnorm[subsample],longnorm[subsample])
-#   setup = setup_bspline_grid(s.s,cbind(latnorm,longnorm),a,dx = 1)
-#   Y.s = y[subsample]
-#   X.s = a[subsample]
-#     
-#   for(del in seq(1,40,by=5)){
-#     L = 10
-#     zhat = getzhat_bspline_grid(s.s, s.expand,L,X=X.expand,del=del,setup = setup) #calculate confounder adjustment zhat
-#     fitsp_bs = SemiPcausal_vecc(Y.s,X.s,d=s.s,L=ncol(zhat$zhat),
-#                                 zhat=zhat$zhat,iters=iters,burn =0.5*iters,nn=20)
-#     alldic = c(alldic, fitsp_bs$DIC$DIC)
-#     savebetaX = cbind(savebetaX, fitsp_bs$betaX[,1])
-#     
-#     assign(paste0("fitsp_bs_",del),fitsp_bs)
-#     assign(paste0("zhat_",del),zhat)
-#   }
-#   return(list('betas' = savebetaX, 'dic' = alldic, fitsp_bs_1,fitsp_bs_6,fitsp_bs_11,fitsp_bs_16,fitsp_bs_21,fitsp_bs_26,
-#               fitsp_bs_31,fitsp_bs_36,
-#               zhat_1,zhat_6,zhat_11,zhat_16,zhat_21,zhat_26,zhat_31,zhat_36))
-# }
-
 keller_szpiro_selectingscale = function(y,
                                         a,
                                         x,
