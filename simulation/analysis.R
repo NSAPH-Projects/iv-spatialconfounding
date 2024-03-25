@@ -3,10 +3,10 @@ library(sf)
 library(mgcv)
 library(dplyr)
 library(utils)
-source('simulation/simfuncs.R')
+source('simfuncs.R')
 
-load('simulation/sim.RData')
-load('simulation/projmats.RData')
+load('sim.RData')
+load('projmats.RData')
 
 # Import geographies
 temp_dir = tempdir()
@@ -36,7 +36,7 @@ Adat = createA(U,X,projmat)
 A = Adat$A
 
 # extract all filenames of csvs in clusterresults
-csvs = list.files('simulation/clusterresults', pattern = '.csv')
+csvs = list.files('clusterresults', pattern = '.csv')
 
 # Initialize dataframe that will store bias + MSEs. 
 # this dataframe has columns outcomemod, projmat, method, bias, mse
@@ -52,7 +52,7 @@ analysisdf = data.frame(
 for (i in 1:length(csvs)){
   filename = csvs[i]
   # read in the csv
-  df_temp = read.csv(file.path('simulation/clusterresults', filename))
+  df_temp = read.csv(file.path('clusterresults', filename))
   # remove .csv from filename
   filename = gsub('.csv', '', filename)
   # split filename by _

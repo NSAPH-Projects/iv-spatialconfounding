@@ -47,7 +47,7 @@ simlist = list(
   'adjmat' = adjmat
 )
 save(simlist,
-     file = 'simulation/sim.RData')
+     file = 'sim.RData')
 
 # Create projmats.RData
 # a list of projection matrices of confounding
@@ -78,8 +78,8 @@ Vstate = nest$decomp_mats[[1]]
 projmats = list(
   'TPS15' = Vtps15,
   'TPS610' = Vtps610,
-  'GFT15' = Vgft15,
-  'GFT610' = Vgft610,
+  'GFT15' = GFT15,
+  'GFT610' = GFT610,
   'nestedstate' = Vstate
 )
 save(projmats,
