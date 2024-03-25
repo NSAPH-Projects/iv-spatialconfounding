@@ -67,6 +67,8 @@ L = diag(rowSums(adjmat)) - adjmat
 E = eigen(L)
 Vgft15 = E$vectors[,(n-5):(n-1)]
 Vgft610 = E$vectors[,(n-10):(n-6)]
+GFT15 = Vgft15 %*% t(Vgft15)
+GFT610 = Vgft610 %*% t(Vgft610)
 
 # Nested 
 groups = uscounties$STATEFP10
@@ -81,4 +83,4 @@ projmats = list(
   'nestedstate' = Vstate
 )
 save(projmats,
-     file = 'simulation/projmats.RData')
+     file = 'projmats.RData')
