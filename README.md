@@ -1,7 +1,11 @@
-# Scale of Spatial Confounding
+# Harnessing the Scale of Spatial Confounding for Causal Inference
 
-Sophie Woodward, Mauricio Tec, Francesca Dominici
+The folder simulation contains the code to run the simulations in Section 4 of the paper. The workflow is:
+- 'Preprocessing.R' generates the graph, spatial coordinates, and other data used for the simulation.
+- 'simfuncs.R' contains all utility functions for the simulation. The main function is 'simfunc' which will write results of simulations to csv files in a folder called 'results' (hidden).
+- 'run_job.sh' and 'submit_jobs.sh' are the job script for slurm and shell script for job submission on the cluster.
 
-One of the challenges facing spatial causal inference  is spatial confounding, which arises due to the presence of an unmeasured, spatially-varying variable that influences both exposure and outcome. Recent methods to address spatial confounding include 1) distance-adjusted propensity score methods (Papadogeorgou et al. 2019) 2) doubly robust machine learning methods that control for space, summarized in (Ogburn et al. 2022), 3) semi-parametric spline-based methods relying on linear mixed models (Thaden & Kneib 2018, Osama et al. 2019, Dupont et al. 2022). A limitation of many of these methods, as pointed out by Khan & Berret (2023), is that researchers assume the observed data do not give insight into whether spatial confounding is present or in what ways it should be accounted for.
+## Sources of Data 
+- [ ] 1. [Census](https://www.census.gov/) TIGER Line Shapefiles (County,State)
 
-This project will expand on existing methods by addressing the latter point. The data we have access to provides us an advantage: we can learn the association of air pollution exposure and confounders within finer areal units, such as zip codes and census tracts, allowing us to make assumptions about the scale of spatial confounding. We will then leverage this information to make inference robust to spatial confounding.
+The computations in this paper were run on the FASRC cluster supported by the FAS Division of Science Research Computing Group at Harvard University.
