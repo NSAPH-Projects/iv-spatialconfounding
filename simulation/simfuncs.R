@@ -177,7 +177,6 @@ metrics = function(a.vals, muests, mutrue, A, cils=NULL, cius=NULL){
   stopifnot(length(a.vals) == nrow(muests))
   stopifnot(length(a.vals) == nrow(mutrue))
   adens = densityA(A, a.vals)
-  print(adens)
   avgabsbias = sum(rowMeans(abs(muests - mutrue), na.rm = T) * adens$y, na.rm = T)/sum(adens$y, na.rm = T)
   avgRMSE = sum(sqrt(rowMeans((muests - mutrue)^2, na.rm = T))*adens$y, na.rm = T)/sum(adens$y, na.rm = T)
   if (is.null(cils) | is.null(cius)){
@@ -359,7 +358,7 @@ keller_szpiro_selectingscale = function(y,
     fit = lm(y ~ x + a1 + a2)
     n = length(y)
     for (i in 1:length(a.vals)) {
-      preds = cbind(1,x) %*% coeffs + beta*rep(a.vals[i],n)
+      preds = cbind(1,x) %*% coefficients(fit)[1:2] + beta*rep(a.vals[i],n)
       erf[i] = mean(preds)
       # uconf[i] = erf[i] + 1.96 * sd(preds)/sqrt(length(preds))
       # lconf[i] = erf[i] - 1.96 * sd(preds)/sqrt(length(preds))
@@ -367,6 +366,19 @@ keller_szpiro_selectingscale = function(y,
   }
   return(list('erf' = erf))#, 'lconf' = lconf, 'uconf' = uconf))
 }
+
+# Non oracle function
+# nonoracle = function(nsims,
+#                      a.vals,
+#                      latnorm,
+#                      longnorm,
+#                      projmats,
+#                      binsize){
+#   # For each matrix in projmats,
+#   # for each binsize in binsizes,
+#   # we'll fit ERF using one of the methods (KennedyERC or GPCERF)
+#   
+# }
 
 # Function that runs a simulation for a given method and outcome model
 simfunc = function(nsims,
@@ -385,7 +397,8 @@ simfunc = function(nsims,
                      'keller_szpiro_selectingscale_preadjustment',
                      'unadjustedOLS',
                      'GPCERF',
-                     'GPCERF_nn'
+                     'GPCERF_nn'#,
+                     #'nonoracle'
                    ),
                    filename = NULL, 
                    adjmat = NULL) {
@@ -414,7 +427,10 @@ simfunc = function(nsims,
   mutrue = computemutrue(a.vals, U, latnorm, longnorm, 
                          option = option)
   for (sim in 1:nsims){
-    print(sim)
+    # for every 200 simulations, print filename and simulation number as a vector
+    if (sim %% 200 == 0) {
+      print(c(filename, sim))
+    }
     u = createU(latnorm, longnorm)
     x = createX(u, latnorm, longnorm)
     Adat = createA(u, x, projmat)
@@ -497,7 +513,7 @@ simfunc = function(nsims,
                            w_all = data$treat,
                            sl_lib = c("SL.xgboost"),
                            dnorm_log = FALSE)
-      cerf_obj = GPCERF::estimate_cerf(data,
+      cerf_obj = GPCERF::estimate_cerf_gp(data,
                               w=a.vals,
                               gps_m,
                               params = list(alpha = c(0.1,1),
@@ -542,6 +558,10 @@ simfunc = function(nsims,
       muests[,sim] = erf
     }
   }
+  # if (method == 'nonoracle'){
+  #   # TODO
+  #   return(NULL)
+  # }
   
   # Create dataframe whose first column is a.vals, second is mutrue, and the rest are muests
   df = cbind(a.vals, mutrue, muests)
