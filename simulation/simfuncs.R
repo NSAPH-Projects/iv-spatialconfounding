@@ -29,7 +29,24 @@ nested_decomp_mats = function(groups, append_identity = TRUE) {
     decomp_mats = decomp_mats
   ))
 }
-
+# Compute the radial basis matrix for thin plate spline
+tpsbasis = function(coords, ctrlpts){
+  # coords of size n x 2 for the rows of the radial basis
+  # ctrlpts of size m x 2 for the columns of the radial basis
+  # returns a matrix of size n x m
+  
+  if (ncol(coords) != 2 || ncol(ctrlpts) != 2) {
+    stop("coords and ctrlpts must be n x 2 and m x 2 matrices, respectively")
+  }
+  
+  # get the pairwise distances between coords and ctrlpts
+  diffx = outer(coords[, 1], ctrlpts[, 1], "-")
+  diffy = outer(coords[, 2], ctrlpts[, 2], "-")
+  dists = sqrt(diffx^2 + diffy^2)
+  epsilon = 1e-6
+  phi = dists^2 * log(dists + epsilon)
+  return(phi)
+}
 # Function to create unmeasured confounder
 createU = function(latnorm, longnorm){
   # latnorm and longnorm are vectors of normalized latitude and longitude
@@ -45,7 +62,7 @@ createX = function(U, latnorm, longnorm){
   # latnorm and longnorm are vectors of normalized latitude and longitude
   # returns a vector of measured confounder
   n = length(U)
-  X = rnorm(n, 1 + 0.1*U + sin(pi*latnorm), 1) # correlation with U? 
+  X = rnorm(n, 1 + 0.1*U + sin(pi*latnorm), 1) # small correlation with U 
   return(as.numeric(X))
 }
 
@@ -110,9 +127,9 @@ computemutrue = function(a.vals, U, latnorm, longnorm, option = c('linear', 'int
   return(as.numeric(mutrue))
 }
 
-plotfunc = function(df, boundaries, names, labels=NULL){
+
+plotfunc = function(df, names, labels=NULL){
   # df is a sf dataframe including columns names
-  # boundaries is a sf dataframe with the boundaries of the region
   # names is a vector of strings with the names of the columns to be plotted
   # labels is a vector of strings to title the ggplots
   
@@ -133,7 +150,6 @@ plotfunc = function(df, boundaries, names, labels=NULL){
       xlim(-125, -65) + 
       ylim(25, 50) +
       geom_sf(aes_string(fill = names[k]), color=NA, size = 0.005) +
-      geom_sf(data = boundaries, fill = NA, color = "black", size = 3) +
       scale_fill_gradient2(low = "#1e90ff", 
                            mid = "white", 
                            high = "#8b0000", 
@@ -170,20 +186,21 @@ densityA = function(A, a.vals){
 }
 
 # Function to calculate average absolute bias, avg RMSE, avg coverage
-metrics = function(a.vals, muests, mutrue, A, cils=NULL, cius=NULL){
-  # a.vals is a vector of exposure values
+metrics = function(a.vals, A, muests, mutrue){
+  # a.vals is a vector of exposure values for which we want to estimate ERF
+  # A is a vector of observed exposure
   # muests is a matrix of estimated ERFs, columns correspond to diff sims
   # mutrue is a vector of true ERF
-  stopifnot(length(a.vals) == nrow(muests))
-  stopifnot(length(a.vals) == nrow(mutrue))
+
   adens = densityA(A, a.vals)
   avgabsbias = sum(rowMeans(abs(muests - mutrue), na.rm = T) * adens$y, na.rm = T)/sum(adens$y, na.rm = T)
   avgRMSE = sum(sqrt(rowMeans((muests - mutrue)^2, na.rm = T))*adens$y, na.rm = T)/sum(adens$y, na.rm = T)
+  avgse = sum(apply(muests,1,sd,na.rm = T)*adens$y, na.rm = T)/sum(adens$y, na.rm = T)
   if (is.null(cils) | is.null(cius)){
-    return(list(avgabsbias = avgabsbias, avgRMSE = avgRMSE))
+    return(list(avgabsbias = avgabsbias, avgRMSE = avgRMSE, avgse = avgse))
   }
   avgcoverage = sum(rowMeans((cils < mutrue) & (mutrue < cius), na.rm = T)*adens$y, na.rm = T)/sum(adens$y, na.rm = T)
-  return(list(avgabsbias = avgabsbias, avgRMSE = avgRMSE, avgcoverage = avgcoverage))
+  return(list(avgabsbias = avgabsbias, avgRMSE = avgRMSE, avgcoverage = avgcoverage, avgse = avgse))
 }
 
 spatialplus = function(y,
@@ -356,6 +373,7 @@ keller_szpiro_selectingscale = function(y,
     a1 = Hmmat %*% a
     a2 = a - a1
     fit = lm(y ~ x + a1 + a2)
+    beta = fit$coefficients['a2']
     n = length(y)
     for (i in 1:length(a.vals)) {
       preds = cbind(1,x) %*% coefficients(fit)[1:2] + beta*rep(a.vals[i],n)
@@ -368,17 +386,37 @@ keller_szpiro_selectingscale = function(y,
 }
 
 # Non oracle function
-# nonoracle = function(nsims,
-#                      a.vals,
-#                      latnorm,
-#                      longnorm,
-#                      projmats,
-#                      binsize){
-#   # For each matrix in projmats,
-#   # for each binsize in binsizes,
-#   # we'll fit ERF using one of the methods (KennedyERC or GPCERF)
-#   
-# }
+nonoracle = function(y,
+                     a,
+                     x,
+                     a.vals,
+                     E,
+                     binsizes,
+                     method = c('KennedyERC', 'GPCERF')) {
+  # y is the outcome
+  # a is the exposure
+  # x is the measured confounder
+  # a.vals is the vector of exposure values to predict ERF for
+  # E is the basis matrix from which to obtain projections of exposure
+  # binsizes is a vector of bin sizes to split E into
+  # method is the method to use to predict ERF
+  
+  k = ncol(E)
+  # for each binsize in binsizes, partition 1:k into binsize
+  # and obtain the projection matrix for each partition
+  projmats = list()
+  for (i in 1:length(binsizes)) {
+    binsize = binsizes[i]
+    projmat = matrix(0, nrow = k, ncol = k)
+    for (j in 1:ceiling(k/binsize)) {
+      start = (j-1)*binsize + 1
+      end = min(j*binsize, k)
+      projmat[start:end, start:end] = diag(end - start + 1)
+    }
+    projmats[[i]] = projmat
+  }
+
+}
 
 # Function that runs a simulation for a given method and outcome model
 simfunc = function(nsims,
@@ -436,7 +474,7 @@ simfunc = function(nsims,
     Adat = createA(u, x, projmat)
     a = Adat$A
     ac = Adat$Ac
-    y = createY(u, x, a, option = 'linear')
+    y = createY(u, x, a, option = option)
     if (method == 'spatialplus'){
       erfest = spatialplus(
         y = y,
@@ -460,14 +498,16 @@ simfunc = function(nsims,
       muests[,sim] = erfest$erf
     }
     if (method == 'KennedyERC'){
+      source('kennedyERC.R')
       l = cbind(projmat %*% a, x)
-      #colnames(l) = c('ac', 'x')
-      erfest = npcausal::ctseff(y, 
-                                a, 
-                                x = l,
-                                a.rng = c(min(a.vals), max(a.vals)),
-                                n.pts = length(a.vals),
-                                bw.seq = seq(0.2, 2, length.out = 50))
+      erfest = ctseff(
+        y,
+        a,
+        x = l,
+        a.rng = c(min(a.vals), max(a.vals)),
+        n.pts = length(a.vals),
+        bw.seq = seq(0.2, 2, length.out = 100) 
+      )
       muests[,sim] = erfest$res$est
     }
     if (method == 'spectral_discrete'){
@@ -580,3 +620,4 @@ simfunc = function(nsims,
   }
   invisible(filename)
 }
+
