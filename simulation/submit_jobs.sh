@@ -9,7 +9,10 @@ methods=("KennedyERC" "spatialplus" "bobb_exposurepenalized" "spectral_discrete"
 for projmatname in "${projmatnames[@]}"; do
   for option in "${options[@]}"; do
     for method in "${methods[@]}"; do
-  sbatch --job-name=${projmatname}_${option}_${method} run_job.sh 1000 "$projmatname" "$option" "$method"
+  sbatch --job-name=${projmatname}_${option}_${method}\
+          --output=output/${projmatname}_${option}_${method}.out \
+          --error=error/${projmatname}_${option}_${method}.err \
+          run_job.sh 1000 "$projmatname" "$option" "$method"
   sleep 1 # pause to be kind to the scheduler
     done
   done
