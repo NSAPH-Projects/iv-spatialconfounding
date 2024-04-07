@@ -385,38 +385,51 @@ keller_szpiro_selectingscale = function(y,
   return(list('erf' = erf))#, 'lconf' = lconf, 'uconf' = uconf))
 }
 
-# Non oracle function
-nonoracle = function(y,
-                     a,
-                     x,
-                     a.vals,
-                     E,
-                     binsizes,
-                     method = c('KennedyERC', 'GPCERF')) {
-  # y is the outcome
-  # a is the exposure
-  # x is the measured confounder
+# Function that runs simfunc for a combination of Acs and methods
+simfunc_nonoracle = function(nsims,
+                             a.vals,
+                             latnorm,
+                             longnorm,
+                             option,
+                             Esub,
+                             binsizes = c(10,20,50),
+                             method = c('KennedyERC', 'GPCERF_nn')) {
+  # nsims is the number of simulations to run
   # a.vals is the vector of exposure values to predict ERF for
-  # E is the basis matrix from which to obtain projections of exposure
-  # binsizes is a vector of bin sizes to split E into
-  # method is the method to use to predict ERF
-  
-  k = ncol(E)
-  # for each binsize in binsizes, partition 1:k into binsize
-  # and obtain the projection matrix for each partition
-  projmats = list()
-  for (i in 1:length(binsizes)) {
-    binsize = binsizes[i]
-    projmat = matrix(0, nrow = k, ncol = k)
-    for (j in 1:ceiling(k/binsize)) {
-      start = (j-1)*binsize + 1
-      end = min(j*binsize, k)
-      projmat[start:end, start:end] = diag(end - start + 1)
+  # latnorm is the normalized latitude and longnorm is the normalized longitude
+  # Esub is a subset of the eigenvector matrix of the graph Laplacian
+  # for which to project exposure onto to get Ac
+  # binsizes is vector of numbers of bins used to partition Esub
+  # method is the method to use to estimate ERF
+  for (method in methods){
+    for (binsize in binsizes){
+      k = ncol(Esub)
+      # partition 1:k into bins of binsize
+      bins = split(1:k, rep(1:ceiling(k/binsize), each = binsize, length.out = k))
+      for (bin in bins){
+        # project exposure onto the subset of eigenvectors
+        projmat = Esub[,bin]
+        # run the simulation
+        simfunc(nsims=nsims, 
+                a.vals=a.vals, 
+                latnorm=latnorm, 
+                longnorm=longnorm, 
+                projmat=projmat, 
+                option=option,
+                method=method,
+                filename = paste0('results/nonoracle/',
+                                  option,
+                                  '_',
+                                  method,
+                                  '_binsize_',
+                                  bin[1],
+                                  '_to_',
+                                  bin[length(bin)]))
+      }
     }
-    projmats[[i]] = projmat
   }
-
 }
+
 
 # Function that runs a simulation for a given method and outcome model
 simfunc = function(nsims,
@@ -424,7 +437,7 @@ simfunc = function(nsims,
                    latnorm,
                    longnorm,
                    projmat,
-                   projmatname,
+                   projmatname = NULL,
                    option = c('linear', 'interaction', 'nonlinear'),
                    method = c(
                      'KennedyERC',
@@ -435,8 +448,7 @@ simfunc = function(nsims,
                      'keller_szpiro_selectingscale_preadjustment',
                      'unadjustedOLS',
                      'GPCERF',
-                     'GPCERF_nn'#,
-                     #'nonoracle'
+                     'GPCERF_nn'
                    ),
                    filename = NULL, 
                    adjmat = NULL) {
@@ -456,6 +468,7 @@ simfunc = function(nsims,
 
   # If filename is null, set filename to projmat+option+method.csv
   if (is.null(filename)) {
+    stopifnot(!is.null(projmatname))
     filename = paste0('results/', projmatname, '_', option, '_', method, '.csv')
   }
   muests = matrix(NA, nrow = length(a.vals), ncol = nsims)
@@ -598,10 +611,7 @@ simfunc = function(nsims,
       muests[,sim] = erf
     }
   }
-  # if (method == 'nonoracle'){
-  #   # TODO
-  #   return(NULL)
-  # }
+  
   
   # Create dataframe whose first column is a.vals, second is mutrue, and the rest are muests
   df = cbind(a.vals, mutrue, muests)
