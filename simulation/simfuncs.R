@@ -391,6 +391,8 @@ simfunc_nonoracle = function(nsims,
                              latnorm,
                              longnorm,
                              option,
+                             projmat,
+                             projmatname,
                              Esub,
                              binsizes = c(10,20,50),
                              method = c('KennedyERC', 'GPCERF_nn')) {
@@ -401,31 +403,28 @@ simfunc_nonoracle = function(nsims,
   # for which to project exposure onto to get Ac
   # binsizes is vector of numbers of bins used to partition Esub
   # method is the method to use to estimate ERF
-  for (method in methods){
-    for (binsize in binsizes){
-      k = ncol(Esub)
-      # partition 1:k into bins of binsize
-      bins = split(1:k, rep(1:ceiling(k/binsize), each = binsize, length.out = k))
-      for (bin in bins){
-        # project exposure onto the subset of eigenvectors
-        projmat = Esub[,bin]
-        # run the simulation
-        simfunc(nsims=nsims, 
-                a.vals=a.vals, 
-                latnorm=latnorm, 
-                longnorm=longnorm, 
-                projmat=projmat, 
-                option=option,
-                method=method,
-                filename = paste0('results/nonoracle/',
-                                  option,
-                                  '_',
-                                  method,
-                                  '_binsize_',
-                                  bin[1],
-                                  '_to_',
-                                  bin[length(bin)]))
-      }
+  method = match.arg(method)
+  for (binsize in binsizes) {
+    k = ncol(Esub)
+    # partition 1:k into bins of binsize
+    bins = split(1:k, rep(1:ceiling(k / binsize), each = binsize, length.out = k))
+    for (bin in bins) {
+      # project exposure onto the subset of eigenvectors
+      # run the simulation
+      simfunc(
+        nsims = nsims,
+        a.vals = a.vals,
+        latnorm = latnorm,
+        longnorm = longnorm,
+        projmat = projmat,
+        projmatname = projmatname,
+        option = option,
+        method = method,
+        adjustment_basis = Esub[, bin],
+        filename = paste0(
+          'results/sensitivity/',projmatname,'_',option,'_',method,
+          '_binsize_',bin[1],'_to_',bin[length(bin)],'.csv')
+      )
     }
   }
 }
@@ -437,7 +436,7 @@ simfunc = function(nsims,
                    latnorm,
                    longnorm,
                    projmat,
-                   projmatname = NULL,
+                   projmatname,
                    option = c('linear', 'interaction', 'nonlinear'),
                    method = c(
                      'KennedyERC',
@@ -451,7 +450,8 @@ simfunc = function(nsims,
                      'GPCERF_nn'
                    ),
                    filename = NULL, 
-                   adjmat = NULL) {
+                   adjmat = NULL,
+                   adjustment_basis = NULL) {
   # nsims is the number of simulations
   # a.vals is the vector of a exposure values to predict ERF for
   # projmat is the projection matrix of confounding
@@ -512,7 +512,12 @@ simfunc = function(nsims,
     }
     if (method == 'KennedyERC'){
       source('kennedyERC.R')
-      l = cbind(projmat %*% a, x)
+      if (is.null(adjustment_basis)){ # oracle method
+        l = cbind(projmat %*% a, x)
+      }
+      else{ # nonoracle
+        l = cbind(adjustment_basis %*% t(adjustment_basis) %*% a, x)
+      }
       erfest = ctseff(
         y,
         a,
@@ -549,7 +554,13 @@ simfunc = function(nsims,
     }
     
     if (method == 'GPCERF'){
-      data = cbind.data.frame(Y = y, treat = a, X = x, Ac = projmat %*% a)
+      if (is.null(adjustment_basis)){ # oracle method
+        data = cbind.data.frame(Y = y, treat = a, X = x, Ac = projmat %*% a)
+      }
+      else{ # nonoracle
+        data = cbind.data.frame(Y = y, treat = a, X = x, 
+                                Ac = adjustment_basis %*% t(adjustment_basis) %*% a)
+      }
       gps_m = GPCERF::estimate_gps(cov_mt = data[,-(1:2)],
                            w_all = data$treat,
                            sl_lib = c("SL.xgboost"),
@@ -568,7 +579,13 @@ simfunc = function(nsims,
       muests[,sim] = cerf_obj$cerf
     }
     if (method == 'GPCERF_nn'){
-      data = cbind.data.frame(Y = y, treat = a, X = x, Ac = projmat %*% a)
+      if (is.null(adjustment_basis)){ # oracle method
+        data = cbind.data.frame(Y = y, treat = a, X = x, Ac = projmat %*% a)
+      }
+      else{ # nonoracle
+        data = cbind.data.frame(Y = y, treat = a, X = x, 
+                                Ac = adjustment_basis %*% t(adjustment_basis) %*% a)
+      }
       gps_m = GPCERF::estimate_gps(cov_mt = data[,-(1:2)],
                            w_all = data$treat,
                            sl_lib = c("SL.xgboost"),
