@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -c 8 # Number of threads
-#SBATCH -t 0-24:00:00 # Amount of time needed DD-HH:MM:SS
+#SBATCH -t 02-23:59:00 # Amount of time needed DD-HH:MM:SS
 #SBATCH -p shared # Partition to submit to
 #SBATCH --mem=10000 #Memory
 #SBATCH -o /n/home07/swoodward/simulation/error.out #specify where to save errors returned by the program
@@ -13,4 +13,5 @@ module load R/4.3.3-fasrc01
 export R_LIBS_USER=/n/home07/swoodward/apps/R_4.3.3:$R_LIBS_USER  #change this accordingly
 
 # Run the R script
-Rscript run_simfunc.R "$1" "$2" "$3" "$4"
+#singularity exec sing_biocond_3.14.sif 
+Rscript run_simfunc.R "$1" "$2" "$3" "$4" "$5"
