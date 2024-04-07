@@ -547,19 +547,7 @@ simfunc = function(nsims,
       )
       muests[,sim] = erfest$erf
     }
-    if (method == 'keller_szpiro_selectingscale_preadjustment'){
-      erfest = keller_szpiro_selectingscale(
-        y = y,
-        a = a,
-        x = x,
-        latnorm = latnorm,
-        longnorm = longnorm,
-        a.vals = a.vals,
-        fitmethod = 'preadjustment',
-        selection = 'AIC-NE'
-      )
-      muests[,sim] = erfest$erf
-    }
+    
     if (method == 'GPCERF'){
       data = cbind.data.frame(Y = y, treat = a, X = x, Ac = projmat %*% a)
       gps_m = GPCERF::estimate_gps(cov_mt = data[,-(1:2)],
