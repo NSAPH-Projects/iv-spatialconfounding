@@ -45,10 +45,4 @@ jobs:
           repository_name: ${{ secrets.REPO }}
           aws_region: ${{ secrets.REGION }}
 
-       - name: Print Environment Variables
-        run: |
-          echo "Project Name: ${{ secrets.PROJECT_NAME }}"
-          echo "Tenant: ${{ secrets.CX_TENANT }}"
-          echo "Region: ${{ secrets.REGION }}"
-          echo "Repo: ${{ secrets.REPO }}"   
-          echo "Role: ${{ secrets.ROLE }}"
+
