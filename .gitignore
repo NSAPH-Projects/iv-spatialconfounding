@@ -22,10 +22,6 @@
 # R Environment Variables
 .Renviron
 
-# Images
-*.png
-*.jpeg
-
 # Data
 *.csv
 *.RData
@@ -33,5 +29,4 @@
 
 # Folders
 instrumental_variables_simulation/*
-archived/*
-archived_Oct4/*
+*archived*
