@@ -16,7 +16,8 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   a.min <- a.rng[1]
   a.max <- a.rng[2]
   a.vals <- seq(a.min, a.max, length.out = n.pts)
-  xa.new <- rbind(cbind(x, a), cbind(x[rep(1:n, length(a.vals)), ], a = rep(a.vals, rep(n, length(a.vals)))))
+  xa.new <- rbind(cbind(x, a), cbind(x[rep(1:n, length(a.vals)), ], 
+                                     a = rep(a.vals, rep(n, length(a.vals)))))
   colnames(xa.new) <- c(colnames(x), "a") # sophie's change.
   x.new <- xa.new[, -dim(xa.new)[2]]
   x <- data.frame(x)
@@ -62,9 +63,28 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     }
     return(w.avals / n)
   }
+  # w.fn <- function(bw, a.vals) {
+  #   # Precompute values that do not depend on a.val
+  #   kern_0_bw <- kern(0) / bw
+  #   
+  #   # Vectorize computations for all a.vals at once
+  #   a.std_matrix <- outer(a, a.vals, function(a_i, a_val) (a_i - a_val) / bw)
+  #   kern_std_matrix <- kern(a.std_matrix) / bw
+  #   
+  #   mean_kern_std <- colMeans(kern_std_matrix)
+  #   mean_a_std2_kern_std <- colMeans(a.std_matrix^2 * kern_std_matrix)
+  #   mean_a_std_kern_std <- colMeans(a.std_matrix * kern_std_matrix)
+  #   
+  #   # Final computation of w.avals using vectorized operations
+  #   w.avals <- mean_a_std2_kern_std * kern_0_bw /
+  #     (mean_kern_std * mean_a_std2_kern_std - mean_a_std_kern_std^2)
+  #   
+  #   return(w.avals / n)
+  # }
+  
   hatvals <- function(bw) {
-    #approx(a.vals, w.fn(bw), xout = a[a > a.min & a < a.max])$y # sophie's change
-    w.fn(bw, a.vals = a) # sophie's change
+    asubset = seq(min(a), max(a), length.out = 100)
+    approx(asubset, w.fn(bw, a.vals = asubset), xout = a)$y # sophie's change
   }
   cts.eff.fn <- function(out, bw) {
     approx(locpoly(a, out, bandwidth = bw), xout = a)$y 
