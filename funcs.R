@@ -1,6 +1,15 @@
-# npcausal ctseff (edited so can deal with 1 covariate)
+# Function used to estimate the exposure-response curve
 ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
                    sl.lib = c("SL.earth", "SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean", "SL.ranger")) {
+  # y is outcome
+  # a is exposure
+  # x is covariate matrix
+  # bw.seq is a sequence of bandwidth values
+  # a.rng is the range of exposure values to evaluate the ERF
+  # n.pts is the number of points within a.rng at which to evaluate the ERF
+  # sl.lib is the library of SuperLearner algorithms to use
+  # returns a list of two dataframes 
+  
   require("SuperLearner")
   require("earth")
   require("gam")
