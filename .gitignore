@@ -23,7 +23,6 @@
 .Renviron
 
 # Data
-*.csv
 *.rds
 
 # Folders
