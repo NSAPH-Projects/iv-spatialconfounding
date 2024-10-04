@@ -34,13 +34,4 @@
 # Folders
 instrumental_variables_simulation/*
 archived/*
-boston_spatial_files/*
-decompositions_cache/*
-decompositions_files/*
-images/*
-simulation/*
-tests/*
-tl_2020_25_tract/*
-tl_2021_06_tract/*
-townssurvey_shp/*
 archived_Oct4/*
