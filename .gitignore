@@ -24,7 +24,6 @@
 
 # Data
 *.csv
-*.RData
 *.rds
 
 # Folders
