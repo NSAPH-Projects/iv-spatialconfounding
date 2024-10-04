@@ -1,33 +1,46 @@
-*.RData
+# History files
 .Rhistory
-TimeConf.Rmd
-*.csv
-.Rproj.user
-*.txt
+.Rapp.history
+
+# DS_Store files
+.DS_Store
+
+# Session Data files
+.RData
+.RDataTmp*
+
+# User-specific files
+.Ruserdata
+
+# RStudio files
+.Rproj.user/
+
+# knitr and R markdown default cache directories
+*_cache/
+/cache/
+
+# R Environment Variables
+.Renviron
+
+# Images
 *.png
 *.jpeg
-*.tab
-atmospheric_data.Rmd  # not used
-tl_2010_us_county10*
-archived/*
-*.DS_Store
-out.Rdata
-eigen.py
-outsim.Rdata
-images/*
-tl*
-townssurvey*
-playing*
-*.RData*
-# vscode
-.vscode/*
-launch.json
-settings.json
 
+# Data
+*.csv
+*.RData
+*.rds
+
+# Folders
+instrumental_variables_simulation/*
+archived/*
+boston_spatial_files/*
 decompositions_cache/*
 decompositions_files/*
-decompositions.md
-decompositions_gaussian*
-!boston_spatial_files/figure-markdown_github/*.png
-
-!nested_decomp_basis.png
+images/*
+simulation/*
+tests/*
+tl_2020_25_tract/*
+tl_2021_06_tract/*
+townssurvey_shp/*
+archived_Oct4/*

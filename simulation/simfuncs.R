@@ -1,3 +1,73 @@
+spscale = function(adjustmentmat, adjmat, nsims = 100){ 
+  n = nrow(adjustmentmat)
+  edges2 = sum(adjmat)
+  spscales = rep(NA, nsims)
+  for (sim in 1:nsims){
+    x = runif(n, max = 1, min = -1)
+    projx = adjustmentmat %*% x
+    # normalize projx 
+    projx = projx/sqrt(sum(projx^2))
+    # compute mean of squared distances between neighboring values in projx
+    # using neighborhood information from adjmat
+    totaldist = 0
+    for (node in 1:n){
+      neighbors = which(adjmat[node, ] == 1)
+      totaldist = totaldist + sum((projx[node] - projx[neighbors])^2, na.rm = T)
+    }
+    spscales[sim] = totaldist/edges2
+  }
+  return(mean(spscales))
+}
+
+# Function to compute nested basis 
+nested_decomp <- function(groups, append_identity = TRUE) {
+  if (!is.matrix(groups)) {
+    groups <- as.matrix(groups, ncol = 1)
+  }
+  if (append_identity) {
+    groups <- cbind(groups, 1:nrow(groups))
+  }
+  n <- nrow(groups)
+  L <- ncol(groups)
+  
+  # decomposition matrices
+  decomp <- nested_decomp_mats(groups, append_identity = FALSE)
+  
+  # sequentially collect the orthogonal components
+  # from the orthogonal decomposition matrices
+  
+  curr_ix <- 0
+  prev_unique_values <- 0
+  basis <- matrix(0, n, n)
+  
+  # list of unique values at each level
+  num_unique_values <- numeric(L)
+  for (l in seq_len(L - 1)) {
+    num_unique_values[l] <- length(unique(groups[, l]))
+  }
+  num_unique_values[L] <- n
+  
+  ranks = rep(NA, L)
+  for (l in seq_len(L)) {
+    dmat_l <- decomp$decomp_mats[[l]]
+    
+    # get rank of orthogonal projection matrix
+    rank <- num_unique_values[l] - prev_unique_values
+    ranks[l] = rank
+    
+    # obtain orthonormal basis of image
+    eig <- eigen(dmat_l, symmetric = TRUE)
+    basis_idx <- (curr_ix + 1):(curr_ix + rank)
+    basis[, basis_idx] <- eig$vectors[, seq_len(rank)]
+    
+    # update recursion
+    prev_unique_values <- num_unique_values[l]
+    curr_ix <- curr_ix + rank
+  }
+  
+  return(list(basis = basis, ranks = ranks))
+}
+
 # Function used to calculate nested decomposition
 nested_decomp_mats = function(groups, append_identity = TRUE) {
   if (!is.matrix(groups)) {
@@ -29,30 +99,31 @@ nested_decomp_mats = function(groups, append_identity = TRUE) {
     decomp_mats = decomp_mats
   ))
 }
-# Compute the radial basis matrix for thin plate spline
-tpsbasis = function(coords, ctrlpts){
-  # coords of size n x 2 for the rows of the radial basis
-  # ctrlpts of size m x 2 for the columns of the radial basis
-  # returns a matrix of size n x m
-  
-  if (ncol(coords) != 2 || ncol(ctrlpts) != 2) {
-    stop("coords and ctrlpts must be n x 2 and m x 2 matrices, respectively")
-  }
-  
-  # get the pairwise distances between coords and ctrlpts
-  diffx = outer(coords[, 1], ctrlpts[, 1], "-")
-  diffy = outer(coords[, 2], ctrlpts[, 2], "-")
-  dists = sqrt(diffx^2 + diffy^2)
-  epsilon = 1e-6
-  phi = dists^2 * log(dists + epsilon)
-  return(phi)
-}
+# # Compute the radial basis matrix for thin plate spline
+# tpsbasis = function(coords, ctrlpts){
+#   # coords of size n x 2 for the rows of the radial basis
+#   # ctrlpts of size m x 2 for the columns of the radial basis
+#   # returns a matrix of size n x m
+#   
+#   if (ncol(coords) != 2 || ncol(ctrlpts) != 2) {
+#     stop("coords and ctrlpts must be n x 2 and m x 2 matrices, respectively")
+#   }
+#   
+#   # get the pairwise distances between coords and ctrlpts
+#   diffx = outer(coords[, 1], ctrlpts[, 1], "-")
+#   diffy = outer(coords[, 2], ctrlpts[, 2], "-")
+#   dists = sqrt(diffx^2 + diffy^2)
+#   epsilon = 1e-6
+#   phi = dists^2 * log(dists + epsilon)
+#   return(phi)
+# }
+
 # Function to create unmeasured confounder
 createU = function(latnorm, longnorm){
   # latnorm and longnorm are vectors of normalized latitude and longitude
   # returns a vector of unmeasured confounder
   n = length(latnorm)
-  U = cos(2*pi*latnorm*longnorm) + 2*latnorm - longnorm + rnorm(n, mean = 0, sd = 0.5)
+  U = cos(2*pi*latnorm*longnorm) + 2*latnorm - longnorm + rnorm(n, mean = 0, sd = sqrt(0.25))#sd = sqrt(10))
   return(as.numeric(U))
 }
 
@@ -66,15 +137,30 @@ createX = function(U, latnorm, longnorm){
   return(as.numeric(X))
 }
 
-# Function to create exposure
-createA = function(U, X, projmat){
+# Function to create exposure 
+# createA = function(U, X, projmat){
+#   # U is a vector of unmeasured confounder
+#   # X is a vector of measured confounder
+#   # projmat is the projection matrix onto the subspace of confounding
+#   # returns a list of Ac, Auc, and A
+#   n = length(U)
+#   Ac = projmat %*% rnorm(n, X*0.25*U^2, 1)
+#   Auc = (diag(n) - projmat) %*% rnorm(n, X, 1)
+#   A = Ac + Auc
+#   return(list(Ac = as.numeric(Ac), Auc = as.numeric(Auc), A = as.numeric(A)))
+# }
+
+# Function to create exposure from subspace mats
+createA_fromV = function(U, X, Vc, Vuc, trunc = 1500){
   # U is a vector of unmeasured confounder
   # X is a vector of measured confounder
-  # projmat is the projection matrix onto the subspace of confounding
+  # Vc is the subspace of confounding 
+  # Vuc is the orthogonal complement of Vc (subspace of no confounding)
   # returns a list of Ac, Auc, and A
   n = length(U)
-  Ac = projmat %*% rnorm(n, X*0.25*U^2, 1)
-  Auc = (diag(n) - projmat) %*% rnorm(n, X, 1)
+  Ac = Vc %*% t(Vc) %*% rnorm(n, X*0.25*U^2, 1)
+  Auc = Vuc %*% #diag(c(rep(0, trunc), rep(1,ncol(Vuc)-trunc))) %*% 
+    t(Vuc) %*% rnorm(n, X, 1)
   A = Ac + Auc
   return(list(Ac = as.numeric(Ac), Auc = as.numeric(Auc), A = as.numeric(A)))
 }
@@ -100,31 +186,35 @@ createY = function(U, X, A, option = c('linear', 'interaction', 'nonlinear')){
   return(as.numeric(Y))
 }
 
-computemutrue = function(a.vals, U, latnorm, longnorm, option = c('linear', 'interaction', 'nonlinear')){
+computemutrue = function(a.vals, latnorm, longnorm, option = c('linear', 'interaction', 'nonlinear'), reps = 10){
   # a.vals is a vector of exposure values
-  # U is a vector of unmeasured confounder
   # latnorm and longnorm are vectors of normalized latitude and longitude
   # option is a string indicating the form of the outcome model (see createY)
+  # reps is the number of simulations (average over many Us)
   # returns a vector of true ERF
+  
   n = length(a.vals)
   option = match.arg(option)
   # To calculate true curve, write all expectations in terms of U and then approximate using observed dist of U
-  mutrue = rep(NA, n)
-  for (i in 1:n){
-    aval = a.vals[i]
-    if (option == 'linear'){
-      mutrue[i] = 2*mean(U) + aval + (1 + 0.1*mean(U) + mean(sin(pi*latnorm)))
-    }
-    if (option == 'interaction'){
-      mutrue[i] = 2 + aval + mean(U) - (1 + 0.1*mean(U) + mean(sin(pi*latnorm))) - 3*aval*mean(U) + 
-        aval*(1 + 0.1*mean(U) + mean(sin(pi*latnorm))) - 0.5*mean(U*(1 + 0.1*U + sin(pi*latnorm)))
-    }
-    if (option == 'nonlinear'){
-      mutrue[i] = (1 + 0.1*mean(U) + mean(sin(pi*latnorm))) + mean(log(1 + aval^2 +U^2)) + 
-        0.5*aval*mean((1 + 0.1*U + sin(pi*latnorm))*cos(aval/(1+U^2)))
+  mutrue = matrix(NA, n, reps)
+  for (rep in 1:reps){
+    U = createU(latnorm, longnorm)
+    for (i in 1:n){
+      aval = a.vals[i]
+      if (option == 'linear'){
+        mutrue[i,rep] = 2*mean(U) + aval + (1 + 0.1*mean(U) + mean(sin(pi*latnorm)))
+      }
+      if (option == 'interaction'){
+        mutrue[i,rep] = 2 + aval + mean(U) - (1 + 0.1*mean(U) + mean(sin(pi*latnorm))) - 3*aval*mean(U) + 
+          aval*(1 + 0.1*mean(U) + mean(sin(pi*latnorm))) - 0.5*mean(U*(1 + 0.1*U + sin(pi*latnorm)))
+      }
+      if (option == 'nonlinear'){
+        mutrue[i,rep] = (1 + 0.1*mean(U) + mean(sin(pi*latnorm))) + mean(log(1 + aval^2 +U^2)) + 
+          0.5*aval*mean((1 + 0.1*U + sin(pi*latnorm))*cos(aval/(1+U^2)))
+      }
     }
   }
-  return(as.numeric(mutrue))
+  return(as.numeric(rowMeans(mutrue)))
 }
 
 
@@ -186,7 +276,7 @@ densityA = function(A, a.vals){
 }
 
 # Function to calculate average absolute bias, avg RMSE, avg coverage
-metrics = function(a.vals, A, muests, mutrue){
+metrics = function(a.vals, A, muests, mutrue, cils = NULL, cius = NULL){
   # a.vals is a vector of exposure values for which we want to estimate ERF
   # A is a vector of observed exposure
   # muests is a matrix of estimated ERFs, columns correspond to diff sims
@@ -283,7 +373,7 @@ spectral_discrete = function(y,
                              adj,
                              Ls = c(10)) {
   fits = list()
-  dics = list()
+  dics = rep(NA, length(Ls))
   for (i in 1:length(Ls)) {
     fit = semipar.eCAR.Leroux(y, x=a, W=adj,
                               E=NULL,
@@ -292,7 +382,8 @@ spectral_discrete = function(y,
                               L=Ls[i],
                               verbose = F)
     fits[[i]] = fit
-    dics[[i]] = fit$DIC
+    dics[i] = fit$DIC
+    print(c(Ls[i], fit$DIC))
   }
   # Return the fit with the lowest DIC
   fit = fits[[which.min(dics)]]
@@ -301,6 +392,7 @@ spectral_discrete = function(y,
   #cils = fit$beta_omega[,"beta.q025"]
   #cius = fit$beta_omega[,"beta.q975"]
   
+  plot(fit)
   # Extract beta of largest omega
   beta = betas[length(betas)]
   coeffs = fit$regrcoef[1:2,1] # coeffs of covariate
@@ -386,48 +478,41 @@ keller_szpiro_selectingscale = function(y,
 }
 
 # Function that runs simfunc for a combination of Acs and methods
-simfunc_nonoracle = function(nsims,
-                             a.vals,
-                             latnorm,
-                             longnorm,
-                             option,
-                             projmat,
-                             projmatname,
-                             Esub,
-                             binsizes = c(10,20,50),
-                             method = c('KennedyERC', 'GPCERF_nn')) {
-  # nsims is the number of simulations to run
-  # a.vals is the vector of exposure values to predict ERF for
-  # latnorm is the normalized latitude and longnorm is the normalized longitude
-  # Esub is a subset of the eigenvector matrix of the graph Laplacian
-  # for which to project exposure onto to get Ac
-  # binsizes is vector of numbers of bins used to partition Esub
-  # method is the method to use to estimate ERF
-  method = match.arg(method)
-  for (binsize in binsizes) {
-    k = ncol(Esub)
-    # partition 1:k into bins of binsize
-    bins = split(1:k, rep(1:ceiling(k / binsize), each = binsize, length.out = k))
-    for (bin in bins) {
-      # project exposure onto the subset of eigenvectors
-      # run the simulation
-      simfunc(
-        nsims = nsims,
-        a.vals = a.vals,
-        latnorm = latnorm,
-        longnorm = longnorm,
-        projmat = projmat,
-        projmatname = projmatname,
-        option = option,
-        method = method,
-        adjustment_basis = Esub[, bin],
-        filename = paste0(
-          'results/sensitivity/',projmatname,'_',option,'_',method,
-          '_binsize_',bin[1],'_to_',bin[length(bin)],'.csv')
-      )
-    }
-  }
-}
+# simfunc_nonoracle = function(nsims,
+#                              a.vals,
+#                              latnorm,
+#                              longnorm,
+#                              option,
+#                              projmat,
+#                              projmatname,
+#                              Esub,
+#                              binstart,
+#                              binend,
+#                              method = c('KennedyERC', 'GPCERF_nn')) {
+#   # nsims is the number of simulations to run
+#   # a.vals is the vector of exposure values to predict ERF for
+#   # latnorm is the normalized latitude and longnorm is the normalized longitude
+#   # Esub is the eigenvector matrix of the graph Laplacian
+#   # binstart and binend are the start and end of the bin in Esub
+#   # for which to project exposure onto to get Ac
+#   # method is the method to use to estimate ERF
+#   method = match.arg(method)
+#   
+#   simfunc(
+#     nsims = nsims,
+#     a.vals = a.vals,
+#     latnorm = latnorm,
+#     longnorm = longnorm,
+#     projmat = projmat,
+#     projmatname = projmatname,
+#     option = option,
+#     method = method,
+#     adjustment_basis = Esub[, binstart:binend],
+#     filename = paste0(
+#       'results/sensitivity/',projmatname,'_',option,'_',method,
+#       '_binsize_',binstart,'_to_',binend,'.csv')
+#   )
+# }
 
 
 # Function that runs a simulation for a given method and outcome model
@@ -435,8 +520,9 @@ simfunc = function(nsims,
                    a.vals,
                    latnorm,
                    longnorm,
-                   projmat,
                    projmatname,
+                   Vc,
+                   Vuc,
                    option = c('linear', 'interaction', 'nonlinear'),
                    method = c(
                      'KennedyERC',
@@ -447,19 +533,27 @@ simfunc = function(nsims,
                      'keller_szpiro_selectingscale_preadjustment',
                      'unadjustedOLS',
                      'GPCERF',
-                     'GPCERF_nn'
+                     'GPCERF_nn',
+                     'oracleU',
+                     'EntropyBalancing',
+                     'spatialcoord'
                    ),
                    filename = NULL, 
                    adjmat = NULL,
-                   adjustment_basis = NULL) {
+                   adjustmentmatname = NULL,
+                   adjustmentmat = NULL) {
   # nsims is the number of simulations
   # a.vals is the vector of a exposure values to predict ERF for
-  # projmat is the projection matrix of confounding
   # latnorm and longnorm are the normalized vectors of lat and long values
+  # projmatname is the name of the subspace of confounding
+  # Vc is the subspace of confounding
+  # Vuc is the subspace of unconfounding
   # option is the form of the outcome model
   # method is the method used to predict ERF
   # filename is the name of the file to save the results of estimated ERF
   # adjmat is the adjacency matrix of the spatial locations
+  # adjustmentmatname is the name of the subspace of adjustment if nonoracle method (sensitivity)
+  # adjustmentmat is the subspace of adjustment if nonoracle method (sensitivity)
   
   # writes estimated ERFs to a csv file named filename
   
@@ -469,22 +563,16 @@ simfunc = function(nsims,
   # If filename is null, set filename to projmat+option+method.csv
   if (is.null(filename)) {
     stopifnot(!is.null(projmatname))
-    filename = paste0('results/', projmatname, '_', option, '_', method, '.csv')
+    filename = paste0('results/', projmatname, '_', option, '_', method, '_', adjustmentmatname, '.csv')
   }
   muests = matrix(NA, nrow = length(a.vals), ncol = nsims)
 
-  # Estimate true ERF
-  U = createU(latnorm, longnorm)
-  mutrue = computemutrue(a.vals, U, latnorm, longnorm, 
-                         option = option)
   for (sim in 1:nsims){
-    # for every 200 simulations, print filename and simulation number as a vector
-    if (sim %% 200 == 0) {
-      print(c(filename, sim))
-    }
+    print(sim)
     u = createU(latnorm, longnorm)
     x = createX(u, latnorm, longnorm)
-    Adat = createA(u, x, projmat)
+    Adat = createA_fromV(u,x,Vc,Vuc)
+    
     a = Adat$A
     ac = Adat$Ac
     y = createY(u, x, a, option = option)
@@ -510,13 +598,26 @@ simfunc = function(nsims,
       )
       muests[,sim] = erfest$erf
     }
+    if (method == 'oracleU'){
+      source('kennedyERC.R')
+      l = cbind(u, x) # unmeasured confounder also
+      erfest = ctseff(
+        y,
+        a,
+        x = l,
+        a.rng = c(min(a.vals), max(a.vals)),
+        n.pts = length(a.vals),
+        bw.seq = seq(0.2, 2, length.out = 100) 
+      )
+      muests[,sim] = erfest$res$est
+    }
     if (method == 'KennedyERC'){
       source('kennedyERC.R')
-      if (is.null(adjustment_basis)){ # oracle method
-        l = cbind(projmat %*% a, x)
+      if (is.null(adjustmentmat)){ # oracle method
+        l = cbind(Vc %*% t(Vc) %*% a, x)
       }
       else{ # nonoracle
-        l = cbind(adjustment_basis %*% t(adjustment_basis) %*% a, x)
+        l = cbind(adjustmentmat %*% a, x)
       }
       erfest = ctseff(
         y,
@@ -528,8 +629,44 @@ simfunc = function(nsims,
       )
       muests[,sim] = erfest$res$est
     }
+    if (method == 'spatialcoord'){
+      source('kennedyERC.R')
+      l = cbind(latnorm, longnorm, x) # spatial coordinates added as covariates
+      erfest = ctseff(
+        y,
+        a,
+        x = l,
+        a.rng = c(min(a.vals), max(a.vals)),
+        n.pts = length(a.vals),
+        bw.seq = seq(0.2, 2, length.out = 100) 
+      )
+      muests[,sim] = erfest$res$est
+    }
+    # if (method == 'EntropyBalancing'){
+    #   if (is.null(adjustmentmat)){ # oracle method
+    #     l = cbind.data.frame('Ac' = projmat %*% a, 'X' = x)
+    #   }
+    #   else{ # nonoracle
+    #     l = cbind.data.frame('Ac' = adjustmentmat %*% a, 'X' = x)
+    #   }
+    #   df = cbind.data.frame(Y = y, A = a, l)
+    #   eb_pars <- list(exp_type = 'continuous',
+    #                   verbose = T,
+    #                   estimand = 'ATE')
+    #   estwts <- entbal(A ~ Ac + X,
+    #                    data = df,
+    #                    eb_pars = eb_pars)
+    #   loessmod <- loess(Y ~ A, 
+    #                     weights = estwts$wts,
+    #                     data = df, 
+    #                     control = loess.control(surface = 'direct'), 
+    #                     criterion = 'gcv')
+    #   pls <- predict(loessmod, newdata = data.frame(A = a.vals))
+    #   muests[, sim] = pls
+    # }
     if (method == 'spectral_discrete'){
       stopifnot(!is.null(adjmat))
+      source('semi_eCAR.R')
       erfest = spectral_discrete(
         y = y,
         a = a,
@@ -554,12 +691,12 @@ simfunc = function(nsims,
     }
     
     if (method == 'GPCERF'){
-      if (is.null(adjustment_basis)){ # oracle method
-        data = cbind.data.frame(Y = y, treat = a, X = x, Ac = projmat %*% a)
+      if (is.null(adjustmentmat)){ # oracle method
+        data = cbind.data.frame(Y = y, treat = a, X = x, Ac = Vc %*% t(Vc) %*% a)
       }
       else{ # nonoracle
         data = cbind.data.frame(Y = y, treat = a, X = x, 
-                                Ac = adjustment_basis %*% t(adjustment_basis) %*% a)
+                                Ac = adjustmentmat %*% a)
       }
       gps_m = GPCERF::estimate_gps(cov_mt = data[,-(1:2)],
                            w_all = data$treat,
@@ -579,12 +716,12 @@ simfunc = function(nsims,
       muests[,sim] = cerf_obj$cerf
     }
     if (method == 'GPCERF_nn'){
-      if (is.null(adjustment_basis)){ # oracle method
-        data = cbind.data.frame(Y = y, treat = a, X = x, Ac = projmat %*% a)
+      if (is.null(adjustmentmat)){ # oracle method
+        data = cbind.data.frame(Y = y, treat = a, X = x, Ac = Vc %*% t(Vc) %*% a)
       }
       else{ # nonoracle
         data = cbind.data.frame(Y = y, treat = a, X = x, 
-                                Ac = adjustment_basis %*% t(adjustment_basis) %*% a)
+                                Ac = adjustmentmat %*% a)
       }
       gps_m = GPCERF::estimate_gps(cov_mt = data[,-(1:2)],
                            w_all = data$treat,
@@ -618,8 +755,8 @@ simfunc = function(nsims,
   }
   
   
-  # Create dataframe whose first column is a.vals, second is mutrue, and the rest are muests
-  df = cbind(a.vals, mutrue, muests)
+  # Create dataframe whose first column is a.vals and the rest of cols are muests
+  df = cbind(a.vals, muests)
 
   # write results to file
   # Check if file exists

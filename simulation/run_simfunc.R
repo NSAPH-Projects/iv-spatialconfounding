@@ -1,23 +1,19 @@
-library(spconf) 
-library(npcausal) 
-library(mgcv) 
-library(eCAR) 
-#library(INLA) # ISSUE HERE
-library(GpGp) 
-#library(GPCERF) # ISSUE HERE
-
 # Load in all utility functions
 source('simfuncs.R')
 
-# Load in simulation data, 
+# Load in simulation data,
 # a list of a.vals (list of vectors), latnorm (vector), longnorm (vector), adjmat (matrix)
 load('sim.RData')
 
-# Load in list of projection matrices of confounding
-load('projmats.RData')
+# Load subspaces of confounding
+load('Vcs.RData')
+load('Vucs.RData')
 
-# Load basis matrix for conf adjustment for sensitivity/nonoracle
-load('Esub.RData')
+library(spconf)
+library(npcausal)
+library(mgcv)
+library(splines)
+library(Matrix)
 
 set.seed(123)
 args = commandArgs(trailingOnly = TRUE)
@@ -25,33 +21,46 @@ nsims = as.integer(args[1])
 projmatname = args[2]
 option = args[3]
 method = args[4]
-sensitivity = args[5]
+adjustmentmatname = args[5]
 
-projmat = projmats[[projmatname]]
+print(c(nsims, projmatname, option, method, adjustmentmatname))
+
+Vc = Vcs[[projmatname]]
+Vuc = Vucs[[projmatname]]
 a.vals = simlist$a.vals[[projmatname]]
-
-if (sensitivity == 'no'){
-  simfunc(nsims,
-          a.vals = a.vals,
-          latnorm = simlist$latnorm,
-          longnorm = simlist$longnorm,
-          projmat = projmat,
-          projmatname = projmatname,
-          option = option,
-          method = method,
-          adjmat = simlist$adjmat)
+ # setwd('/n/home07/swoodward/simulation')
+if (adjustmentmatname == '') {
+  simfunc(
+    nsims = nsims,
+    a.vals = a.vals,
+    latnorm = simlist$latnorm,
+    longnorm = simlist$longnorm,
+    projmatname = projmatname,
+    option = option,
+    method = method,
+    adjmat = simlist$adjmat,
+    Vc = Vc,
+    Vuc = Vuc
+  )
+} else{
+  # Load basis matrix for conf adjustment for sensitivity/nonoracle
+  load('adjustmentmats.RData')
+  adjustmentmat = adjustmentmats[[adjustmentmatname]]
+  simfunc(
+    nsims,
+    a.vals = a.vals,
+    latnorm = simlist$latnorm,
+    longnorm = simlist$longnorm,
+    option = option,
+    projmatname = projmatname,
+    method = method,
+    adjustmentmatname = adjustmentmatname,
+    adjustmentmat = adjustmentmat,
+    Vc = Vc,
+    Vuc = Vuc
+  )
 }
 
-if (sensitivity == 'yes'){
-  simfunc_nonoracle(nsims,
-                    a.vals = a.vals,
-                    latnorm = simlist$latnorm,
-                    longnorm = simlist$longnorm,
-                    option = option,
-                    projmat = projmat,
-                    projmatname = projmatname,
-                    Esub,
-                    method = method)
-}
+  
 
 
