@@ -1,16 +1,17 @@
 #!/bin/bash
 
 # Define arrays for options and methods
-projmatnames=("TPS15" "TPS610" "GFT15" "GFT610" "nestedstate") # Adjust as needed
-options=("linear" "interaction" "nonlinear")
-methods=("KennedyERC" "spatialplus" "bobb_exposurepenalized" "spectral_discrete" "keller_szpiro_selectingscale_outcome" "keller_szpiro_selectingscale_preadjustment" "unadjustedOLS" "GPCERF" "GPCERF_nn")
+rangeus=("smallscale" "tinyscale") # Adjust as needed
+options=("linear" "nonlinear")
 
 # Loop through each combination and submit jobs
-for projmatname in "${projmatnames[@]}"; do
+for rangeu in "${rangeus[@]}"; do
   for option in "${options[@]}"; do
-    for method in "${methods[@]}"; do
-  sbatch --job-name=${projmatname}_${option}_${method} run_job.sh 1000 "$projmatname" "$option" "$method"
+  sbatch --job-name=${rangeu}_${option}\
+    --output=output/${rangeu}_${option}.out \
+    --error=error/${rangeu}_${option}.err \
+    run_job.sh 100 "$rangeu" "$option"  
   sleep 1 # pause to be kind to the scheduler
-    done
   done
 done
+
