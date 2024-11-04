@@ -3,8 +3,8 @@
 This repository contains the code for the simulation and data application sections of the paper. The workflow is:
 
 - `funcs.R` contains all utility functions for the simulation and data applicaton. The main function is 'ctseff' adapted from the [npcausal](https://github.com/ehkennedy/npcausal/tree/master) package with minor [modifications](https://github.com/ehkennedy/npcausal/issues/6).
-- `simulation` contains the code for the simulation section of the paper.
-- `data_application` contains the code for the data application section of the paper.
+- `simulation` contains the code for the simulation section of the paper. The simulation is fully reproducible. 
+- `data_application` contains the code for the data application section of the paper. The data application is not fully reproducible as the data is not publicly available. 
 
 ### Acknowledgements
 The computations in this paper were run on the FASRC cluster supported by the FAS Division of Science Research Computing Group at Harvard University. Medicare mortality data are stored at a Level-3 secured data platform on Research Computing Environment, supported by the Institute for Quantitative Social Science in the Faculty of Arts and Sciences at Harvard University. 
