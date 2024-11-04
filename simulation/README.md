@@ -13,7 +13,7 @@ This folder contains the code for the simulation section of the paper.
 For confounding mechanisms 1-2:
 
 1. Run `simulation_preprocessing.R` to create `sim.RData` and plot one of the simulated datasets.
-2. Submit `submit_jobs.sh` to the cluster. This will run `run_simfunc.R` for each combination of parameters and save results as csvs in the `results_Oct1` folder.
+2. Submit `submit_jobs.sh` to the cluster. This will run `run_simfunc.R` for each combination of parameters and save results as csvs in the `results_Oct1` folder. 
 3. Run `analysis.R` to create plots of the estimated ERFs and print tables of average absolute bias and average RMSE. The plots will be saved in the `images` folder.
 
 For confounding mechanism 3:

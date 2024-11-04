@@ -12,3 +12,5 @@ The exposure, confounders, and mortality data used in the data application were 
 - Medicare claims data were obtained from the Centers for Medicare and Medicaid services. 
 - Exposure data was obtained from a [well-validated ensemble-based prediction model](https://www.sciencedirect.com/science/article/pii/S0160412019300650).
 - Confounder data was obtained from the U.S. Census, American Community Survey, Behavioral Risk Factor Surveillance System, and Gridmet via Google Earth Engine.
+
+This data is not publicly available.
