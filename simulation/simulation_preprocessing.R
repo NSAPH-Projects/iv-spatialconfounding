@@ -6,6 +6,7 @@ library(gridExtra)
 library(ggplot2)
 library(geoR)
 library(mvtnorm)
+library(geosphere)
 source('../funcs.R')
 
 # Import geographies
@@ -58,7 +59,7 @@ regions <- c(rep(1,6),
 region_data <- data.frame(State = states, STATEFP = statefps, Region = regions)
 uscounties <- left_join(uscounties, region_data, by = c('STATEFP10' = 'STATEFP'))
 
-# Subset to just West (EPA region 8-10) for computation time
+# Subset to just EPA region 6 for computation time
 # this is nice because ~500 counties
 uscounties <- subset(uscounties, Region %in% 6)
 
@@ -80,6 +81,7 @@ adjmat <- sapply(adjacency_list, function(row) {
   binary_row
 })
 adjmat <- (adjmat + t(adjmat)) > 0
+
 # Graph Laplacian
 L <- diag(rowSums(adjmat)) - adjmat
 E <- eigen(L)
