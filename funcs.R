@@ -500,3 +500,101 @@ compute_data_GP_state <- function(distmat,
   return(out)
 }
 
+plot_ERCs <- function(erc_list) {
+  # Check if the $res$a.vals is the same for each element in the list
+  stopifnot(all(sapply(erc_list, function(x) identical(erc_list[[1]]$res$a.vals, x$res$a.vals))))
+  
+  # Create a dataframe for estimates and standard errors
+  df <- data.frame(
+    a.vals = erc_list[[1]]$res$a.vals
+  )
+  for (i in 1:length(erc_list)) {
+    df[[paste0(names(erc_list)[i], "_est")]] <- erc_list[[i]]$res$est
+    df[[paste0(names(erc_list)[i], "_se")]] <- erc_list[[i]]$res$se
+  }
+  
+  # Pivot data to long format for estimates
+  data_long_est <- df %>%
+    tidyr::pivot_longer(cols = dplyr::ends_with("_est"), names_to = "Method", values_to = "Value") %>%
+    dplyr::mutate(Method = sub("_est", "", Method))
+  
+  # Pivot data to long format for standard errors
+  data_long_se <- df %>%
+    tidyr::pivot_longer(cols = dplyr::ends_with("_se"), names_to = "Method", values_to = "Value") %>%
+    dplyr::mutate(Method = sub("_se", "", Method))
+  
+  # Define custom colors based on curve type
+  unique_methods <- unique(data_long_est$Method)
+  get_x_value <- function(method) {
+    if (method == "baseline") {
+      return(NA)
+    } else if (grepl("^Ac_GraphLaplacian_", method)) {
+      return(as.numeric(sub("Ac_GraphLaplacian_", "", method)))
+    } else if (grepl("^Ac_TPS_", method)) {
+      return(as.numeric(sub("Ac_TPS_", "", method)))
+    }
+    return(NA)
+  }
+  
+  x_values <- sapply(unique_methods, get_x_value, USE.NAMES = FALSE)
+  graph_indices <- grepl("^Ac_GraphLaplacian_", unique_methods)
+  tps_indices <- grepl("^Ac_TPS_", unique_methods)
+  graph_reds <- scales::rescale(x_values[graph_indices], to = c(0.1, 1), na.rm = TRUE)
+  tps_blues <- scales::rescale(x_values[tps_indices], to = c(0.1, 1), na.rm = TRUE)
+  
+  color_mapping <- sapply(seq_along(unique_methods), function(i) {
+    method <- unique_methods[i]
+    if (method == "baseline") {
+      return("black")
+    } else if (graph_indices[i]) {
+      intensity <- graph_reds[sum(graph_indices[1:i])]
+      return(grDevices::rgb(1, 0, 0, alpha = intensity))
+    } else if (tps_indices[i]) {
+      intensity <- tps_blues[sum(tps_indices[1:i])]
+      return(grDevices::rgb(0, 0, 1, alpha = intensity))
+    }
+    return("gray")
+  })
+  
+  # Reorder methods for consistent plotting
+  ordered_methods <- c(
+    "baseline",
+    unique(grep("^Ac_TPS_", unique_methods, value = TRUE))[order(
+      as.numeric(sub("Ac_TPS_", "", grep("^Ac_TPS_", unique_methods, value = TRUE)))
+    )],
+    unique(grep("^Ac_GraphLaplacian_", unique_methods, value = TRUE))[order(
+      as.numeric(sub("Ac_GraphLaplacian_", "", grep("^Ac_GraphLaplacian_", unique_methods, value = TRUE)))
+    )]
+  )
+  
+  data_long_est$Method <- factor(data_long_est$Method, levels = ordered_methods)
+  data_long_se$Method <- factor(data_long_se$Method, levels = ordered_methods)
+  
+  # Plot the estimates
+  plot_estimates <- ggplot2::ggplot(data_long_est, ggplot2::aes(x = a.vals, y = Value, color = Method)) +
+    ggplot2::geom_line(size = 1) +
+    ggplot2::scale_color_manual(values = setNames(color_mapping, unique_methods)) +
+    ggplot2::labs(
+      x = "Exposure Value",
+      y = "Response",
+      title = "Exposure Response Curve Estimates",
+      color = "Method"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
+  
+  # Plot the standard errors
+  plot_ses <- ggplot2::ggplot(data_long_se, ggplot2::aes(x = a.vals, y = Value, color = Method)) +
+    ggplot2::geom_line(size = 1) +
+    ggplot2::scale_color_manual(values = setNames(color_mapping, unique_methods)) +
+    ggplot2::labs(
+      x = "Exposure Value",
+      y = "Standard Error",
+      title = "Standard Errors of Exposure Response Curves",
+      color = "Method"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
+  
+  return(list(estimates = plot_estimates, ses = plot_ses))
+}

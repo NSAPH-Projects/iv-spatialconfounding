@@ -194,9 +194,16 @@ combined_data <- rbind(polygon_data_clean, point_data_clean)
 head(combined_data)
 nrow(combined_data) # 40657
 
-mod <- mgcv::gam(combined_data$pm25 ~ s(combined_data$x,combined_data$y,k=6,fx=T)) # unpenalized
-combined_data$Ac_TPS <- predict(mod)
-combined_data$Auc_TPS <- combined_data$pm25-combined_data$Ac_TPS
+maxdf <- 10
+for (k in 2:(maxdf + 1)){
+  mod <- mgcv::gam(combined_data$pm25 ~ s(combined_data$x,combined_data$y,k=k,fx=T)) # unpenalized
+  combined_data[[paste0("Ac_TPS_", k)]] <- predict(mod)
+  combined_data[[paste0("Auc_TPS_", k)]] <- combined_data$pm25-combined_data[[paste0("Ac_TPS_", k)]]
+  print(var(predict(mod), na.rm = T)/var(combined_data$pm25, na.rm = T))
+}
+# mod <- mgcv::gam(combined_data$pm25 ~ s(combined_data$x,combined_data$y,k=6,fx=T)) # unpenalized
+# combined_data$Ac_TPS <- predict(mod)
+# combined_data$Auc_TPS <- combined_data$pm25-combined_data$Ac_TPS
 
 adj <- st_intersects(combined_data, sparse = T) # captures both polygon-polygon adj and point-in-polygon
 adjacency_matrix <- sparseMatrix(
@@ -213,11 +220,22 @@ D <- Diagonal(x = rowSums(adjacency_matrix))
 L <- D - adjacency_matrix
 
 start_time <- Sys.time()
-eig <- eigs_sym(L, k = 6, which = "SM", opts = list(tol = 1e-3, maxitr = 3000)) 
+maxdf <- 8
+eig <- eigs_sym(L, k = 1+maxdf, which = "SM", opts = list(tol = 1e-3, maxitr = 3000)) 
+print(eig$values)
 print(Sys.time() - start_time) # 33 sec
-mod <- lm(combined_data$pm25 ~ eig$vectors) # %*% t(eig$vectors) %*% combined_data$pm25
-combined_data$Ac_GraphLaplacian <- predict(mod)
-combined_data$Auc_GraphLaplacian <- combined_data$pm25-combined_data$Ac_GraphLaplacian
+for (k in 2:(1+maxdf)){
+  mod <- lm(combined_data$pm25 ~ eig$vectors[,1:k])
+  combined_data[[paste0("Ac_GraphLaplacian_",k)]] <- predict(mod)
+  combined_data[[paste0("Auc_GraphLaplacian_",k)]] <- combined_data$pm25-combined_data[[paste0("Ac_GraphLaplacian_",k)]]
+  print(var(predict(mod), na.rm = T)/var(combined_data$pm25, na.rm = T))
+}
+colnames(combined_data)[which(colnames(combined_data)== "Ac_GraphLaplacian_6")] <- 'Ac_GraphLaplacian'
+colnames(combined_data)[which(colnames(combined_data)== "Auc_GraphLaplacian_6")] <- 'Auc_GraphLaplacian'
+
+# mod <- lm(combined_data$pm25 ~ eig$vectors) 
+# combined_data$Ac_GraphLaplacian <- predict(mod)
+# combined_data$Auc_GraphLaplacian <- combined_data$pm25-combined_data$Ac_GraphLaplacian
 
 g1 <- ggplot() +
   xlim(-125, -65) +
@@ -317,9 +335,15 @@ covs <- st_drop_geometry(
 )
 
 # Data characteristics Table
-round(cbind(apply(covs,2,mean),apply(covs,2,sd)),3)
-round(c(mean(combined_data_covariates_outcome$pm25), sd(combined_data_covariates_outcome$pm25)),3)
-round(c(mean(combined_data_covariates_outcome$deathrate), sd(combined_data_covariates_outcome$deathrate)),3)
+round(cbind(apply(covs, 2, mean), apply(covs, 2, sd)), 3)
+round(c(
+  mean(combined_data_covariates_outcome$pm25),
+  sd(combined_data_covariates_outcome$pm25)
+), 3)
+round(c(
+  mean(combined_data_covariates_outcome$deathrate),
+  sd(combined_data_covariates_outcome$deathrate)
+), 3)
 
 # Transform outcome variable to make model fitting easier
 combined_data_covariates_outcome$logdeathrate <- log(combined_data_covariates_outcome$deathrate + 0.01)
@@ -552,3 +576,17 @@ layout_matrix <- rbind(c(1,2),
 grid.arrange(gmain, plot00, plot0, plot1, plot2, plot3, 
              layout_matrix = layout_matrix)
 dev.off()
+
+###################################### SENSITIVITY ANALYSIS #################################
+Ac_cols <- grep("^Ac", colnames(combined_data_covariates_outcome), value = TRUE)
+# For each candidate, estimate the ERC
+erfs_sens <- list()
+for (Ac_col in Ac_cols){
+  erfs_sens <- ctseff(y = combined_data_covariates_outcome$logdeathrate,
+                      a = combined_data_covariates_outcome$pm25,
+                      x = cbind(xmat, combined_data_covariates_outcome[[Ac_col]]),
+                      bw.seq = seq(sdpm/2,sdpm,length.out = 50),
+                      a.rng = c(min(a.vals), max(a.vals)),
+                      sl.lib = c("SL.earth", "SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"))
+  erfs_sens[[Ac_col]] <- out
+}
