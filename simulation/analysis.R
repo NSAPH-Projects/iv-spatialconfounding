@@ -18,9 +18,9 @@ distmat <- distmat/1000000
 # read in results files
 
 # Confounding scenarios 1-2
-csvs_notwithinstate <- list.files('results_Oct1/', pattern = '.csv')
+csvs_notwithinstate <- list.files('results_Mar1/', pattern = '.csv')
 # Confounding scenario 3 (GP within state)
-csvs_withinstate <- list.files('results_Oct1/within_state/', pattern = '.csv') 
+csvs_withinstate <- list.files('results_Mar1/within_state/', pattern = '.csv') 
 csvs <- c(csvs_notwithinstate, csvs_withinstate)
 
 # Create storage for metrics 
@@ -29,9 +29,9 @@ analysisdf <- data.frame(
   rangeu = character(length(csvs)),
   option = character(length(csvs)),
   method = character(length(csvs)),
-  avgabsbias = numeric(length(csvs)),
-  avgRMSE = numeric(length(csvs)),
-  avgse = numeric(length(csvs))
+  bias = numeric(length(csvs)),
+  RMSE = numeric(length(csvs)),
+  se = numeric(length(csvs))
 )
 
 # Extract components from filenames
@@ -44,6 +44,23 @@ method <- gsub(".*_(IV-[A-Za-z]+|[A-Za-z]+)\\.csv", "\\1", csvs)
 method[method == 'spatialcoord'] <- 'Spatial coordinates'
 method[method == 'baseline'] <- 'No confounding adjustment'
 
+# Precompute true estimand for each outcome model and confounding mechanism
+mutrues <- data.frame(expand.grid(rangeu = c(0.05, 0.1), 
+                                 option = c('linear', 'nonlinear')))
+mutrues$withinstate <- F
+mutrues <- rbind(mutrues, data.frame(rangeu = 0.05, option = 'linear', withinstate = T))
+mutrues <- rbind(mutrues, data.frame(rangeu = 0.05, option = 'nonlinear', withinstate = T))
+mutrues$theta <- NA
+mutrues$option <- as.character(mutrues$option)
+
+for (i in 1:nrow(mutrues)){
+  mutrues$theta[i] <- computemutrue(option = mutrues$option[i], 
+                                     rangeu = mutrues$rangeu[i], 
+                                    within_state_GP = mutrues$withinstate[i],
+                                    distmat = distmat,
+                                    statemat = simlist$statemat)
+}
+                
 gs <- list()
 # Loop through results to calculate ERF metrics and create plots.
 for (i in 1:length(csvs)){
@@ -55,57 +72,24 @@ for (i in 1:length(csvs)){
   analysisdf$option[i] <- option[i]
   analysisdf$method[i] <- method[i]
   if (confounding_scenario[i] !=3){
-    df_temp <- read.csv(file.path('results_Oct1/', filename))
+    df_temp <- read.csv(file.path('results_Mar1/', filename))
   }
   else{
-    df_temp <- read.csv(file.path('results_Oct1/within_state/', filename))
+    df_temp <- read.csv(file.path('results_Mar1/within_state/', filename))
   }
-  muests <- df_temp[,-1] # remove a.vals
-  avals <- df_temp$avals
+  muests <- df_temp 
+  # Convert muests to a vector, it's just a single column
+  muests <- as.vector(as.matrix(muests))
   # Compute true ERF
-  mutrue <- computemutrue(a.vals = avals,
-                         option = option[i])
+  mutrue <- mutrues[mutrues$rangeu == rangeu[i] & 
+                      mutrues$option == option[i] & 
+                      mutrues$withinstate == ifelse(confounding_scenario[i] == 3, T, F),]$theta
   df_temp$mutrue <- mutrue
-  # Compute metrics
-  met <- metrics(a.vals = avals, 
-                muests,
-                mutrue)
-  # Save metrics in analysisdf
-  analysisdf$avgabsbias[i] <- met$avgabsbias
-  analysisdf$avgRMSE[i] <- met$avgRMSE
-  analysisdf$avgse[i] <- met$avgse
   
-  # Create plot of estimated ERFs and mutrue
-  df_temp <- df_temp %>%
-    pivot_longer(cols = -c(avals, mutrue), names_to = "sim", values_to = "value") %>%
-    mutate(sim = factor(sim))
-
-  gs[[i]] <- ggplot(df_temp, aes(x = avals, y = value)) +
-    # plot the mean line for the simulations
-    stat_summary(fun = mean, geom = "line", aes(color = "Mean"), size = 1.2) +
-
-    # plot the 95% confidence interval
-    stat_summary(fun.min = function(x) quantile(x, 0.025),
-                 fun.max = function(x) quantile(x, 0.975),
-                 geom = "ribbon", alpha = 0.2, fill = "blue") +
-
-    # add mutrue as a dashed line
-    geom_line(aes(x = avals, y = mutrue), color = "black", linetype = "dashed") +
-
-    labs(x = "a", y = expression("E( Y"^"a" ~ ")")) +
-
-    # scale colors, keeping the mean as a distinct color
-    scale_color_manual(values = c("Mean" = "blue", "black")) +
-
-    theme_minimal() +
-    theme(
-      legend.position = "none",
-      panel.grid.major = element_blank(),
-      panel.grid.minor = element_blank()
-    ) +
-    xlim(-2,2) +
-    ylim(-7, 7) +
-    ggtitle(method[i])
+  # Save metrics in analysisdf
+  analysisdf$bias[i] <- mean(muests, na.rm = T) - mutrue
+  analysisdf$RMSE[i] <- mean((muests - mutrue)^2, na.rm = T)
+  analysisdf$se[i] <- mean((muests - mutrue)^2, na.rm = T) / length(muests)
 }
 
 # Print bias table

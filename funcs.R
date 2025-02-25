@@ -19,12 +19,13 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     dnorm(t)
   }
   
-  n <- dim(x)[1]
-  
+  n <- nrow(x)
+
   # set up evaluation points & matrices for predictions
   a.min <- a.rng[1]
   a.max <- a.rng[2]
   a.vals <- seq(a.min, a.max, length.out = n.pts)
+  
   xa.new <- rbind(cbind(x, a), cbind(x[rep(1:n, length(a.vals)), ], 
                                      a = rep(a.vals, rep(n, length(a.vals)))))
   colnames(xa.new) <- c(colnames(x), "a") # sophie's change.
@@ -33,6 +34,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   x.new <- data.frame(x.new)
   colnames(x.new) <- colnames(x) # sophie's change
   xa.new <- data.frame(xa.new)
+  #print('created evaluation points and matrices for predictions')
   
   # estimate nuisance functions via super learner
   # note: other methods could be used here instead
@@ -60,6 +62,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # form adjusted/pseudo outcome xi
   pseudo.out <- (y - muhat) / (pihat / varpihat) + mhat
+  #print('calculated pseudo.out')
   
   # leave-one-out cross-validation to select bandwidth
   w.fn <- function(bw, a.vals) { # sophie's change
@@ -107,6 +110,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   risk.est <- sapply(bw.seq, risk.fn)
   h.opt <- bw.seq[which.min(risk.est)]
   bw.risk <- data.frame(bw = bw.seq, risk = risk.est)
+  #print('calculated h.opt')
   
   # alternative approach:
   # h.opt <- optimize(function(h){ hats <- hatvals(h); mean( ((pseudo.out[a > a.min & a < a.max]-cts.eff.fn(pseudo.out,bw=h))/(1-hats))^2) } ,
@@ -114,6 +118,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # estimate effect curve with optimal bandwidth
   est <- approx(locpoly(a, pseudo.out, bandwidth = h.opt), xout = a.vals)$y
+  #print('calculated est')
   
   # estimate pointwise confidence band
   # note: other methods could also be used
@@ -168,7 +173,7 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, 2*Us[,i] + As[,i] - 0.2*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i]
+      Ys[,i] <- rnorm(n, 2*Us[,i] + As[,i] - 0.2*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i] # Increase nonlinearity
                      , 1)
     }
   } 
@@ -176,27 +181,61 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
 }
 
 # Function to compute true ERF
-computemutrue <- function(a.vals, 
-                         option = c('linear', 'nonlinear')){
-  # a.vals is a vector of exposure values
+computemutrue <- function(option = c('linear', 'nonlinear'),
+                          within_state_GP = F,
+                          rangeu = c('tinyscale', 'smallscale'),
+                          reps = 1000,
+                          distmat,
+                          statemat = NULL){
   # option is a string indicating the form of the outcome model (see createY)
   # returns a vector of true ERF
   
-  n <- length(a.vals)
   option <- match.arg(option)
-
-  mutrue <- rep(NA, n)
+  rangeu <- match.arg(rangeu)
+  if (rangeu == 'tinyscale'){
+    rangeu <- 0.05
+  }
+  if (rangeu == 'smallscale'){
+    rangeu <- 0.1
+  }
   
-  for (i in 1:n){
-    aval <- a.vals[i]
+  if (!within_state_GP){ 
+    # Compute variance of GP
+    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
+    # Simulate reps of data according to GP
+    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
+  }
+  # confounding mech 3
+  else{  
+    # Simulate data as GPs within each state
+    dat <- compute_data_GP_state(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5,
+                                 n = reps,
+                                 statemat = statemat)
+  }
+  
+  Ac <- dat$Ac 
+  Auc <- dat$Auc
+  U <- dat$U
+  A <- Ac + Auc # all have dimension n x nsims
+  Y <- createY(Us = U, As = A, option = option)
+  mutrue = rep(NA, reps)
+  
+  for (i in 1:reps){
     if (option == 'linear'){
-      mutrue[i] <- 2*0.3 + aval - 0.2*aval*0.3
+      meanY_A_U <- 2*U + pmin(A, 1) - 0.2*pmin(A, 1)*U
+      mutrue[i] <- mean(meanY_A_U)/mean(Y)
     }
     if (option == 'nonlinear'){
-      mutrue[i] <- 2*0.3 + aval - 0.2*aval*0.3 - 0.1*aval^2 + 0.05*aval^2*0.3
+      meanY_A_U <- 2*U + pmin(A, 1) - 0.2*pmin(A, 1)*U - 0.2*pmin(A, 1)^2 + 0.1*pmin(A, 1)^2*U
+      mutrue[i] <- mean(meanY_A_U)/mean(Y)
     }
   }
-  return(mutrue)
+  
+  return(mean(mutrue))
 }
 
 # Function to plot the variables titled "names" in the dataframe "df"
@@ -328,7 +367,6 @@ simfunc <- function(nsims,
   Auc <- dat$Auc
   U <- dat$U
   A <- Ac + Auc # all have dimension n x nsims
-  avals <- seq(-2, 2, length.out = 100)
   Y <- createY(Us=U, As=A, option = option)
   
   ################# FIT MODELS #################
@@ -336,14 +374,15 @@ simfunc <- function(nsims,
   for (method in methods){
     # Create filename for csvs containing estimated erfs
     if (!within_state_GP){
-      filename <- paste0('results_Oct1/', rangeu, '_', option, '_', method, '.csv')
+      filename <- paste0('results_Mar1/', rangeu, '_', option, '_', method, '.csv')
     }
     else{
-      filename <- paste0('results_Oct1/within_state/', rangeu, '_', option, '_', method, '.csv')
+      filename <- paste0('results_Mar1/within_state/', rangeu, '_', option, '_', method, '.csv')
     }
     
     # Create storage for estimated erfs
-    muests <- matrix(NA, nrow = length(avals), ncol = nsims)
+    #muests <- matrix(NA, nrow = length(avals), ncol = nsims)
+    muests <- rep(NA, nsims)
     
     for (sim in 1:nsims){
       print(c(method, sim))
@@ -370,24 +409,38 @@ simfunc <- function(nsims,
       }
       
       # Fit the ERF adjusting for xmat.
-      muests[, sim] <- tryCatch({
+      cutoff <- 1
+      delta <- 0.05
+      y = Y[,sim]
+      a = A[,sim]
+      out <- tryCatch({
+        # print(summary(y[a > cutoff - delta]))
+        # print(summary(a[a > cutoff - delta]))
+        # print(summary(xmat[a > cutoff - delta,]))
+        # print(c(cutoff - delta, cutoff + delta))
+        # print(seq(sd(a)/10, sd(a), length.out = 100))
+        xsub <- matrix(xmat[a > cutoff - delta,], ncol = ncol(xmat))
+        colnames(xsub) <- colnames(xmat)
         erfest <- ctseff(
-          y = Y[, sim],
-          a = A[, sim],
-          x = xmat,
-          a.rng = c(min(avals), max(avals)),
-          n.pts = length(avals),
-          bw.seq = seq(0.2, 2, length.out = 100)
+          y = y[a > cutoff - delta],
+          a = a[a > cutoff - delta],
+          x = xsub,
+          n.pts = 5,
+          a.rng = c(cutoff - delta, cutoff + delta),
+          bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
         )
-        erfest$res$est
+        erfest
       }, error = function(e) {
         message("Error encountered: ", e$message)
         NA  # Set muests[,sim] to NA if an error occurs
       })
+      muests[sim] <- (out$res$est[out$res$a.vals == cutoff]*mean(a>cutoff) + 
+                        mean(y[a<=cutoff])*mean(a<=cutoff))/mean(y)
+
     } # (There shouldn't be errors but in case)
     
     # Create dataframe whose first column is a.vals and the rest of cols are muests
-    df <- cbind(avals, muests)
+    df <- muests
     
     # write results to file
     # Check if file exists
@@ -397,7 +450,7 @@ simfunc <- function(nsims,
       newdf <- cbind(olddf, muests)
       write.csv(newdf, filename, row.names = FALSE)
     }
-    # if file for ERF ests does not exist create it and write results
+    # if file for estimates does not exist create it and write results
     else{
       write.csv(df, filename, row.names = FALSE)
     }
