@@ -7,6 +7,7 @@ library(utils)
 library(xtable)
 library(Matrix)
 library(tidyverse)
+library(parallel)
 source('../funcs.R')
 load('sim.RData')
 
@@ -54,13 +55,14 @@ mutrues <- rbind(mutrues, data.frame(rangeu = 0.01, option = 'nonlinear', within
 mutrues$theta <- NA
 mutrues$option <- as.character(mutrues$option)
 
-for (i in 1:nrow(mutrues)){
-  mutrues$theta[i] <- computemutrue(option = mutrues$option[i], 
-                                     rangeu = mutrues$rangeu[i], 
-                                    within_state_GP = mutrues$withinstate[i],
-                                    distmat = distmat,
-                                    statemat = simlist$statemat)
-}
+mutrues$theta <- unlist(mclapply(1:nrow(mutrues), function(i) {
+  computemutrue(option = mutrues$option[i], 
+                rangeu = mutrues$rangeu[i], 
+                within_state_GP = mutrues$withinstate[i],
+                distmat = distmat,
+                statemat = simlist$statemat)
+}, mc.cores = 4))  # Adjust the number of cores
+
 save(mutrues, file = 'results_Mar1/mutrues.RData')
                 
 # Loop through results to calculate ERF metrics and create plots.
@@ -139,7 +141,7 @@ mutrues <- mutrues %>%
 
 # Create the boxplot with horizontal lines for theta
 ggplot(df, aes(x = method, y = estimate)) +
-  geom_boxplot() +
+  geom_violin() +
   facet_grid(option ~ rangeu) +
   # Add horizontal lines: one line per facet matching on rangeu and option
   geom_hline(data = mutrues, aes(yintercept = theta), 
