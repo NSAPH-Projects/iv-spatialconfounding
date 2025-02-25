@@ -167,69 +167,17 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # linear outcome model
   if (option == 'linear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, 2*Us[,i] + As[,i] - 0.2*As[,i]*Us[,i], 1)
+      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.1*As[,i]*Us[,i], 1)
     }
   }
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, 2*Us[,i] + As[,i] - 0.2*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i] # Increase nonlinearity
+      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.1*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i] # Increase nonlinearity
                      , 1)
     }
   } 
   return(Ys)
-}
-
-# Function to compute true ERF
-computemutrue <- function(option = c('linear', 'nonlinear'),
-                          within_state_GP = F,
-                          rangeu,
-                          reps = 10000,
-                          distmat,
-                          statemat = NULL){
-  # option is a string indicating the form of the outcome model (see createY)
-  # returns a vector of true ERF
-  
-  option <- match.arg(option)
-
-  if (!within_state_GP){ 
-    # Compute variance of GP
-    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.5)
-    # Simulate reps of data according to GP
-    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
-  }
-  # confounding mech 3
-  else{  
-    # Simulate data as GPs within each state
-    dat <- compute_data_GP_state(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.5,
-                                 n = reps,
-                                 statemat = statemat)
-  }
-  
-  Ac <- dat$Ac 
-  Auc <- dat$Auc
-  U <- dat$U
-  A <- Ac + Auc # all have dimension n x nsims
-  Y <- createY(Us = U, As = A, option = option)
-  mutrue = rep(NA, reps)
-  
-  for (i in 1:reps){
-    if (option == 'linear'){
-      meanY_A_U <- 2*U[,i] + pmin(A[,i], 1) - 0.2*pmin(A[,i], 1)*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
-    }
-    if (option == 'nonlinear'){
-      meanY_A_U <- 2*U[,i] + pmin(A[,i], 1) - 0.2*pmin(A[,i], 1)*U[,i] - 0.1*pmin(A[,i], 1)^2 + 
-        0.05*pmin(A[,i], 1)^2*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
-    }
-  }
-  
-  return(mean(mutrue))
 }
 
 # Function to plot the variables titled "names" in the dataframe "df"
@@ -295,6 +243,58 @@ metrics <- function(a.vals, muests, mutrue){
               avgse = avgse))
 }
 
+# Compute the true estimand using approximation
+computemutrue <- function(option = c('linear', 'nonlinear'),
+                          within_state_GP = F,
+                          rangeu,
+                          reps = 10000,
+                          distmat,
+                          statemat = NULL){
+  # option is a string indicating the form of the outcome model (see createY)
+  # returns a vector of true ERF
+  
+  option <- match.arg(option)
+  
+  if (!within_state_GP){ 
+    # Compute variance of GP
+    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
+    # Simulate reps of data according to GP
+    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
+  }
+  # confounding mech 3
+  else{  
+    # Simulate data as GPs within each state
+    dat <- compute_data_GP_state(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5,
+                                 n = reps,
+                                 statemat = statemat)
+  }
+  
+  Ac <- dat$Ac 
+  Auc <- dat$Auc
+  U <- dat$U
+  A <- Ac + Auc # all have dimension n x nsims
+  Y <- createY(Us = U, As = A, option = option)
+  mutrue = rep(NA, reps)
+  
+  for (i in 1:reps){
+    if (option == 'linear'){
+      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.1*pmin(A[,i], 1)*U[,i]
+      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+    }
+    if (option == 'nonlinear'){
+      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.1*pmin(A[,i], 1)*U[,i] - 0.1*pmin(A[,i], 1)^2 + 
+        0.05*pmin(A[,i], 1)^2*U[,i]
+      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+    }
+  }
+  
+  return(mean(mutrue))
+}
+
 # Function that simulates data, estimates ERF using different methods, and saves results to csvs
 simfunc <- function(nsims,
                    lat,
@@ -305,7 +305,9 @@ simfunc <- function(nsims,
                      'baseline',
                      'spatialcoord',
                      'IV-TPS',
-                     'IV-GraphLaplacian'
+                     'IV-GraphLaplacian',
+                     'IV-TPS-spatialcoord',
+                     'IV-GraphLaplacian-spatialcoord'
                    ),
                    GFT_conf,
                    statemat,
@@ -400,6 +402,16 @@ simfunc <- function(nsims,
         mod <- lm(A[,sim] ~ GFT_conf)
         xmat <- matrix(predict(mod), ncol = 1)
         colnames(xmat) <- 'Ac-GraphLaplacian'
+      }
+      if (method == 'IV-TPS-spatialcoord'){
+        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.2*n),fx=T)) # unpenalized
+        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+        colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
+      }
+      if (method == 'IV-GraphLaplacian-spatialcoord'){
+        mod <- lm(A[,sim] ~ GFT_conf)
+        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+        colnames(xmat) <- c('Ac-GraphLaplacian', 'Latitude', 'Longitude')
       }
       
       # Fit the ERF adjusting for xmat.
