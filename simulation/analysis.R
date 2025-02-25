@@ -6,6 +6,7 @@ library(dplyr)
 library(utils)
 library(xtable)
 library(Matrix)
+library(tidyverse)
 source('../funcs.R')
 load('sim.RData')
 
@@ -60,8 +61,8 @@ for (i in 1:nrow(mutrues)){
                                     distmat = distmat,
                                     statemat = simlist$statemat)
 }
+save(mutrues, file = 'results_Mar1/mutrues.RData')
                 
-gs <- list()
 # Loop through results to calculate ERF metrics and create plots.
 for (i in 1:length(csvs)){
   filename <- csvs[i]
@@ -92,43 +93,58 @@ for (i in 1:length(csvs)){
   analysisdf$se[i] <- mean((muests - mutrue)^2, na.rm = T) / length(muests)
 }
 
-# Print bias table
-analysisdf_bias <- analysisdf[,c(1,3:5)] %>% 
-  pivot_wider(names_from = method, values_from = c(avgabsbias))
-print(xtable(analysisdf_bias, digits = 3), include.rownames = F)
+# Now create facet_wrap boxplots with ggplot2
 
-# Print RMSE table
-analysisdf_RMSE <- analysisdf[,c(1,3:4, 6)] %>% 
-  pivot_wider(names_from = method, values_from = c(avgRMSE))
-print(xtable(analysisdf_RMSE, digits = 3), include.rownames = F)
+folder <- "results_Mar1"
 
-# Plot the ERFs
-png('images/ERFplots_tinyscalelinear.png', 
-    width = 4500, height = 1200, res = 400)
-gridExtra::grid.arrange(grobs = gs[1:4], ncol = 4)
-dev.off()
+# List all CSV files in that folder (with full paths)
+files <- list.files(folder, pattern = "\\.csv$", full.names = TRUE)
 
-png('images/ERFplots_tinyscalenonlinear.png', 
-    width = 4500, height = 1200, res = 400)
-gridExtra::grid.arrange(grobs = gs[5:8], ncol = 4)
-dev.off()
+read_estimates <- function(file) {
+  # Extract parts from the filename, assuming they are separated by underscores.
+  file_base <- basename(file)
+  parts <- strsplit(file_base, "_")[[1]]
+  rangeu <- parts[1]                     # e.g., "0.05" or "0.1"
+  option <- parts[2]                   # "linear" or "nonlinear"
+  # Remove ".csv" from the method part
+  method <- sub(".csv", "", parts[3])
+  
+  # Read the CSV. Adjust header = TRUE/FALSE depending on your file.
+  dat <- read.csv(file, header = TRUE)
+  # If the CSV doesn't have a header and just one column, name it "estimate"
+  if (!"estimate" %in% colnames(dat)) {
+    names(dat)[1] <- "estimate"
+  }
+  # Add the new columns
+  dat <- dat %>%
+    mutate(rangeu = rangeu,
+           option = option,
+           method = method)
+  return(dat)
+}
 
-png('images/ERFplots_smallscalelinear.png', 
-    width = 4500, height = 1200, res = 400)
-gridExtra::grid.arrange(grobs = gs[9:12], ncol = 4)
-dev.off()
+# Read all files and combine into one data frame
+df <- map_dfr(files, read_estimates)
 
-png('images/ERFplots_smallscalenonlinear.png',
-    width = 4500, height = 1200, res = 400)
-gridExtra::grid.arrange(grobs = gs[13:16], ncol = 4)
-dev.off()
+# Remove last two rows of mutrue
+mutrues <- mutrues[-c(5, 6),]
 
-png('images/ERFplots_tinyscalelinear_withinstate.png', 
-    width = 4500, height = 1200, res = 400)
-gridExtra::grid.arrange(grobs = gs[17:20], ncol = 4)
-dev.off()
+# Ensure rangeu and option are factors in both data frames with the same levels:
+df <- df %>% 
+  mutate(rangeu = factor(rangeu, levels = c("0.05", "0.1")),
+         option = factor(option, levels = c("linear", "nonlinear")))
+mutrues <- mutrues %>% 
+  mutate(rangeu = factor(rangeu, levels = c("0.05", "0.1")),
+         option = factor(option, levels = c("linear", "nonlinear")))
 
-png('images/ERFplots_tinyscalenonlinear_withinstate.png', 
-    width = 4500, height = 1200, res = 400)
-gridExtra::grid.arrange(grobs = gs[21:24], ncol = 4)
-dev.off()
+# Create the boxplot with horizontal lines for theta
+ggplot(df, aes(x = method, y = estimate)) +
+  geom_boxplot() +
+  facet_grid(option ~ rangeu) +
+  # Add horizontal lines: one line per facet matching on rangeu and option
+  geom_hline(data = mutrues, aes(yintercept = theta), 
+             color = "red", linetype = "dashed", size = 1) +
+  labs(x = "Method", y = "Estimate") +
+  theme_bw() +
+  ylim(0,2.5) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
