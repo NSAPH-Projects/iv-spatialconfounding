@@ -328,10 +328,10 @@ simfunc <- function(nsims,
   option <- match.arg(option)
   n <- length(lat)
   if (rangeu == 'tinyscale'){
-    rangeu <- 0.05
+    rangeu <- 0.01
   }
   if (rangeu == 'smallscale') {
-    rangeu <- 0.1
+    rangeu <- 0.05
   }
   
   ################# GENERATE DATA #################
@@ -394,7 +394,7 @@ simfunc <- function(nsims,
         colnames(xmat) <- c('Latitude', 'Longitude')
       }
       if (method == 'IV-TPS'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.2*n),fx=T)) # unpenalized
+        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.1*n),fx=T)) # unpenalized
         xmat <- matrix(predict(mod), ncol = 1)
         colnames(xmat) <- 'Ac-TPS'
       }
@@ -404,7 +404,7 @@ simfunc <- function(nsims,
         colnames(xmat) <- 'Ac-GraphLaplacian'
       }
       if (method == 'IV-TPS-spatialcoord'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.2*n),fx=T)) # unpenalized
+        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.1*n),fx=T)) # unpenalized
         xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
         colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
       }

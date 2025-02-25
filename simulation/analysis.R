@@ -37,7 +37,7 @@ analysisdf <- data.frame(
 
 # Extract components from filenames
 rangeu <- gsub("(_.*$)", "", csvs)
-confounding_scenario <- c(ifelse(rangeu == '0.05', 1, 2)[1:length(csvs_notwithinstate)], 
+confounding_scenario <- c(ifelse(rangeu == '0.01', 1, 2)[1:length(csvs_notwithinstate)], 
                          rep(3, length(csvs_withinstate)))
 option <- gsub("^(.*?_)(.*?)(_.*$)", "\\2", csvs)
 method <- gsub(".*_(IV-[A-Za-z]+|[A-Za-z]+)\\.csv", "\\1", csvs)
@@ -46,11 +46,11 @@ method[method == 'spatialcoord'] <- 'Spatial coordinates'
 method[method == 'baseline'] <- 'No confounding adjustment'
 
 # Precompute true estimand for each outcome model and confounding mechanism
-mutrues <- data.frame(expand.grid(rangeu = c(0.05, 0.1), 
+mutrues <- data.frame(expand.grid(rangeu = c(0.01, 0.05), 
                                  option = c('linear', 'nonlinear')))
 mutrues$withinstate <- F
-mutrues <- rbind(mutrues, data.frame(rangeu = 0.05, option = 'linear', withinstate = T))
-mutrues <- rbind(mutrues, data.frame(rangeu = 0.05, option = 'nonlinear', withinstate = T))
+mutrues <- rbind(mutrues, data.frame(rangeu = 0.01, option = 'linear', withinstate = T))
+mutrues <- rbind(mutrues, data.frame(rangeu = 0.01, option = 'nonlinear', withinstate = T))
 mutrues$theta <- NA
 mutrues$option <- as.character(mutrues$option)
 
@@ -104,7 +104,7 @@ read_estimates <- function(file) {
   # Extract parts from the filename, assuming they are separated by underscores.
   file_base <- basename(file)
   parts <- strsplit(file_base, "_")[[1]]
-  rangeu <- parts[1]                     # e.g., "0.05" or "0.1"
+  rangeu <- parts[1]                     # e.g., "0.01" or "0.05"
   option <- parts[2]                   # "linear" or "nonlinear"
   # Remove ".csv" from the method part
   method <- sub(".csv", "", parts[3])
@@ -131,10 +131,10 @@ mutrues <- mutrues[-c(5, 6),]
 
 # Ensure rangeu and option are factors in both data frames with the same levels:
 df <- df %>% 
-  mutate(rangeu = factor(rangeu, levels = c("0.05", "0.1")),
+  mutate(rangeu = factor(rangeu, levels = c("0.01", "0.05")),
          option = factor(option, levels = c("linear", "nonlinear")))
 mutrues <- mutrues %>% 
-  mutate(rangeu = factor(rangeu, levels = c("0.05", "0.1")),
+  mutate(rangeu = factor(rangeu, levels = c("0.01", "0.05")),
          option = factor(option, levels = c("linear", "nonlinear")))
 
 # Create the boxplot with horizontal lines for theta

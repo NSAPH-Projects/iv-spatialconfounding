@@ -85,7 +85,7 @@ adjmat <- (adjmat + t(adjmat)) > 0
 # Graph Laplacian
 L <- diag(rowSums(adjmat)) - adjmat
 E <- eigen(L)
-num_vec_remove <- floor(0.2*n)
+num_vec_remove <- floor(0.1*n)
 # small scale (large eigenvalue) eigenvectors
 GFT <- E$vectors[,1:(n-num_vec_remove)]
 # large scale (small eigenvalue) eigenvectors 
@@ -110,7 +110,7 @@ set.seed(33)
 
 # FIRST Confounding mechanism 
 Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                    rangeu = 0.05, 
+                    rangeu = 0.01, 
                     rangec = 0.5)
 dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
 Ac <- dat$Ac 
@@ -134,7 +134,7 @@ gs1 <- plotfunc(
 
 # SECOND confounding mechanism
 Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                            rangeu = 0.1, 
+                            rangeu = 0.05, 
                             rangec = 0.5)
 dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
 Ac <- dat$Ac 
@@ -158,7 +158,7 @@ gs2 <- plotfunc(
 
 # THIRD confounding mechanism
 dat <- compute_data_GP_state(distmat = distmat,
-                            rangeu = 0.05, 
+                            rangeu = 0.01, 
                             rangec = 0.5,
                             n = 1,
                             statemat = statemat)
