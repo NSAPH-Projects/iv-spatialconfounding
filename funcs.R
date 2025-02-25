@@ -283,12 +283,12 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
   for (i in 1:reps){
     if (option == 'linear'){
       meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.1*pmin(A[,i], 1)*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      mutrue[i] <- mean(meanY_A_U) - mean(Y[,i])
     }
     if (option == 'nonlinear'){
       meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.1*pmin(A[,i], 1)*U[,i] - 0.1*pmin(A[,i], 1)^2 + 
         0.05*pmin(A[,i], 1)^2*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      mutrue[i] <- mean(meanY_A_U) - mean(Y[,i])
     }
   }
   
@@ -441,7 +441,7 @@ simfunc <- function(nsims,
         NA  # Set muests[,sim] to NA if an error occurs
       })
       muests[sim] <- (out$res$est[out$res$a.vals == cutoff]*mean(a>cutoff) + 
-                        mean(y[a<=cutoff])*mean(a<=cutoff))/mean(y)
+                        mean(y[a<=cutoff])*mean(a<=cutoff)) - mean(y)
 
     } # (There shouldn't be errors but in case)
     
