@@ -167,13 +167,13 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # linear outcome model
   if (option == 'linear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.1*As[,i]*Us[,i], 1)
+      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.3*As[,i]*Us[,i], 1)
     }
   }
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.1*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i] # Increase nonlinearity
+      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.3*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i] # Increase nonlinearity
                      , 1)
     }
   } 
@@ -247,7 +247,7 @@ metrics <- function(a.vals, muests, mutrue){
 computemutrue <- function(option = c('linear', 'nonlinear'),
                           within_state_GP = F,
                           rangeu,
-                          reps = 10000,
+                          reps = 20000,
                           distmat,
                           statemat = NULL){
   # option is a string indicating the form of the outcome model (see createY)
@@ -282,11 +282,11 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
   
   for (i in 1:reps){
     if (option == 'linear'){
-      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.1*pmin(A[,i], 1)*U[,i]
+      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.3*pmin(A[,i], 1)*U[,i]
       mutrue[i] <- mean(meanY_A_U) - mean(Y[,i])
     }
     if (option == 'nonlinear'){
-      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.1*pmin(A[,i], 1)*U[,i] - 0.1*pmin(A[,i], 1)^2 + 
+      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.3*pmin(A[,i], 1)*U[,i] - 0.1*pmin(A[,i], 1)^2 + 
         0.05*pmin(A[,i], 1)^2*U[,i]
       mutrue[i] <- mean(meanY_A_U) - mean(Y[,i])
     }
