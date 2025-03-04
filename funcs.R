@@ -657,3 +657,36 @@ plot_ERCs <- function(erc_list) {
   
   return(list(estimates = plot_estimates, ses = plot_ses))
 }
+
+m_out_of_n_boostrap <- function(cutoff = 1, delta = 0.05, y, a, xmat, 
+                                m = length(y)/log(length(y)),
+                                B = 1000){
+  n <- length(y)
+  boot_ests <- rep(NA, B)
+  for (b in 1:B){
+    boot_idx <- sample(1:n, m, replace = TRUE)
+    y_boot <- y[boot_idx]
+    a_boot <- a[boot_idx]
+    x_boot <- xmat[boot_idx,]
+    out <- tryCatch({
+      xsub <- matrix(x_boot[a_boot > cutoff - delta,], ncol = ncol(x_boot))
+      colnames(xsub) <- colnames(x_boot)
+      erfest <- ctseff(
+        y = y_boot[a_boot > cutoff - delta],
+        a = a_boot[a_boot > cutoff - delta],
+        x = xsub,
+        n.pts = 5,
+        a.rng = c(cutoff - delta, cutoff + delta),
+        bw.seq = seq(sd(a_boot)/10, sd(a_boot), length.out = 100)
+      )
+      erfest
+    }, error = function(e) {
+      message("Error encountered: ", e$message)
+      NA
+    })
+    boot_ests[b] <- (out$res$est[out$res$a.vals == cutoff]*mean(a_boot>cutoff) + 
+                 mean(y_boot[a_boot<=cutoff])*mean(a_boot<=cutoff)) - mean(y_boot)
+  }
+  return(list(estimates = boot_ests, 
+              varhat = (m/n)*mean((boot_ests - mean(boot_ests))^2)))
+}
