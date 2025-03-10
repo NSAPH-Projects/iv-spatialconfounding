@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -c 1 # Number of threads, just 1, not parallelizing
+#SBATCH -c 8 # Request 8 cores for parallel processing
 #SBATCH -t 00-03:00:00 # Amount of time needed DD-HH:MM:SS
 #SBATCH -p shared # Partition to submit to
 #SBATCH --mem=650 # Memory, uses about 550
