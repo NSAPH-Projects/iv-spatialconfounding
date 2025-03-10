@@ -716,19 +716,17 @@ m_out_of_n_bootstrap <- function(cutoff = 1, delta = 0.05, y, a, xmat,
   return(varhat)
 }
 
-library(doParallel)
-library(foreach)
-
 m_out_of_n_bootstrap_parallel <- function(cutoff = 1, delta = 0.05, y, a, xmat, 
                                           m = floor(length(y)/log(length(y))),
                                           B = 200){
   n <- length(y)
   
   # Create a cluster using a specified number of cores.
-  numCores <- parallel::detectCores() - 1
+  numCores <- 8#parallel::detectCores() - 1
   cat("Number of cores:", numCores, "\n")
-  cl <- makeCluster(numCores)
-  registerDoParallel(cl)
+  #cl <- makeCluster(numCores)
+  #registerDoParallel(cl)
+  registerDoParallel(cores = numCores)
   
   boot_ests <- foreach(b = 1:B, .combine = 'c', 
                        .packages = c("SuperLearner", "earth", "gam", "ranger", "KernSmooth"),
@@ -770,7 +768,8 @@ m_out_of_n_bootstrap_parallel <- function(cutoff = 1, delta = 0.05, y, a, xmat,
                          }
                        }
   
-  stopCluster(cl)
+  #stopCluster(cl)
+  stopImplicitCluster()
   
   valid_boot <- boot_ests[!is.na(boot_ests)]
   if(length(valid_boot) == 0){
