@@ -2,6 +2,8 @@
 source('../funcs.R')
 library(dplyr)
 library(geosphere)
+library(foreach)
+library(doParallel)
 
 # Load in simulation data,
 # a list of lat (vector), lon (vector), GFT (matrix), statemat (matrix)
