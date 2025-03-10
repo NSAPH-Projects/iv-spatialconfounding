@@ -371,10 +371,12 @@ simfunc <- function(nsims,
   for (method in methods){
     # Create filename for csvs containing estimated erfs
     if (!within_state_GP){
-      filename <- paste0('results_Mar1/', rangeu, '_', option, '_', method, '.csv')
+      filename <- paste0('results_Mar10/', rangeu, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Mar10/', rangeu, '_', option, '_', method, '_ci.csv')
     }
     else{
-      filename <- paste0('results_Mar1/within_state/', rangeu, '_', option, '_', method, '.csv')
+      filename <- paste0('results_Mar10/within_state/', rangeu, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Mar10/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
     }
     
     # Create storage for estimated erfs
@@ -427,7 +429,7 @@ simfunc <- function(nsims,
         # print(summary(xmat[a > cutoff - delta,]))
         # print(c(cutoff - delta, cutoff + delta))
         # print(seq(sd(a)/10, sd(a), length.out = 100))
-        xsub <- matrix(xmat[a > cutoff - delta,], ncol = ncol(xmat))
+        xsub <- matrix(xmat[a > cutoff - delta, , drop = F], ncol = ncol(xmat))
         colnames(xsub) <- colnames(xmat)
         erfest <- ctseff(
           y = y[a > cutoff - delta],
@@ -445,7 +447,7 @@ simfunc <- function(nsims,
       muests[sim] <- (out$res$est[out$res$a.vals == cutoff]*mean(a>cutoff) + 
                         mean(y[a<=cutoff])*mean(a<=cutoff)) - mean(y)
       if (bootstrap_conf){
-        varhat <- m_out_of_n_boostrap(y=y, a=a, xmat=xmat)
+        varhat <- m_out_of_n_bootstrap_parallel(y = y, a = a, xmat = xmat)
         cis[sim,] <- c(muests[sim] - 1.96*sqrt(varhat), muests[sim] + 1.96*sqrt(varhat))
       }
     } # (There shouldn't be errors but in case)
@@ -464,6 +466,18 @@ simfunc <- function(nsims,
     # if file for estimates does not exist create it and write results
     else{
       write.csv(df, filename, row.names = FALSE)
+    }
+    if (bootstrap_conf){
+      if (file.exists(filename_ci)){
+        # write new sims to file as new columns
+        olddf <- read.csv(filename_ci)
+        newdf <- rbind(olddf, cis)
+        write.csv(newdf, filename_ci, row.names = FALSE)
+      }
+      # if file for estimates does not exist create it and write results
+      else{
+        write.csv(cis, filename_ci, row.names = FALSE)
+      }
     }
   }
 
@@ -663,18 +677,19 @@ plot_ERCs <- function(erc_list) {
   return(list(estimates = plot_estimates, ses = plot_ses))
 }
 
-m_out_of_n_boostrap <- function(cutoff = 1, delta = 0.05, y, a, xmat, 
-                                m = length(y)/log(length(y)),
+m_out_of_n_bootstrap <- function(cutoff = 1, delta = 0.05, y, a, xmat, 
+                                m = floor(length(y)/log(length(y))),
                                 B = 1000){
   n <- length(y)
   boot_ests <- rep(NA, B)
   for (b in 1:B){
+    print(b)
     boot_idx <- sample(1:n, m, replace = TRUE)
     y_boot <- y[boot_idx]
     a_boot <- a[boot_idx]
-    x_boot <- xmat[boot_idx,]
+    x_boot <- xmat[boot_idx, , drop = FALSE]
     out <- tryCatch({
-      xsub <- matrix(x_boot[a_boot > cutoff - delta,], ncol = ncol(x_boot))
+      xsub <- matrix(x_boot[a_boot > cutoff - delta, , drop = FALSE], ncol = ncol(x_boot))
       colnames(xsub) <- colnames(x_boot)
       erfest <- ctseff(
         y = y_boot[a_boot > cutoff - delta],
@@ -689,9 +704,82 @@ m_out_of_n_boostrap <- function(cutoff = 1, delta = 0.05, y, a, xmat,
       message("Error encountered: ", e$message)
       NA
     })
-    boot_ests[b] <- (out$res$est[out$res$a.vals == cutoff]*mean(a_boot>cutoff) + 
-                 mean(y_boot[a_boot<=cutoff])*mean(a_boot<=cutoff)) - mean(y_boot)
+    if (!is.list(out)) {
+      boot_ests[b] <- NA  # or some other handling of the error case
+    } else {
+      boot_ests[b] <- (out$res$est[out$res$a.vals == cutoff] * mean(a_boot > cutoff) + 
+                         mean(y_boot[a_boot <= cutoff]) * mean(a_boot <= cutoff)) - mean(y_boot)
+    }
   }
   varhat = (m/n)*mean((boot_ests - mean(boot_ests))^2)
+  print(varhat)
   return(varhat)
 }
+
+library(doParallel)
+library(foreach)
+
+m_out_of_n_bootstrap_parallel <- function(cutoff = 1, delta = 0.05, y, a, xmat, 
+                                          m = floor(length(y)/log(length(y))),
+                                          B = 200){
+  n <- length(y)
+  
+  # Create a cluster using a specified number of cores.
+  numCores <- parallel::detectCores() - 1
+  cat("Number of cores:", numCores, "\n")
+  cl <- makeCluster(numCores)
+  registerDoParallel(cl)
+  
+  boot_ests <- foreach(b = 1:B, .combine = 'c', 
+                       .packages = c("SuperLearner", "earth", "gam", "ranger", "KernSmooth"),
+                       .export = c("ctseff")) %dopar% {
+                         boot_idx <- sample(1:n, m, replace = TRUE)
+                         y_boot <- y[boot_idx]
+                         a_boot <- a[boot_idx]
+                         x_boot <- xmat[boot_idx, , drop = FALSE]
+                         
+                         valid_obs <- sum(a_boot > cutoff - delta)
+                         if(valid_obs == 0){
+                           cat("Iteration", b, ": No observations have exposure values greater than cutoff\n")
+                           return(NA)
+                         } else {
+                           cat("Iteration", b, ": Number of valid observations:", valid_obs, "\n")
+                           out <- tryCatch({
+                             xsub <- matrix(x_boot[a_boot > cutoff - delta, , drop = FALSE],
+                                            ncol = ncol(x_boot))
+                             colnames(xsub) <- colnames(x_boot)
+                             erfest <- ctseff(
+                               y = y_boot[a_boot > cutoff - delta],
+                               a = a_boot[a_boot > cutoff - delta],
+                               x = xsub,
+                               n.pts = 5,
+                               a.rng = c(cutoff - delta, cutoff + delta),
+                               bw.seq = seq(sd(a_boot)/10, sd(a_boot), length.out = 100)
+                             )
+                             erfest
+                           }, error = function(e) {
+                             message("Error encountered in iteration ", b, ": ", e$message)
+                             NA
+                           })
+                           if (!is.list(out)) {
+                             return(NA)
+                           } else {
+                             return((out$res$est[out$res$a.vals == cutoff] * mean(a_boot > cutoff) + 
+                                       mean(y_boot[a_boot <= cutoff]) * mean(a_boot <= cutoff)) - mean(y_boot))
+                           }
+                         }
+                       }
+  
+  stopCluster(cl)
+  
+  valid_boot <- boot_ests[!is.na(boot_ests)]
+  if(length(valid_boot) == 0){
+    cat("No valid bootstrap iterations. Returning NA.\n")
+    return(NA)
+  }
+  
+  varhat <- (m/n) * mean((boot_ests - mean(boot_ests, na.rm = TRUE))^2, na.rm = TRUE)
+  cat("Estimated variance:", varhat, "\n")
+  return(varhat)
+}
+
