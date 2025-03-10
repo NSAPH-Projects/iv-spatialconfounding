@@ -311,7 +311,8 @@ simfunc <- function(nsims,
                    ),
                    GFT_conf,
                    statemat,
-                   within_state_GP = F) {
+                   within_state_GP = F,
+                   bootstrap_conf = F) {
   # nsims is the number of simulations
   # lat is a vector of latitudes
   # lon is a vector of longitudes
@@ -379,6 +380,7 @@ simfunc <- function(nsims,
     # Create storage for estimated erfs
     #muests <- matrix(NA, nrow = length(avals), ncol = nsims)
     muests <- rep(NA, nsims)
+    cis <- matrix(NA, nrow = nsims, ncol = 2)
     
     for (sim in 1:nsims){
       print(c(method, sim))
@@ -442,7 +444,10 @@ simfunc <- function(nsims,
       })
       muests[sim] <- (out$res$est[out$res$a.vals == cutoff]*mean(a>cutoff) + 
                         mean(y[a<=cutoff])*mean(a<=cutoff)) - mean(y)
-
+      if (bootstrap_conf){
+        varhat <- m_out_of_n_boostrap(y=y, a=a, xmat=xmat)
+        cis[sim,] <- c(muests[sim] - 1.96*sqrt(varhat), muests[sim] + 1.96*sqrt(varhat))
+      }
     } # (There shouldn't be errors but in case)
     
     # Create dataframe whose first column is a.vals and the rest of cols are muests
@@ -687,6 +692,6 @@ m_out_of_n_boostrap <- function(cutoff = 1, delta = 0.05, y, a, xmat,
     boot_ests[b] <- (out$res$est[out$res$a.vals == cutoff]*mean(a_boot>cutoff) + 
                  mean(y_boot[a_boot<=cutoff])*mean(a_boot<=cutoff)) - mean(y_boot)
   }
-  return(list(estimates = boot_ests, 
-              varhat = (m/n)*mean((boot_ests - mean(boot_ests))^2)))
+  varhat = (m/n)*mean((boot_ests - mean(boot_ests))^2)
+  return(varhat)
 }
