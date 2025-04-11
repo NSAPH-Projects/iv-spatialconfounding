@@ -10,7 +10,7 @@ for rangeu in "${rangeus[@]}"; do
   sbatch --job-name=${rangeu}_${option}\
     --output=output/${rangeu}_${option}.out \
     --error=error/${rangeu}_${option}.err \
-    run_job.sh 100 "$rangeu" "$option"  
+    run_job.sh 500 "$rangeu" "$option"  
   sleep 1 # pause to be kind to the scheduler
   done
 done
