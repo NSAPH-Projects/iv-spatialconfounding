@@ -85,11 +85,11 @@ adjmat <- (adjmat + t(adjmat)) > 0
 # Graph Laplacian
 L <- diag(rowSums(adjmat)) - adjmat
 E <- eigen(L)
-num_vec_remove <- floor(0.1*n)
+num_vec_remove <- floor(0.07*n)
 # small scale (large eigenvalue) eigenvectors
 GFT <- E$vectors[,1:(n-num_vec_remove)]
 # large scale (small eigenvalue) eigenvectors 
-GFT_conf <- E$vectors[,(n-num_vec_remove+1):(n-1)] # no constant vec
+GFT_conf <- E$vectors[,(n-num_vec_remove+1):n]
 
 # Indicator matrix for states
 statemat <- model.matrix(~-1 + State, data = uscounties)
@@ -99,7 +99,8 @@ simlist <- list(
   'lat' = lat,
   'lon' = lon,
   'GFT_conf' = GFT_conf,
-  'statemat' = statemat
+  'statemat' = statemat,
+  'E' = E
 )
 save(simlist, 
      file = 'sim.RData')
