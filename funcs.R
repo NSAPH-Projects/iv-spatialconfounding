@@ -9,6 +9,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   # a.rng is the range of exposure values to evaluate the ERF
   # n.pts is the number of points within a.rng at which to evaluate the ERF
   # sl.lib is the library of SuperLearner algorithms to use
+  # constrain is a boolean indicating whether pseudo-outcome is restricted to (min(Y), max(Y))
   # returns a list of two dataframes and a list
   
   require("SuperLearner")
