@@ -1,6 +1,6 @@
 # Function used to estimate the exposure-response curve
 ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
-                   sl.lib = c("SL.earth", "SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean", "SL.ranger")) {
+                   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean")) {
   # y is outcome
   # a is exposure
   # x is covariate matrix
@@ -8,7 +8,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   # a.rng is the range of exposure values to evaluate the ERF
   # n.pts is the number of points within a.rng at which to evaluate the ERF
   # sl.lib is the library of SuperLearner algorithms to use
-  # returns a list of two dataframes 
+  # returns a list of two dataframes and a list
   
   require("SuperLearner")
   require("earth")
@@ -62,6 +62,8 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # form adjusted/pseudo outcome xi
   pseudo.out <- (y - muhat) / (pihat / varpihat) + mhat
+  # pseudo.out[pseudo.out > max(y)] <- max(y)
+  # pseudo.out[pseudo.out < min(y)] <- min(y)
   #print('calculated pseudo.out')
   
   # leave-one-out cross-validation to select bandwidth
@@ -75,24 +77,6 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     }
     return(w.avals / n)
   }
-  # w.fn <- function(bw, a.vals) {
-  #   # Precompute values that do not depend on a.val
-  #   kern_0_bw <- kern(0) / bw
-  #   
-  #   # Vectorize computations for all a.vals at once
-  #   a.std_matrix <- outer(a, a.vals, function(a_i, a_val) (a_i - a_val) / bw)
-  #   kern_std_matrix <- kern(a.std_matrix) / bw
-  #   
-  #   mean_kern_std <- colMeans(kern_std_matrix)
-  #   mean_a_std2_kern_std <- colMeans(a.std_matrix^2 * kern_std_matrix)
-  #   mean_a_std_kern_std <- colMeans(a.std_matrix * kern_std_matrix)
-  #   
-  #   # Final computation of w.avals using vectorized operations
-  #   w.avals <- mean_a_std2_kern_std * kern_0_bw /
-  #     (mean_kern_std * mean_a_std2_kern_std - mean_a_std_kern_std^2)
-  #   
-  #   return(w.avals / n)
-  # }
   
   hatvals <- function(bw) {
     asubset = seq(min(a), max(a), length.out = 100)
@@ -120,9 +104,8 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   est <- approx(locpoly(a, pseudo.out, bandwidth = h.opt), xout = a.vals)$y
   #print('calculated est')
   
-  # estimate pointwise confidence band
-  # note: other methods could also be used
-  se <- NULL
+  phis <- list()
+  ix <- 1
   for (a.val in a.vals) {
     a.std <- (a - a.val) / h.opt
     kern.std <- kern(a.std) / h.opt
@@ -139,19 +122,18 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
                          byrow=T,nrow=n)*(intfn1.mat[,-1] + intfn1.mat[,-length(a.vals)]) / 2, 1,sum)
     int2 <- apply(matrix(rep((a.vals[-1]-a.vals[-length(a.vals)]),n),
                          byrow=T,nrow=n)* ( intfn2.mat[,-1] + intfn2.mat[,-length(a.vals)]) /2, 1,sum)
-    sigma <- cov(t(solve(Dh) %*%
-                     rbind(
-                       kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int1,
-                       a.std * kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int2
-                     )))
-    se <- c(se, sqrt(sigma[1, 1]))
+    phi_both <- t(solve(Dh) %*%
+                    rbind(
+                      kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int1,
+                      a.std * kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int2
+                    ))
+    phis[[ix]] <- phi_both[,1]
+    ix <- ix + 1
   }
   
-  ci.ll <- est - 1.96 * se / sqrt(n)
-  ci.ul <- est + 1.96 * se / sqrt(n)
-  res <- data.frame(a.vals, est, se, ci.ll, ci.ul)
+  res <- data.frame(a.vals, est)
   
-  return(invisible(list(res = res, bw.risk = bw.risk)))
+  return(invisible(list(res = res, bw.risk = bw.risk, phi = phis)))
 }
 
 # Function to create outcome
@@ -167,13 +149,13 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # linear outcome model
   if (option == 'linear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.3*As[,i]*Us[,i], 1)
+      Ys[,i] <- rnorm(n, -0.5 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i], 1) 
     }
   }
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, (-1)*Us[,i] + As[,i] - 0.3*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i] # Increase nonlinearity
+      Ys[,i] <- rnorm(n, -0.5 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.1*As[,i]^2*Us[,i] # Increase nonlinearity
                      , 1)
     }
   } 
@@ -247,9 +229,10 @@ metrics <- function(a.vals, muests, mutrue){
 computemutrue <- function(option = c('linear', 'nonlinear'),
                           within_state_GP = F,
                           rangeu,
-                          reps = 20000,
+                          reps = 50000,
                           distmat,
-                          statemat = NULL){
+                          statemat = NULL,
+                          cutoff = 0.5){
   # option is a string indicating the form of the outcome model (see createY)
   # returns a vector of true ERF
   
@@ -282,13 +265,16 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
   
   for (i in 1:reps){
     if (option == 'linear'){
-      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.3*pmin(A[,i], 1)*U[,i]
-      mutrue[i] <- mean(meanY_A_U) - mean(Y[,i])
+      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
+      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      #print(min(abs(colMeans(Y))))
     }
     if (option == 'nonlinear'){
-      meanY_A_U <- (-1)*U[,i] + pmin(A[,i], 1) - 0.3*pmin(A[,i], 1)*U[,i] - 0.1*pmin(A[,i], 1)^2 + 
-        0.05*pmin(A[,i], 1)^2*U[,i]
-      mutrue[i] <- mean(meanY_A_U) - mean(Y[,i])
+      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
+        0.1*pmin(A[,i], cutoff)^2*U[,i]
+      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      #print(min(abs(colMeans(Y))))
+      
     }
   }
   
@@ -312,7 +298,7 @@ simfunc <- function(nsims,
                    GFT_conf,
                    statemat,
                    within_state_GP = F,
-                   bootstrap_conf = F) {
+                   cutoff = 0.5) {
   # nsims is the number of simulations
   # lat is a vector of latitudes
   # lon is a vector of longitudes
@@ -398,7 +384,7 @@ simfunc <- function(nsims,
         colnames(xmat) <- c('Latitude', 'Longitude')
       }
       if (method == 'IV-TPS'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.1*n),fx=T)) # unpenalized
+        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
         xmat <- matrix(predict(mod), ncol = 1)
         colnames(xmat) <- 'Ac-TPS'
       }
@@ -408,7 +394,7 @@ simfunc <- function(nsims,
         colnames(xmat) <- 'Ac-GraphLaplacian'
       }
       if (method == 'IV-TPS-spatialcoord'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.1*n),fx=T)) # unpenalized
+        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
         xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
         colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
       }
@@ -419,7 +405,6 @@ simfunc <- function(nsims,
       }
       
       # Fit the ERF adjusting for xmat.
-      cutoff <- 1
       delta <- 0.05
       y = Y[,sim]
       a = A[,sim]
@@ -445,12 +430,8 @@ simfunc <- function(nsims,
         NA  # Set muests[,sim] to NA if an error occurs
       })
       muests[sim] <- (out$res$est[out$res$a.vals == cutoff]*mean(a>cutoff) + 
-                        mean(y[a<=cutoff])*mean(a<=cutoff)) - mean(y)
-      if (bootstrap_conf){
-        varhat <- m_out_of_n_bootstrap_parallel(y = y, a = a, xmat = xmat)
-        cis[sim,] <- c(muests[sim] - 1.96*sqrt(varhat), muests[sim] + 1.96*sqrt(varhat))
-      }
-    } # (There shouldn't be errors but in case)
+                        mean(y[a<=cutoff])*mean(a<=cutoff))/mean(y)
+    } # There shouldn't be errors but in case
     
     # Create dataframe whose first column is a.vals and the rest of cols are muests
     df <- muests
@@ -466,18 +447,6 @@ simfunc <- function(nsims,
     # if file for estimates does not exist create it and write results
     else{
       write.csv(df, filename, row.names = FALSE)
-    }
-    if (bootstrap_conf){
-      if (file.exists(filename_ci)){
-        # write new sims to file as new columns
-        olddf <- read.csv(filename_ci)
-        newdf <- rbind(olddf, cis)
-        write.csv(newdf, filename_ci, row.names = FALSE)
-      }
-      # if file for estimates does not exist create it and write results
-      else{
-        write.csv(cis, filename_ci, row.names = FALSE)
-      }
     }
   }
 
@@ -677,108 +646,31 @@ plot_ERCs <- function(erc_list) {
   return(list(estimates = plot_estimates, ses = plot_ses))
 }
 
-m_out_of_n_bootstrap <- function(cutoff = 1, delta = 0.05, y, a, xmat, 
-                                m = floor(length(y)/log(length(y))),
-                                B = 1000){
-  n <- length(y)
-  boot_ests <- rep(NA, B)
-  for (b in 1:B){
-    print(b)
-    boot_idx <- sample(1:n, m, replace = TRUE)
-    y_boot <- y[boot_idx]
-    a_boot <- a[boot_idx]
-    x_boot <- xmat[boot_idx, , drop = FALSE]
-    out <- tryCatch({
-      xsub <- matrix(x_boot[a_boot > cutoff - delta, , drop = FALSE], ncol = ncol(x_boot))
-      colnames(xsub) <- colnames(x_boot)
-      erfest <- ctseff(
-        y = y_boot[a_boot > cutoff - delta],
-        a = a_boot[a_boot > cutoff - delta],
-        x = xsub,
-        n.pts = 5,
-        a.rng = c(cutoff - delta, cutoff + delta),
-        bw.seq = seq(sd(a_boot)/10, sd(a_boot), length.out = 100)
-      )
-      erfest
-    }, error = function(e) {
-      message("Error encountered: ", e$message)
-      NA
-    })
-    if (!is.list(out)) {
-      boot_ests[b] <- NA  # or some other handling of the error case
-    } else {
-      boot_ests[b] <- (out$res$est[out$res$a.vals == cutoff] * mean(a_boot > cutoff) + 
-                         mean(y_boot[a_boot <= cutoff]) * mean(a_boot <= cutoff)) - mean(y_boot)
-    }
-  }
-  varhat = (m/n)*mean((boot_ests - mean(boot_ests))^2)
-  print(varhat)
-  return(varhat)
+asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta){
+  # Calculate parameters
+  theta1 <- erfest$res$est[erfest$res$a.vals == cutoff] # kennnedy
+  theta2 <- mean(a <= cutoff)
+  theta3 <- mean(y[a <= cutoff])
+  theta4 <- mean(y)
+  
+  # Calculate estimated influence functions
+  phi1 <- rep(NA, length(a))
+  phi1[a > cutoff - delta] <- erfest$phi[[which(erfest$res$a.vals == cutoff)]] # kennedy
+  phi1[a <= cutoff - delta] <- 0
+  phi2 <- 1*(a < cutoff) - mean(a < cutoff)
+  phi3 <- rep(NA, length(a))
+  phi3[a <= cutoff] <- y[a <= cutoff] - mean(y[a <= cutoff])
+  phi3[a > cutoff] <- 0
+  phi4 <- y - mean(y)
+  
+  # Calculate the 4 x 4 covariance matrix of the IFs
+  Sigma <- cov(cbind(phi1, phi2, phi3, phi4))
+  
+  # Calculate partial derivatives of (theta1(1-theta2) + theta3*theta2)/theta4
+  grad <- c((1-theta2)/theta4,
+            (-theta1 + theta3)/theta4,
+            theta2/theta4,
+            -(theta1*(1-theta2) + theta2*theta3)/theta4^2)
+  # Return asymptotic variance via delta method
+  return(t(grad) %*% Sigma %*% grad)
 }
-
-m_out_of_n_bootstrap_parallel <- function(cutoff = 1, delta = 0.05, y, a, xmat, 
-                                          m = floor(length(y)/log(length(y))),
-                                          B = 200){
-  n <- length(y)
-  
-  # Create a cluster using a specified number of cores.
-  numCores <- 8#parallel::detectCores() - 1
-  cat("Number of cores:", numCores, "\n")
-  #cl <- makeCluster(numCores)
-  #registerDoParallel(cl)
-  registerDoParallel(cores = numCores)
-  
-  boot_ests <- foreach(b = 1:B, .combine = 'c', 
-                       .packages = c("SuperLearner", "earth", "gam", "ranger", "KernSmooth"),
-                       .export = c("ctseff")) %dopar% {
-                         boot_idx <- sample(1:n, m, replace = TRUE)
-                         y_boot <- y[boot_idx]
-                         a_boot <- a[boot_idx]
-                         x_boot <- xmat[boot_idx, , drop = FALSE]
-                         
-                         valid_obs <- sum(a_boot > cutoff - delta)
-                         if(valid_obs == 0){
-                           cat("Iteration", b, ": No observations have exposure values greater than cutoff\n")
-                           return(NA)
-                         } else {
-                           cat("Iteration", b, ": Number of valid observations:", valid_obs, "\n")
-                           out <- tryCatch({
-                             xsub <- matrix(x_boot[a_boot > cutoff - delta, , drop = FALSE],
-                                            ncol = ncol(x_boot))
-                             colnames(xsub) <- colnames(x_boot)
-                             erfest <- ctseff(
-                               y = y_boot[a_boot > cutoff - delta],
-                               a = a_boot[a_boot > cutoff - delta],
-                               x = xsub,
-                               n.pts = 5,
-                               a.rng = c(cutoff - delta, cutoff + delta),
-                               bw.seq = seq(sd(a_boot)/10, sd(a_boot), length.out = 100)
-                             )
-                             erfest
-                           }, error = function(e) {
-                             message("Error encountered in iteration ", b, ": ", e$message)
-                             NA
-                           })
-                           if (!is.list(out)) {
-                             return(NA)
-                           } else {
-                             return((out$res$est[out$res$a.vals == cutoff] * mean(a_boot > cutoff) + 
-                                       mean(y_boot[a_boot <= cutoff]) * mean(a_boot <= cutoff)) - mean(y_boot))
-                           }
-                         }
-                       }
-  
-  #stopCluster(cl)
-  stopImplicitCluster()
-  
-  valid_boot <- boot_ests[!is.na(boot_ests)]
-  if(length(valid_boot) == 0){
-    cat("No valid bootstrap iterations. Returning NA.\n")
-    return(NA)
-  }
-  
-  varhat <- (m/n) * mean((boot_ests - mean(boot_ests, na.rm = TRUE))^2, na.rm = TRUE)
-  cat("Estimated variance:", varhat, "\n")
-  return(varhat)
-}
-
