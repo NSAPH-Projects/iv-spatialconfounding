@@ -24,8 +24,7 @@ simfunc(nsims,
         option = option,
         GFT_conf = simlist$GFT_conf,
         statemat = simlist$statemat,
-        within_state_GP = F, # change to T for confounding scenario 3
-        bootstrap_conf = T
+        within_state_GP = F # change to T for confounding scenario 3
         )
 
 
