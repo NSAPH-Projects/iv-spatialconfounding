@@ -225,7 +225,7 @@ metrics <- function(a.vals, muests, mutrue){
               avgse = avgse))
 }
 
-# Compute the true estimand using approximation
+# Compute the true estimand using MC approximation
 computemutrue <- function(option = c('linear', 'nonlinear'),
                           within_state_GP = F,
                           rangeu,
@@ -267,21 +267,18 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
     if (option == 'linear'){
       meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
       mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
-      #print(min(abs(colMeans(Y))))
     }
     if (option == 'nonlinear'){
       meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
         0.1*pmin(A[,i], cutoff)^2*U[,i]
       mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
-      #print(min(abs(colMeans(Y))))
-      
     }
   }
   
   return(mean(mutrue))
 }
 
-# Function that simulates data, estimates ERF using different methods, and saves results to csvs
+# Function that simulates data, estimates truncated exposure effect using different methods, and saves results to csvs
 simfunc <- function(nsims,
                    lat,
                    lon,
@@ -304,12 +301,13 @@ simfunc <- function(nsims,
   # lon is a vector of longitudes
   # rangeu is the scale of the unconfounded component of exposure
   # option is the form of the outcome model
-  # methods are the methods used to predict ERF
+  # methods are the methods used to estimate truncated exposure effect
   # GFT_conf are the matrix of eigenvectors of the Graph Fourier to adjust for
   # statemat is the matrix of state-level indicators
   # within_state_GP is a boolean indicating whether we're in confounding mech 3 or not
+  # cutoff is c
 
-  # writes estimated ERFs to a csv file named filename
+  # writes estimates to a csv file named filename
   
   rangeu <- match.arg(rangeu)
   option <- match.arg(option)
@@ -355,17 +353,17 @@ simfunc <- function(nsims,
   ################# FIT MODELS #################
   
   for (method in methods){
-    # Create filename for csvs containing estimated erfs
+    # Create filename for csvs containing estimates
     if (!within_state_GP){
-      filename <- paste0('results_Mar10/', rangeu, '_', option, '_', method, '.csv')
-      filename_ci <- paste0('results_Mar10/', rangeu, '_', option, '_', method, '_ci.csv')
+      filename <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '_ci.csv')
     }
     else{
-      filename <- paste0('results_Mar10/within_state/', rangeu, '_', option, '_', method, '.csv')
-      filename_ci <- paste0('results_Mar10/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
+      filename <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
     }
     
-    # Create storage for estimated erfs
+    # Create storage for estimates
     #muests <- matrix(NA, nrow = length(avals), ncol = nsims)
     muests <- rep(NA, nsims)
     cis <- matrix(NA, nrow = nsims, ncol = 2)
@@ -429,6 +427,7 @@ simfunc <- function(nsims,
         message("Error encountered: ", e$message)
         NA  # Set muests[,sim] to NA if an error occurs
       })
+      # Estimate truncated exposure effect
       muests[sim] <- (out$res$est[out$res$a.vals == cutoff]*mean(a>cutoff) + 
                         mean(y[a<=cutoff])*mean(a<=cutoff))/mean(y)
     } # There shouldn't be errors but in case
@@ -545,105 +544,6 @@ compute_data_GP_state <- function(distmat,
     out$U[ixs,] <- date_state$U
   }
   return(out)
-}
-
-plot_ERCs <- function(erc_list) {
-  # Check if the $res$a.vals is the same for each element in the list
-  stopifnot(all(sapply(erc_list, function(x) identical(erc_list[[1]]$res$a.vals, x$res$a.vals))))
-  
-  # Create a dataframe for estimates and standard errors
-  df <- data.frame(
-    a.vals = erc_list[[1]]$res$a.vals
-  )
-  for (i in 1:length(erc_list)) {
-    df[[paste0(names(erc_list)[i], "_est")]] <- erc_list[[i]]$res$est
-    df[[paste0(names(erc_list)[i], "_se")]] <- erc_list[[i]]$res$se
-  }
-  
-  # Pivot data to long format for estimates
-  data_long_est <- df %>%
-    tidyr::pivot_longer(cols = dplyr::ends_with("_est"), names_to = "Method", values_to = "Value") %>%
-    dplyr::mutate(Method = sub("_est", "", Method))
-  
-  # Pivot data to long format for standard errors
-  data_long_se <- df %>%
-    tidyr::pivot_longer(cols = dplyr::ends_with("_se"), names_to = "Method", values_to = "Value") %>%
-    dplyr::mutate(Method = sub("_se", "", Method))
-  
-  # Define custom colors based on curve type
-  unique_methods <- unique(data_long_est$Method)
-  get_x_value <- function(method) {
-    if (method == "baseline") {
-      return(NA)
-    } else if (grepl("^Ac_GraphLaplacian_", method)) {
-      return(as.numeric(sub("Ac_GraphLaplacian_", "", method)))
-    } else if (grepl("^Ac_TPS_", method)) {
-      return(as.numeric(sub("Ac_TPS_", "", method)))
-    }
-    return(NA)
-  }
-  
-  x_values <- sapply(unique_methods, get_x_value, USE.NAMES = FALSE)
-  graph_indices <- grepl("^Ac_GraphLaplacian_", unique_methods)
-  tps_indices <- grepl("^Ac_TPS_", unique_methods)
-  graph_reds <- scales::rescale(x_values[graph_indices], to = c(0.1, 1), na.rm = TRUE)
-  tps_blues <- scales::rescale(x_values[tps_indices], to = c(0.1, 1), na.rm = TRUE)
-  
-  color_mapping <- sapply(seq_along(unique_methods), function(i) {
-    method <- unique_methods[i]
-    if (method == "baseline") {
-      return("black")
-    } else if (graph_indices[i]) {
-      intensity <- graph_reds[sum(graph_indices[1:i])]
-      return(grDevices::rgb(1, 0, 0, alpha = intensity))
-    } else if (tps_indices[i]) {
-      intensity <- tps_blues[sum(tps_indices[1:i])]
-      return(grDevices::rgb(0, 0, 1, alpha = intensity))
-    }
-    return("gray")
-  })
-  
-  # Reorder methods for consistent plotting
-  ordered_methods <- c(
-    "baseline",
-    unique(grep("^Ac_TPS_", unique_methods, value = TRUE))[order(
-      as.numeric(sub("Ac_TPS_", "", grep("^Ac_TPS_", unique_methods, value = TRUE)))
-    )],
-    unique(grep("^Ac_GraphLaplacian_", unique_methods, value = TRUE))[order(
-      as.numeric(sub("Ac_GraphLaplacian_", "", grep("^Ac_GraphLaplacian_", unique_methods, value = TRUE)))
-    )]
-  )
-  
-  data_long_est$Method <- factor(data_long_est$Method, levels = ordered_methods)
-  data_long_se$Method <- factor(data_long_se$Method, levels = ordered_methods)
-  
-  # Plot the estimates
-  plot_estimates <- ggplot2::ggplot(data_long_est, ggplot2::aes(x = a.vals, y = Value, color = Method)) +
-    ggplot2::geom_line(size = 1) +
-    ggplot2::scale_color_manual(values = setNames(color_mapping, unique_methods)) +
-    ggplot2::labs(
-      x = "Exposure Value",
-      y = "Response",
-      title = "Exposure Response Curve Estimates",
-      color = "Method"
-    ) +
-    ggplot2::theme_minimal() +
-    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
-  
-  # Plot the standard errors
-  plot_ses <- ggplot2::ggplot(data_long_se, ggplot2::aes(x = a.vals, y = Value, color = Method)) +
-    ggplot2::geom_line(size = 1) +
-    ggplot2::scale_color_manual(values = setNames(color_mapping, unique_methods)) +
-    ggplot2::labs(
-      x = "Exposure Value",
-      y = "Standard Error",
-      title = "Standard Errors of Exposure Response Curves",
-      color = "Method"
-    ) +
-    ggplot2::theme_minimal() +
-    ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5))
-  
-  return(list(estimates = plot_estimates, ses = plot_ses))
 }
 
 asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta){
