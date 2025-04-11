@@ -358,8 +358,10 @@ round(c(mean(combined_data_covariates_outcome$pm25),
 round(c(mean(combined_data_covariates_outcome$deathrate), 
         sd(combined_data_covariates_outcome$deathrate)),3)
 
+# Confounder matrix
 covs <- as.data.frame(scale(covs))
 
+# Confounder matrix excluding spatial confounders
 xmat <- covs %>%
   dplyr::select(
     -summer_tmmx,
@@ -368,11 +370,15 @@ xmat <- covs %>%
     -winter_rmax
   )
 
+############################################### ESTIMATE TRUNCATED EXPOSURE EFFECT FOR EACH CUTOFF WITH EACH METHOD ####################################
+
 cutoffs <- seq(6,12,1) 
 delta <- 1
 y <- combined_data_covariates_outcome$deathrate 
 a <- combined_data_covariates_outcome$pm25 
+
 for (cutoff in cutoffs){
+  # Baseline
   xsub <- xmat[a > cutoff - delta,]
   colnames(xsub) <- colnames(xmat)
   start_time <- Sys.time()
@@ -395,6 +401,7 @@ for (cutoff in cutoffs){
   save(baseline_ci_norm, file = paste0('results_Mar24/baseline_ci_', cutoff, '.RData'))
   save(baseline_est, file = paste0('results_Mar24/baseline_est_', cutoff, '.RData'))
   
+  # Spatialcoord
   xsub <- cbind(xmat,
                 combined_data_covariates_outcome$x,
                 combined_data_covariates_outcome$y)[which(a>cutoff-delta),]
@@ -419,6 +426,7 @@ for (cutoff in cutoffs){
   save(spatialcoord_ci_norm, file = paste0('results_Mar24/spatialcoord_ci_', cutoff, '.RData'))
   save(spatialcoord_est, file = paste0('results_Mar24/spatialcoord_est_', cutoff, '.RData'))
   
+  # IV-TPS
   xsub <- cbind(xmat,
                 combined_data_covariates_outcome$Ac_TPS)[which(a>cutoff-delta),]
   colnames(xsub) <- c(colnames(xmat),'Ac_TPS')
@@ -443,6 +451,7 @@ for (cutoff in cutoffs){
   save(IV_TPS_ci_norm, file = paste0('results_Mar24/IV_TPS_ci_', cutoff, '.RData'))
   save(IV_TPS_est, file = paste0('results_Mar24/IV_TPS_est_', cutoff, '.RData'))
   
+  # IV-GraphLaplacian
   xsub <- cbind(xmat,
                 combined_data_covariates_outcome$Ac_GraphLaplacian)[which(a>cutoff-delta),]
   colnames(xsub) <- c(colnames(xmat),'Ac_GraphLaplacian')
@@ -525,6 +534,7 @@ for (cutoff in cutoffs){
   save(IV_GraphLaplacian_spatialcoord_est,
        file = paste0('results_Mar24/IV_GraphLaplacian_spatialcoord_est_', cutoff, '.RData'))
   
+  # Oracle
   xsub <- covs[a > cutoff - delta,]
   start_time <- Sys.time()
   erfest <- ctseff(
@@ -553,8 +563,10 @@ for (cutoff in cutoffs){
   gc()
 }
 
-####################################### Exposure Response Curves ########################################################
+################################################# Exposure Response Curves ########################################################
+
 qs <- quantile(a, probs = c(0.025, 0.975))
+
 # BASELINE
 start_time <- Sys.time()
 erfest <- ctseff(
@@ -567,7 +579,7 @@ erfest <- ctseff(
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
   savephi = F
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/baseline_erf_.RData'))
 
 # ORACLE
@@ -582,7 +594,7 @@ erfest <- ctseff(
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
   savephi = F
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/oracle_erf_.RData'))
 
 # SPATIALCOORD
@@ -601,7 +613,7 @@ erfest <- ctseff(
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
   savephi = F
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/spatialcoord_erf_.RData'))
 
 # IV_TPS
@@ -619,7 +631,7 @@ erfest <- ctseff(
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
   savephi = F
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/IV_TPS_erf_.RData'))
 
 # IV_GraphLaplacian
@@ -637,7 +649,7 @@ erfest <- ctseff(
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
   savephi = F
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/IV_GraphLaplacian_erf_.RData'))
 
 # IV_TPS_spatialcoord
@@ -657,7 +669,7 @@ erfest <- ctseff(
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
   savephi = F
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/IV_TPS_spatialcoord_erf_.RData'))
 
 # IV_GraphLaplacian_spatialcoord
@@ -677,13 +689,14 @@ erfest <- ctseff(
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
   savephi = F
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 save(erfest, 
      file = paste0('results_Mar24/IV_GraphLaplacian_spatialcoord_erf_.RData'))
 
 
 ########################################## PLOTS OF TRUNCATED EXPOSURE EFFECT ESTIMATES ##############################################
 
+# Create dataframe to store estimates
 cutoffs <- 6:12
 df <- data.frame(
   cutoff = numeric(0),
@@ -726,6 +739,8 @@ for (j in 1:length(cutoffs)){
 }
 
 df$cutoff_factor <- as.factor(df$cutoff)
+
+# PLOT RESULTS
 
 # Define custom facet labels
 cutoff_labels <- c("6" = "cutoff (µg/m³): 6",
@@ -1043,7 +1058,7 @@ dev.off()
 ############################################# SENSITIVITY ANALYSIS FOR DF in TWO DECOMPOSITIONS ######################################
 
 cutoff <- 9
-ks <- seq(4,8,by = 1)
+ks <- seq(4,8,by = 1) # Vary df in spline for TPS. 4 is minimum
 for (k in ks){
   print(k)
   mod = mgcv::gam(combined_data$pm25 ~ s(combined_data$x,combined_data$y,k=k,fx=T)) # unpenalized
@@ -1072,7 +1087,7 @@ eig <- eigs_sym(L, k = 7, which = "SM", opts = list(tol = 1e-3, maxitr = 10000))
 print(Sys.time() - start_time) # 5 min
 gc()
 
-ks <- seq(1,7,by = 1)
+ks <- seq(1,7,by = 1) # Vary number of eigenvectors for IV-GraphLaplacian.
 for (k in ks){
   print(k)
   mod = lm(combined_data$pm25 ~ eig$vectors[,(ncol(eig$vectors)-k+1):ncol(eig$vectors)]) 
@@ -1110,7 +1125,7 @@ for (k in seq(4,8,by = 1)){
     sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), # exclude RFs # "SL.gam",
     bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
   )
-  print(Sys.time() - start_time) # 1min
+  print(Sys.time() - start_time) 
   IV_TPS_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
                     mean(y[a<=cutoff])*mean(a<=cutoff)))/mean(y)
   vhat <- asymptotic_variance_delta(y, a, erfest, cutoff, delta)
@@ -1139,7 +1154,7 @@ for (k in seq(1,7,by = 1)){
     sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), # exclude RFs
     bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
   )
-  print(Sys.time() - start_time) # 1min
+  print(Sys.time() - start_time) 
   IV_GraphLaplacian_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) + 
                                mean(y[a<=cutoff])*mean(a<=cutoff)))/mean(y)
   vhat <- asymptotic_variance_delta(y, a, erfest, cutoff, delta)
@@ -1167,14 +1182,14 @@ erfest <- ctseff(
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), # exclude RFs
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
 )
-print(Sys.time() - start_time) # 1min
+print(Sys.time() - start_time) 
 baseline_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) + 
                     mean(y[a<=cutoff])*mean(a<=cutoff)))/mean(y)
 vhat <- asymptotic_variance_delta(y, a, erfest, cutoff, delta)
 baseline_ci_norm <- c(baseline_est - 1.96*sqrt(vhat/length(y)), 
                       baseline_est + 1.96*sqrt(vhat/length(y))) 
 
-# PLOT IV TPS for each k by k, as well as the ones above.
+# PLOT IV TPS for each k by k, as well as oracle and baseline.
 ks <- 4:8 
 ks <- as.factor(ks)
 df <- data.frame(
@@ -1243,7 +1258,7 @@ ggplot(df, aes(x = k, y = point_est, color = k)) +
 
 dev.off()
 
-# PLOT IV Graph Laplacian for each k by k, as well as the ones above.
+# PLOT IV Graph Laplacian for each k by k, as well as oracle and baseline.
 ks <- 3:7
 ks <- as.factor(ks)
 df <- data.frame(
