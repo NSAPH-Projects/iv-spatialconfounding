@@ -6,6 +6,7 @@ library(gridExtra)
 library(ggplot2)
 library(geoR)
 library(mvtnorm)
+library(geosphere)
 source('../funcs.R')
 
 # Import geographies
@@ -58,7 +59,7 @@ regions <- c(rep(1,6),
 region_data <- data.frame(State = states, STATEFP = statefps, Region = regions)
 uscounties <- left_join(uscounties, region_data, by = c('STATEFP10' = 'STATEFP'))
 
-# Subset to just West (EPA region 8-10) for computation time
+# Subset to just EPA region 6 for computation time
 # this is nice because ~500 counties
 uscounties <- subset(uscounties, Region %in% 6)
 
@@ -80,14 +81,15 @@ adjmat <- sapply(adjacency_list, function(row) {
   binary_row
 })
 adjmat <- (adjmat + t(adjmat)) > 0
+
 # Graph Laplacian
 L <- diag(rowSums(adjmat)) - adjmat
 E <- eigen(L)
-num_vec_remove <- floor(0.2*n)
+num_vec_remove <- floor(0.07*n)
 # small scale (large eigenvalue) eigenvectors
 GFT <- E$vectors[,1:(n-num_vec_remove)]
 # large scale (small eigenvalue) eigenvectors 
-GFT_conf <- E$vectors[,(n-num_vec_remove+1):(n-1)] # no constant vec
+GFT_conf <- E$vectors[,(n-num_vec_remove+1):n]
 
 # Indicator matrix for states
 statemat <- model.matrix(~-1 + State, data = uscounties)
@@ -97,7 +99,8 @@ simlist <- list(
   'lat' = lat,
   'lon' = lon,
   'GFT_conf' = GFT_conf,
-  'statemat' = statemat
+  'statemat' = statemat,
+  'E' = E
 )
 save(simlist, 
      file = 'sim.RData')
@@ -108,7 +111,7 @@ set.seed(33)
 
 # FIRST Confounding mechanism 
 Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                    rangeu = 0.05, 
+                    rangeu = 0.01, 
                     rangec = 0.5)
 dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
 Ac <- dat$Ac 
@@ -132,7 +135,7 @@ gs1 <- plotfunc(
 
 # SECOND confounding mechanism
 Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                            rangeu = 0.1, 
+                            rangeu = 0.05, 
                             rangec = 0.5)
 dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
 Ac <- dat$Ac 
@@ -156,7 +159,7 @@ gs2 <- plotfunc(
 
 # THIRD confounding mechanism
 dat <- compute_data_GP_state(distmat = distmat,
-                            rangeu = 0.05, 
+                            rangeu = 0.01, 
                             rangec = 0.5,
                             n = 1,
                             statemat = statemat)

@@ -28,6 +28,8 @@
 
 # Folders
 *archived*
+simulation/results_Mar1
+simulation/sensitivity
 
 # htmls
 *.html

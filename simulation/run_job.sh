@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -c 1 # Number of threads, just 1, not parallelizing
+#SBATCH -c 8 # Request 8 cores for parallel processing
 #SBATCH -t 00-03:00:00 # Amount of time needed DD-HH:MM:SS
 #SBATCH -p shared # Partition to submit to
-#SBATCH --mem=1000 # Memory, uses about 850
+#SBATCH --mem=6000 # Memory, uses about 3Gb
 #SBATCH -o /n/home07/swoodward/instrumental_variables_simulation/error.out #specify where to save errors returned by the program
 #SBATCH -e /n/home07/swoodward/instrumental_variables_simulation/log.err #specify where to save the output log
 #SBATCH --mail-type=END #notifications for job done

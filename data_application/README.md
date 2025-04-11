@@ -2,7 +2,7 @@
 
 This folder contains the code for the data application section of the paper. 
 
-- `PM_mortality.R` contains the code to load the data, preprocess the data, estimate the ERFs using five methods, and create plots of the estimated ERFs.
+- `PM_mortality.R` contains the code to load the data, preprocess the data, estimate the truncated exposure effects using seven methods, and create plots of the estimates.
 - The plots are saved in the `images` folder.
 
 ### Sources of Data

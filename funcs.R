@@ -1,6 +1,7 @@
 # Function used to estimate the exposure-response curve
 ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
-                   sl.lib = c("SL.earth", "SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean", "SL.ranger")) {
+                   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"),
+                   constrain = F) {
   # y is outcome
   # a is exposure
   # x is covariate matrix
@@ -8,7 +9,8 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   # a.rng is the range of exposure values to evaluate the ERF
   # n.pts is the number of points within a.rng at which to evaluate the ERF
   # sl.lib is the library of SuperLearner algorithms to use
-  # returns a list of two dataframes 
+  # constrain is a boolean indicating whether pseudo-outcome is restricted to (min(Y), max(Y))
+  # returns a list of two dataframes and a list
   
   require("SuperLearner")
   require("earth")
@@ -19,12 +21,13 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     dnorm(t)
   }
   
-  n <- dim(x)[1]
-  
+  n <- nrow(x)
+
   # set up evaluation points & matrices for predictions
   a.min <- a.rng[1]
   a.max <- a.rng[2]
   a.vals <- seq(a.min, a.max, length.out = n.pts)
+  
   xa.new <- rbind(cbind(x, a), cbind(x[rep(1:n, length(a.vals)), ], 
                                      a = rep(a.vals, rep(n, length(a.vals)))))
   colnames(xa.new) <- c(colnames(x), "a") # sophie's change.
@@ -33,6 +36,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   x.new <- data.frame(x.new)
   colnames(x.new) <- colnames(x) # sophie's change
   xa.new <- data.frame(xa.new)
+  #print('created evaluation points and matrices for predictions')
   
   # estimate nuisance functions via super learner
   # note: other methods could be used here instead
@@ -60,6 +64,12 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # form adjusted/pseudo outcome xi
   pseudo.out <- (y - muhat) / (pihat / varpihat) + mhat
+  if (constrain){
+    pseudo.out[pseudo.out > max(y)] <- max(y)
+    pseudo.out[pseudo.out < min(y)] <- min(y)
+  }
+
+  #print('calculated pseudo.out')
   
   # leave-one-out cross-validation to select bandwidth
   w.fn <- function(bw, a.vals) { # sophie's change
@@ -72,24 +82,6 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     }
     return(w.avals / n)
   }
-  # w.fn <- function(bw, a.vals) {
-  #   # Precompute values that do not depend on a.val
-  #   kern_0_bw <- kern(0) / bw
-  #   
-  #   # Vectorize computations for all a.vals at once
-  #   a.std_matrix <- outer(a, a.vals, function(a_i, a_val) (a_i - a_val) / bw)
-  #   kern_std_matrix <- kern(a.std_matrix) / bw
-  #   
-  #   mean_kern_std <- colMeans(kern_std_matrix)
-  #   mean_a_std2_kern_std <- colMeans(a.std_matrix^2 * kern_std_matrix)
-  #   mean_a_std_kern_std <- colMeans(a.std_matrix * kern_std_matrix)
-  #   
-  #   # Final computation of w.avals using vectorized operations
-  #   w.avals <- mean_a_std2_kern_std * kern_0_bw /
-  #     (mean_kern_std * mean_a_std2_kern_std - mean_a_std_kern_std^2)
-  #   
-  #   return(w.avals / n)
-  # }
   
   hatvals <- function(bw) {
     asubset = seq(min(a), max(a), length.out = 100)
@@ -107,6 +99,7 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   risk.est <- sapply(bw.seq, risk.fn)
   h.opt <- bw.seq[which.min(risk.est)]
   bw.risk <- data.frame(bw = bw.seq, risk = risk.est)
+  #print('calculated h.opt')
   
   # alternative approach:
   # h.opt <- optimize(function(h){ hats <- hatvals(h); mean( ((pseudo.out[a > a.min & a < a.max]-cts.eff.fn(pseudo.out,bw=h))/(1-hats))^2) } ,
@@ -114,10 +107,10 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # estimate effect curve with optimal bandwidth
   est <- approx(locpoly(a, pseudo.out, bandwidth = h.opt), xout = a.vals)$y
+  #print('calculated est')
   
-  # estimate pointwise confidence band
-  # note: other methods could also be used
-  se <- NULL
+  phis <- list()
+  ix <- 1
   for (a.val in a.vals) {
     a.std <- (a - a.val) / h.opt
     kern.std <- kern(a.std) / h.opt
@@ -134,19 +127,18 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
                          byrow=T,nrow=n)*(intfn1.mat[,-1] + intfn1.mat[,-length(a.vals)]) / 2, 1,sum)
     int2 <- apply(matrix(rep((a.vals[-1]-a.vals[-length(a.vals)]),n),
                          byrow=T,nrow=n)* ( intfn2.mat[,-1] + intfn2.mat[,-length(a.vals)]) /2, 1,sum)
-    sigma <- cov(t(solve(Dh) %*%
-                     rbind(
-                       kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int1,
-                       a.std * kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int2
-                     )))
-    se <- c(se, sqrt(sigma[1, 1]))
+    phi_both <- t(solve(Dh) %*%
+                    rbind(
+                      kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int1,
+                      a.std * kern.std * (pseudo.out - beta[1] - beta[2] * a.std) + int2
+                    ))
+    phis[[ix]] <- phi_both[,1]
+    ix <- ix + 1
   }
   
-  ci.ll <- est - 1.96 * se / sqrt(n)
-  ci.ul <- est + 1.96 * se / sqrt(n)
-  res <- data.frame(a.vals, est, se, ci.ll, ci.ul)
+  res <- data.frame(a.vals, est)
   
-  return(invisible(list(res = res, bw.risk = bw.risk)))
+  return(invisible(list(res = res, bw.risk = bw.risk, phi = phis)))
 }
 
 # Function to create outcome
@@ -162,41 +154,17 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # linear outcome model
   if (option == 'linear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, 2*Us[,i] + As[,i] - 0.2*As[,i]*Us[,i], 1)
+      Ys[,i] <- rnorm(n, -0.5 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i], 1) 
     }
   }
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, 2*Us[,i] + As[,i] - 0.2*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.05*As[,i]^2*Us[,i]
+      Ys[,i] <- rnorm(n, -0.5 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.1*As[,i]^2*Us[,i] # Increase nonlinearity
                      , 1)
     }
   } 
   return(Ys)
-}
-
-# Function to compute true ERF
-computemutrue <- function(a.vals, 
-                         option = c('linear', 'nonlinear')){
-  # a.vals is a vector of exposure values
-  # option is a string indicating the form of the outcome model (see createY)
-  # returns a vector of true ERF
-  
-  n <- length(a.vals)
-  option <- match.arg(option)
-
-  mutrue <- rep(NA, n)
-  
-  for (i in 1:n){
-    aval <- a.vals[i]
-    if (option == 'linear'){
-      mutrue[i] <- 2*0.3 + aval - 0.2*aval*0.3
-    }
-    if (option == 'nonlinear'){
-      mutrue[i] <- 2*0.3 + aval - 0.2*aval*0.3 - 0.1*aval^2 + 0.05*aval^2*0.3
-    }
-  }
-  return(mutrue)
 }
 
 # Function to plot the variables titled "names" in the dataframe "df"
@@ -262,7 +230,60 @@ metrics <- function(a.vals, muests, mutrue){
               avgse = avgse))
 }
 
-# Function that simulates data, estimates ERF using different methods, and saves results to csvs
+# Compute the true estimand using MC approximation
+computemutrue <- function(option = c('linear', 'nonlinear'),
+                          within_state_GP = F,
+                          rangeu,
+                          reps = 50000,
+                          distmat,
+                          statemat = NULL,
+                          cutoff = 0.5){
+  # option is a string indicating the form of the outcome model (see createY)
+  # returns a vector of true ERF
+  
+  option <- match.arg(option)
+  
+  if (!within_state_GP){ 
+    # Compute variance of GP
+    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
+    # Simulate reps of data according to GP
+    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
+  }
+  # confounding mech 3
+  else{  
+    # Simulate data as GPs within each state
+    dat <- compute_data_GP_state(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5,
+                                 n = reps,
+                                 statemat = statemat)
+  }
+  
+  Ac <- dat$Ac 
+  Auc <- dat$Auc
+  U <- dat$U
+  A <- Ac + Auc # all have dimension n x nsims
+  Y <- createY(Us = U, As = A, option = option)
+  mutrue = rep(NA, reps)
+  
+  for (i in 1:reps){
+    if (option == 'linear'){
+      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
+      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+    }
+    if (option == 'nonlinear'){
+      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
+        0.1*pmin(A[,i], cutoff)^2*U[,i]
+      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+    }
+  }
+  
+  return(mean(mutrue))
+}
+
+# Function that simulates data, estimates truncated exposure effect using different methods, and saves results to csvs
 simfunc <- function(nsims,
                    lat,
                    lon,
@@ -272,31 +293,35 @@ simfunc <- function(nsims,
                      'baseline',
                      'spatialcoord',
                      'IV-TPS',
-                     'IV-GraphLaplacian'
+                     'IV-GraphLaplacian',
+                     'IV-TPS-spatialcoord',
+                     'IV-GraphLaplacian-spatialcoord'
                    ),
                    GFT_conf,
                    statemat,
-                   within_state_GP = F) {
+                   within_state_GP = F,
+                   cutoff = 0.5) {
   # nsims is the number of simulations
   # lat is a vector of latitudes
   # lon is a vector of longitudes
   # rangeu is the scale of the unconfounded component of exposure
   # option is the form of the outcome model
-  # methods are the methods used to predict ERF
+  # methods are the methods used to estimate truncated exposure effect
   # GFT_conf are the matrix of eigenvectors of the Graph Fourier to adjust for
   # statemat is the matrix of state-level indicators
   # within_state_GP is a boolean indicating whether we're in confounding mech 3 or not
+  # cutoff is c
 
-  # writes estimated ERFs to a csv file named filename
+  # writes estimates to a csv file named filename
   
   rangeu <- match.arg(rangeu)
   option <- match.arg(option)
   n <- length(lat)
   if (rangeu == 'tinyscale'){
-    rangeu <- 0.05
+    rangeu <- 0.01
   }
   if (rangeu == 'smallscale') {
-    rangeu <- 0.1
+    rangeu <- 0.05
   }
   
   ################# GENERATE DATA #################
@@ -328,22 +353,25 @@ simfunc <- function(nsims,
   Auc <- dat$Auc
   U <- dat$U
   A <- Ac + Auc # all have dimension n x nsims
-  avals <- seq(-2, 2, length.out = 100)
   Y <- createY(Us=U, As=A, option = option)
   
   ################# FIT MODELS #################
   
   for (method in methods){
-    # Create filename for csvs containing estimated erfs
+    # Create filename for csvs containing estimates
     if (!within_state_GP){
-      filename <- paste0('results_Oct1/', rangeu, '_', option, '_', method, '.csv')
+      filename <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '_ci.csv')
     }
     else{
-      filename <- paste0('results_Oct1/within_state/', rangeu, '_', option, '_', method, '.csv')
+      filename <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
     }
     
-    # Create storage for estimated erfs
-    muests <- matrix(NA, nrow = length(avals), ncol = nsims)
+    # Create storage for estimates
+    #muests <- matrix(NA, nrow = length(avals), ncol = nsims)
+    muests <- rep(NA, nsims)
+    cis <- matrix(NA, nrow = nsims, ncol = 2)
     
     for (sim in 1:nsims){
       print(c(method, sim))
@@ -359,7 +387,7 @@ simfunc <- function(nsims,
         colnames(xmat) <- c('Latitude', 'Longitude')
       }
       if (method == 'IV-TPS'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.2*n),fx=T)) # unpenalized
+        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
         xmat <- matrix(predict(mod), ncol = 1)
         colnames(xmat) <- 'Ac-TPS'
       }
@@ -368,26 +396,49 @@ simfunc <- function(nsims,
         xmat <- matrix(predict(mod), ncol = 1)
         colnames(xmat) <- 'Ac-GraphLaplacian'
       }
+      if (method == 'IV-TPS-spatialcoord'){
+        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
+        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+        colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
+      }
+      if (method == 'IV-GraphLaplacian-spatialcoord'){
+        mod <- lm(A[,sim] ~ GFT_conf)
+        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+        colnames(xmat) <- c('Ac-GraphLaplacian', 'Latitude', 'Longitude')
+      }
       
       # Fit the ERF adjusting for xmat.
-      muests[, sim] <- tryCatch({
+      delta <- 0.05
+      y = Y[,sim]
+      a = A[,sim]
+      out <- tryCatch({
+        # print(summary(y[a > cutoff - delta]))
+        # print(summary(a[a > cutoff - delta]))
+        # print(summary(xmat[a > cutoff - delta,]))
+        # print(c(cutoff - delta, cutoff + delta))
+        # print(seq(sd(a)/10, sd(a), length.out = 100))
+        xsub <- matrix(xmat[a > cutoff - delta, , drop = F], ncol = ncol(xmat))
+        colnames(xsub) <- colnames(xmat)
         erfest <- ctseff(
-          y = Y[, sim],
-          a = A[, sim],
-          x = xmat,
-          a.rng = c(min(avals), max(avals)),
-          n.pts = length(avals),
-          bw.seq = seq(0.2, 2, length.out = 100)
+          y = y[a > cutoff - delta],
+          a = a[a > cutoff - delta],
+          x = xsub,
+          n.pts = 5,
+          a.rng = c(cutoff - delta, cutoff + delta),
+          bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
         )
-        erfest$res$est
+        erfest
       }, error = function(e) {
         message("Error encountered: ", e$message)
         NA  # Set muests[,sim] to NA if an error occurs
       })
-    } # (There shouldn't be errors but in case)
+      # Estimate truncated exposure effect
+      muests[sim] <- (out$res$est[out$res$a.vals == cutoff]*mean(a>cutoff) + 
+                        mean(y[a<=cutoff])*mean(a<=cutoff))/mean(y)
+    } # There shouldn't be errors but in case
     
     # Create dataframe whose first column is a.vals and the rest of cols are muests
-    df <- cbind(avals, muests)
+    df <- muests
     
     # write results to file
     # Check if file exists
@@ -397,7 +448,7 @@ simfunc <- function(nsims,
       newdf <- cbind(olddf, muests)
       write.csv(newdf, filename, row.names = FALSE)
     }
-    # if file for ERF ests does not exist create it and write results
+    # if file for estimates does not exist create it and write results
     else{
       write.csv(df, filename, row.names = FALSE)
     }
@@ -500,3 +551,37 @@ compute_data_GP_state <- function(distmat,
   return(out)
 }
 
+asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta){
+  # Calculate parameters
+  theta1 <- erfest$res$est[erfest$res$a.vals == cutoff] # kennnedy
+  theta2 <- mean(a <= cutoff)
+  theta3 <- mean(y[a <= cutoff])
+  theta4 <- mean(y)
+  
+  # Calculate estimated influence functions
+  phi1 <- rep(NA, length(a))
+  phi1[a > cutoff - delta] <- erfest$phi[[which(erfest$res$a.vals == cutoff)]] # kennedy
+  phi1[a <= cutoff - delta] <- 0
+  phi2 <- 1*(a < cutoff) - mean(a < cutoff)
+  phi3 <- rep(NA, length(a))
+  phi3[a <= cutoff] <- y[a <= cutoff] - mean(y[a <= cutoff])
+  phi3[a > cutoff] <- 0
+  phi4 <- y - mean(y)
+  
+  # Calculate the 4 x 4 covariance matrix of the IFs
+  Sigma <- cov(cbind(phi1, phi2, phi3, phi4))
+  
+  # Calculate partial derivatives of (theta1(1-theta2) + theta3*theta2)/theta4
+  grad <- c((1-theta2)/theta4,
+            (-theta1 + theta3)/theta4,
+            theta2/theta4,
+            -(theta1*(1-theta2) + theta2*theta3)/theta4^2)
+  # Return asymptotic variance via delta method
+  return(t(grad) %*% Sigma %*% grad)
+}
+
+hausdorff_distance <- function(interval1, interval2){
+  dist1 <- abs(interval1[1] - interval2[1])
+  dist2 <- abs(interval1[2] - interval2[2])
+  return(max(dist1,dist2))
+}
