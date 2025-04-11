@@ -389,7 +389,8 @@ for (cutoff in cutoffs){
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
     sl.lib = c("SL.gam", "SL.glm", "SL.mean", "SL.glm.interaction"),
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   baseline_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -414,7 +415,8 @@ for (cutoff in cutoffs){
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
     sl.lib = c("SL.glm", "SL.glm.interaction", "SL.mean", "SL.gam"),
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   spatialcoord_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -439,7 +441,8 @@ for (cutoff in cutoffs){
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
     sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   IV_TPS_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -464,7 +467,8 @@ for (cutoff in cutoffs){
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
     sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   IV_GraphLaplacian_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -492,7 +496,8 @@ for (cutoff in cutoffs){
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
     sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   IV_TPS_spatialcoord_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -520,7 +525,8 @@ for (cutoff in cutoffs){
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
     sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   IV_GraphLaplacian_spatialcoord_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -544,7 +550,8 @@ for (cutoff in cutoffs){
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
     sl.lib = c("SL.gam", "SL.glm", "SL.mean", "SL.glm.interaction"),
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   oracle_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -577,7 +584,8 @@ erfest <- ctseff(
   a.rng = qs,
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
-  savephi = F
+  savephi = F,
+  constrain = T
 )
 print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/baseline_erf_.RData'))
@@ -592,7 +600,8 @@ erfest <- ctseff(
   a.rng = qs,
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
-  savephi = F
+  savephi = F,
+  constrain = T
 )
 print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/oracle_erf_.RData'))
@@ -611,7 +620,8 @@ erfest <- ctseff(
   a.rng = qs,
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
-  savephi = F
+  savephi = F,
+  constrain = T
 )
 print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/spatialcoord_erf_.RData'))
@@ -629,7 +639,8 @@ erfest <- ctseff(
   a.rng = qs,
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
-  savephi = F
+  savephi = F,
+  constrain = T
 )
 print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/IV_TPS_erf_.RData'))
@@ -647,7 +658,8 @@ erfest <- ctseff(
   a.rng = qs,
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
-  savephi = F
+  savephi = F,
+  constrain = T
 )
 print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/IV_GraphLaplacian_erf_.RData'))
@@ -667,7 +679,8 @@ erfest <- ctseff(
   a.rng = qs,
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
-  savephi = F
+  savephi = F,
+  constrain = T
 )
 print(Sys.time() - start_time) 
 save(erfest, file = paste0('results_Mar24/IV_TPS_spatialcoord_erf_.RData'))
@@ -687,7 +700,8 @@ erfest <- ctseff(
   a.rng = qs,
   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
   bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
-  savephi = F
+  savephi = F,
+  constrain = T
 )
 print(Sys.time() - start_time) 
 save(erfest, 
@@ -1122,8 +1136,9 @@ for (k in seq(4,8,by = 1)){
     x = xsub,
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
-    sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), # exclude RFs # "SL.gam",
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   IV_TPS_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) +
@@ -1151,8 +1166,9 @@ for (k in seq(1,7,by = 1)){
     x = xsub,
     n.pts = 5,
     a.rng = c(cutoff - delta, cutoff + delta),
-    sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), # exclude RFs
-    bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+    sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
+    bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+    constrain = T
   )
   print(Sys.time() - start_time) 
   IV_GraphLaplacian_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) + 
@@ -1179,8 +1195,9 @@ erfest <- ctseff(
   x = xsub,
   n.pts = 5,
   a.rng = c(cutoff - delta, cutoff + delta),
-  sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), # exclude RFs
-  bw.seq = seq(sd(a)/10, sd(a), length.out = 100)
+  sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"), 
+  bw.seq = seq(sd(a)/10, sd(a), length.out = 100),
+  constrain = T
 )
 print(Sys.time() - start_time) 
 baseline_est <- ((erfest$res$est[erfest$res$a.vals == cutoff]*mean(a>cutoff) + 
