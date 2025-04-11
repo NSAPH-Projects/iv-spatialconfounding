@@ -71,7 +71,7 @@ method <- gsub(".*_([^\\.]+)\\.csv", "\\1", csvs)
 
 load('results_Mar16/mutrues.RData')
                 
-# Loop through results to calculate ERF metrics and create plots.
+# Loop through results to calculate metrics and create plots.
 for (i in 1:length(csvs)){
   filename <- csvs[i]
   print(filename)
@@ -90,7 +90,7 @@ for (i in 1:length(csvs)){
   # Convert muests to a vector, it's just a single column
   muests <- as.vector(as.matrix(muests))
   
-  # Compute true ERF
+  # Compute true truncated exposure estimate
   mutrue <- mutrues[mutrues$rangeu == rangeu[i] & 
                       mutrues$option == option[i] & 
                       mutrues$withinstate == ifelse(confounding_scenario[i] == 3, T, F),]$theta
