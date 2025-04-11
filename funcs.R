@@ -1,6 +1,7 @@
 # Function used to estimate the exposure-response curve
 ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
-                   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean")) {
+                   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"),
+                   constrain = F) {
   # y is outcome
   # a is exposure
   # x is covariate matrix
@@ -62,8 +63,11 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # form adjusted/pseudo outcome xi
   pseudo.out <- (y - muhat) / (pihat / varpihat) + mhat
-  # pseudo.out[pseudo.out > max(y)] <- max(y)
-  # pseudo.out[pseudo.out < min(y)] <- min(y)
+  if (constrain){
+    pseudo.out[pseudo.out > max(y)] <- max(y)
+    pseudo.out[pseudo.out < min(y)] <- min(y)
+  }
+
   #print('calculated pseudo.out')
   
   # leave-one-out cross-validation to select bandwidth
@@ -573,4 +577,10 @@ asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta){
             -(theta1*(1-theta2) + theta2*theta3)/theta4^2)
   # Return asymptotic variance via delta method
   return(t(grad) %*% Sigma %*% grad)
+}
+
+hausdorff_distance <- function(interval1, interval2){
+  dist1 <- abs(interval1[1] - interval2[1])
+  dist2 <- abs(interval1[2] - interval2[2])
+  return(max(dist1,dist2))
 }
