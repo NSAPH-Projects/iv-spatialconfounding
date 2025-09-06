@@ -291,6 +291,7 @@ simfunc <- function(nsims,
                    option = c('linear', 'nonlinear'),
                    methods = c(
                      'baseline',
+                     'oracle',
                      'spatialcoord',
                      'IV-TPS',
                      'IV-GraphLaplacian',
@@ -380,6 +381,10 @@ simfunc <- function(nsims,
       if (method == 'baseline'){
         xmat <- matrix(rep(1,n), ncol = 1)
         colnames(xmat) <- 'Intercept'
+      }
+      if (method == 'oracle'){
+        xmat <- matrix(U[,sim], ncol = 1)
+        colnames(xmat) <- 'U'
       }
       
       if (method == 'spatialcoord'){
@@ -548,6 +553,31 @@ compute_data_GP_state <- function(distmat,
     out$Ac[ixs,] <- date_state$Ac
     out$U[ixs,] <- date_state$U
   }
+  return(out)
+}
+
+# Function that creates the data for confounding mechanism 4 (following Gilbert et al. 2021)
+compute_data_spatialcoord <- function(lat, long, nsims){
+  # lat is the latitude
+  # long is the longitude
+  # nsims is the number of simulations 
+  # returns a list with the data Auc,Ac,U
+  
+  n <- length(lat)
+  # standardize lat and long
+  lat <- (lat - min(lat))/(max(lat) - min(lat))
+  long <- (long - min(long))/(max(long) - min(long))
+  
+  out <- list('Auc' = matrix(NA, nrow = n, ncol = nsims),
+              'Ac' = matrix(NA, nrow = n, ncol = nsims),
+              'U' = matrix(NA, nrow = n, ncol = nsims))
+  
+  U <- sin(2*pi*lat*long) + lat + long
+  out$U[,] <- U  # same U in every column
+  
+  out$Ac  <- replicate(nsims, rnorm(n, mean = U^3, sd = 1))
+  out$Auc <- replicate(nsims, rnorm(n, mean = 0, sd = 5))
+  
   return(out)
 }
 
