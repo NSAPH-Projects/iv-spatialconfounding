@@ -274,23 +274,64 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
     dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = reps)
   }
   
-  Ac <- dat$Ac 
-  Auc <- dat$Auc
-  U <- dat$U
-  A <- Ac + Auc # all have dimension n x nsims
-  Y <- createY(Us = U, As = A, option = option)
-  mutrue = rep(NA, reps)
+  if (confounding_mechanism != 5){
+    Ac <- dat$Ac 
+    Auc <- dat$Auc
+    U <- dat$U
+    A <- Ac + Auc # all have dimension n x nsims
+    Y <- createY(Us = U, As = A, option = option)
+    mutrue = rep(NA, reps)
+    
+    for (i in 1:reps){
+      if (option == 'linear'){
+        meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      }
+      if (option == 'nonlinear'){
+        meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
+          0.1*pmin(A[,i], cutoff)^2*U[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      }
+    }
+  }
   
-  for (i in 1:reps){
+  if (confounding_mechanism == 5){
+    rangeu <- 0.01
+    Sigma_GP <- compute_Sigma_GP_2U(distmat = distmat,
+                                    kappa = 2,
+                                    rangeu = rangeu,
+                                    rangec = 0.5,
+                                    rangez1 = 0.5,
+                                    rangez2 = 0.75)
+    dat <- compute_data_2U(n = reps, Sigma_GP = Sigma_GP)
+    Ac <- dat$Ac 
+    Auc <- dat$Auc
+    U1 <- dat$U1
+    U2 <- dat$U2
+    A <- Ac + Auc # all have dimension n x nsims
+    n <- nrow(A)
+    Y <- matrix(NA, n, reps)
+    
+    # linear outcome model
+    mutrue <- rep(NA, reps)
     if (option == 'linear'){
-      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      for (i in 1:reps){
+        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
+                       , 1) 
+        meanY_A_U <- -0.5 + (-1)*U1[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U1[,i] - 0.75*pmin(A[,i], cutoff)*U2[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      }
     }
+    # nonlinear outcome model
     if (option == 'nonlinear'){
-      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
-        0.1*pmin(A[,i], cutoff)^2*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
-    }
+      for (i in 1:reps){
+        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
+                       , 1)
+        meanY_A_U <- -0.5 + (-1)*U1[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U1[,i] - 0.75*pmin(A[,i], cutoff)*U2[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
+          0.1*pmin(A[,i], cutoff)^2*U1[,i] + 0.05*pmin(A[,i], cutoff)^3*U2[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+      }
+    } 
   }
   
   return(mean(mutrue))
@@ -368,12 +409,45 @@ simfunc <- function(nsims,
   if (confounding_mechanism == 4){
     dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = nsims)
   }
+  if (confounding_mechanism == 5){
+    rangeu <- 0.01
+    Sigma_GP <- compute_Sigma_GP_2U(distmat = distmat,
+                                    kappa = 2,
+                                    rangeu = rangeu,
+                                    rangec = 0.5,
+                                    rangez1 = 0.5,
+                                    rangez2 = 0.75)
+    dat <- compute_data_2U(n = reps, Sigma_GP = Sigma_GP)
+    Ac <- dat$Ac 
+    Auc <- dat$Auc
+    U1 <- dat$U1
+    U2 <- dat$U2
+    A <- Ac + Auc # all have dimension n x nsims
+    n <- nrow(A)
+    Y <- matrix(NA, n, reps)
+    if (option == 'linear'){
+      for (i in 1:reps){
+        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
+                       , 1)
+      }
+    }
+    if (option == 'nonlinear'){
+      for (i in 1:reps){
+        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
+                       , 1)
+      }
+    }
+    
+  }
   
-  Ac <- dat$Ac 
-  Auc <- dat$Auc
-  U <- dat$U
-  A <- Ac + Auc # all have dimension n x nsims
-  Y <- createY(Us=U, As=A, option = option)
+  if (confounding_mechanism != 5){
+    Ac <- dat$Ac 
+    Auc <- dat$Auc
+    U <- dat$U
+    A <- Ac + Auc # all have dimension n x nsims
+    Y <- createY(Us=U, As=A, option = option)
+  }
+  
   
   ################# FIT MODELS #################
   
@@ -516,6 +590,63 @@ compute_Sigma_GP <- function(distmat,
   return(Sigma)
 }
 
+# Function that computes the covariance matrix for two confounders
+compute_Sigma_GP_2U <- function(distmat,
+                                kappa = 2,
+                                rangeu,
+                                rangec,
+                                rangez1,
+                                rangez2,
+                                rho1 = 0.9,   # corr(Ac, U1)
+                                rho2 = 0.7,   # corr(Ac, U2)
+                                sigu = 1,
+                                sigc = 1,
+                                sigz1 = 1,
+                                sigz2 = 1) {
+  n <- nrow(distmat)
+  # Convert to geoR phi to match your Paciorek-style usage
+  phi_u  <- rangeu  / (2 * sqrt(kappa))
+  phi_c  <- rangec  / (2 * sqrt(kappa))
+  phi_z1 <- rangez1 / (2 * sqrt(kappa))
+  phi_z2 <- rangez2 / (2 * sqrt(kappa))
+  
+  Ku  <- geoR::matern(u = distmat, phi = phi_u,  kappa = kappa)
+  Kc  <- geoR::matern(u = distmat, phi = phi_c,  kappa = kappa)
+  Kz1 <- geoR::matern(u = distmat, phi = phi_z1, kappa = kappa)
+  Kz2 <- geoR::matern(u = distmat, phi = phi_z2, kappa = kappa)
+  
+  # Allocate 4n x 4n
+  Sigma <- matrix(0, nrow = 4*n, ncol = 4*n)
+  
+  # Indices
+  iAuc <- 1:n
+  iAc  <- (n+1):(2*n)
+  iU1  <- (2*n+1):(3*n)
+  iU2  <- (3*n+1):(4*n)
+  
+  # Marginals
+  Sigma[iAuc, iAuc] <- sigu^2  * Ku
+  Sigma[iAc,  iAc ] <- sigc^2  * Kc
+  Sigma[iU1,  iU1 ] <- sigz1^2 * Kz1
+  Sigma[iU2,  iU2 ] <- sigz2^2 * Kz2
+  
+  # Cross-covariances:
+  # Auc independent of others -> already 0
+  # Correlate Ac with U1 and U2 using Kc for cross structure
+  Sigma[iAc, iU1] <- rho1 * sigc * sigz1 * Kc
+  Sigma[iU1, iAc] <- t(Sigma[iAc, iU1])
+  
+  Sigma[iAc, iU2] <- rho2 * sigc * sigz2 * Kc
+  Sigma[iU2, iAc] <- t(Sigma[iAc, iU2])
+  
+  # (Optional) If you want U1-U2 dependence, uncomment and choose a kernel (e.g., Kc):
+  # tau <- 0.0
+  # Sigma[iU1, iU2] <- tau * sigz1 * sigz2 * Kc
+  # Sigma[iU2, iU1] <- t(Sigma[iU1, iU2])
+  
+  return(Sigma)
+}
+
 # Function that computes the data from the GP given the covariance matrix
 compute_data_GP <- function(n, 
                            Sigma_GP,
@@ -537,6 +668,24 @@ compute_data_GP <- function(n,
               'Ac' = dat[(k+1):(2*k),],
               'U' = dat[(2*k+1):(3*k),]))
 }
+
+# Function that computes the data for two confounders
+compute_data_GP_2U <- function(n, Sigma_GP,
+                               mu = c(rep(0.1, nrow(Sigma_GP)/4),   
+                                      rep(-0.2, nrow(Sigma_GP)/4), 
+                                      rep(0.3, nrow(Sigma_GP)/4),   
+                                      rep(-0.1, nrow(Sigma_GP)/4))) 
+{
+  stopifnot(nrow(Sigma_GP) %% 4 == 0)
+  dat <- matrix(MASS::mvrnorm(n = n, mu = mu, Sigma = Sigma_GP),
+                nrow = nrow(Sigma_GP), ncol = n, byrow = TRUE)
+  k <- nrow(Sigma_GP) / 4
+  return(list('Auc' = dat[1:k, ],
+              'Ac'  = dat[(k+1):(2*k), ],
+              'U1'  = dat[(2*k+1):(3*k), ],
+              'U2'  = dat[(3*k+1):(4*k), ]))
+}
+
 
 # Function that computes the data for confounding mechanism 3
 compute_data_GP_state <- function(distmat,
