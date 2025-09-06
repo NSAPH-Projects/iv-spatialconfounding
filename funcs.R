@@ -232,10 +232,13 @@ metrics <- function(a.vals, muests, mutrue){
 
 # Compute the true estimand using MC approximation
 computemutrue <- function(option = c('linear', 'nonlinear'),
-                          within_state_GP = F,
-                          rangeu,
+                          #within_state_GP = F,
+                          #rangeu,
+                          confounding_mechanism,
                           reps = 50000,
                           distmat,
+                          lat=NULL,
+                          lon=NULL,
                           statemat = NULL,
                           cutoff = 0.5){
   # option is a string indicating the form of the outcome model (see createY)
@@ -243,22 +246,32 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
   
   option <- match.arg(option)
   
-  if (!within_state_GP){ 
-    # Compute variance of GP
+  if (confounding_mechanism == 1){
+    rangeu <- 0.01
     Sigma_GP <- compute_Sigma_GP(distmat = distmat,
                                  rangeu = rangeu, 
                                  rangec = 0.5)
-    # Simulate reps of data according to GP
+    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
+  }
+  if (confounding_mechanism == 2){
+    rangeu <- 0.05
+    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
     dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
   }
   # confounding mech 3
-  else{  
+  if (confounding_mechanism == 3){ 
     # Simulate data as GPs within each state
+    rangeu <- 0.01
     dat <- compute_data_GP_state(distmat = distmat,
                                  rangeu = rangeu, 
                                  rangec = 0.5,
                                  n = reps,
                                  statemat = statemat)
+  }
+  if (confounding_mechanism == 4){
+    dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = reps)
   }
   
   Ac <- dat$Ac 
@@ -287,7 +300,8 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
 simfunc <- function(nsims,
                    lat,
                    lon,
-                   rangeu = c('tinyscale', 'smallscale'),
+                   #rangeu = c('tinyscale', 'smallscale'),
+                   confounding_mechanism,
                    option = c('linear', 'nonlinear'),
                    methods = c(
                      'baseline',
@@ -300,7 +314,7 @@ simfunc <- function(nsims,
                    ),
                    GFT_conf,
                    statemat,
-                   within_state_GP = F,
+                   #within_state_GP = F,
                    cutoff = 0.5) {
   # nsims is the number of simulations
   # lat is a vector of latitudes
@@ -315,39 +329,44 @@ simfunc <- function(nsims,
 
   # writes estimates to a csv file named filename
   
-  rangeu <- match.arg(rangeu)
+  #rangeu <- match.arg(rangeu)
   option <- match.arg(option)
-  n <- length(lat)
-  if (rangeu == 'tinyscale'){
-    rangeu <- 0.01
-  }
-  if (rangeu == 'smallscale') {
-    rangeu <- 0.05
-  }
   
   ################# GENERATE DATA #################
   
   # Compute distance matrix
   distmat <- geosphere::distm(cbind(lon, lat), 
-                  fun = distHaversine)
+                              fun = distHaversine)
   distmat <- distmat/1000000 # scale so range (0,2)
-  # confounding mech 1-2
-  if (!within_state_GP){ 
-    # Compute variance of GP
+  n <- length(lat)
+  #if (rangeu == 'tinyscale'){
+  if (confounding_mechanism == 1){
+    rangeu <- 0.01
     Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                rangeu = rangeu, 
-                                rangec = 0.5)
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
     # Simulate nsims of data according to GP
     dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
   }
-  # confounding mech 3
-  else{  
-    # Simulate data as GPs within each state
+  #if (rangeu == 'smallscale') {
+  if (confounding_mechanism == 2){
+    rangeu <- 0.05
+    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
+    # Simulate nsims of data according to GP
+    dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
+  }
+  if (confounding_mechanism == 3){
+    rangeu <- 0.01
     dat <- compute_data_GP_state(distmat = distmat,
-                                rangeu = rangeu, 
-                                rangec = 0.5,
-                                n = nsims,
-                                statemat = statemat)
+                                 rangeu = rangeu, 
+                                 rangec = 0.5,
+                                 n = nsims,
+                                 statemat = statemat)
+  }
+  if (confounding_mechanism == 4){
+    dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = nsims)
   }
   
   Ac <- dat$Ac 
@@ -360,14 +379,14 @@ simfunc <- function(nsims,
   
   for (method in methods){
     # Create filename for csvs containing estimates
-    if (!within_state_GP){
-      filename <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '.csv')
-      filename_ci <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '_ci.csv')
-    }
-    else{
-      filename <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '.csv')
-      filename_ci <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
-    }
+    #if (!within_state_GP){
+      filename <- paste0('results_Mar16/', 'conf', confounding_mechanism, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Mar16/', 'conf', confounding_mechanism, '_', option, '_', method, '_ci.csv')
+    #}
+    # else{
+    #   filename <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '.csv')
+    #   filename_ci <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
+    # }
     
     # Create storage for estimates
     #muests <- matrix(NA, nrow = length(avals), ncol = nsims)
