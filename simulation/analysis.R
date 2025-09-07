@@ -64,10 +64,12 @@ mutrues$theta <- unlist(mclapply(1:nrow(mutrues), function(i) {
                 #within_state_GP = mutrues$withinstate[i],
                 confounding_mechanism = mutrues$confounding_mechanism[i],
                 distmat = distmat,
+                lat = simlist$lat,
+                lon = simlist$lon,
                 statemat = simlist$statemat,
                 cutoff = 0.5)
 }, mc.cores = 2))  # Adjust the number of cores
-# #
+
 # mutrues$confounding_mechanism <- c(1, 2, 1, 2, 3, 3, 3, 3)
 mutrues
 save(mutrues, file = 'results_Sep6/mutrues.RData')
@@ -90,7 +92,7 @@ for (i in 1:length(csvs)){
   muests <- as.vector(as.matrix(muests))
   
   # Compute true truncated exposure estimate
-  mutrue <- mutrues[mutrues$confounding_mechanism = confounding_mechanism[i] & #mutrues$rangeu == rangeu[i] & 
+  mutrue <- mutrues[mutrues$confounding_mechanism == confounding_mechanism[i] & #mutrues$rangeu == rangeu[i] & 
                       mutrues$option == option[i],]$theta #& mutrues$withinstate == ifelse(confounding_mechanism[i] == 3, T, F),]$theta
   df_temp$mutrue <- mutrue
   
@@ -109,7 +111,7 @@ analysisdf_bias <- analysisdf %>%
   )
 
 # Pivot wider from the original analysisdf
-analysisdf_bias <- analysisdf_bias[, c(1, 3:5)] %>% 
+analysisdf_bias <- analysisdf_bias[, 1:4] %>% 
   pivot_wider(names_from = method, values_from = bias)
 analysisdf_bias <- analysisdf_bias[,c("confounding_mechanism", 
                                       "option", 
@@ -133,7 +135,7 @@ analysisdf_RMSE <- analysisdf %>%
     se = round(se*100, 3)
   )
 
-analysisdf_RMSE <- analysisdf_RMSE[, c(1, 3:4, 6)] %>% 
+analysisdf_RMSE <- analysisdf_RMSE[, c(1:3,5)] %>% 
   pivot_wider(names_from = method, values_from = RMSE)
 analysisdf_RMSE <- analysisdf_RMSE[,c("confounding_mechanism", 
                                       "option", 
@@ -201,12 +203,17 @@ mutrues <- mutrues %>%
 png("images/boxplot.png", width = 2000, height = 1500, res = 200)
 ggplot(df, aes(x = method, y = estimate, fill = method)) +
   geom_boxplot(alpha = 0.5) +
-  facet_grid(option ~ confounding_mechanism) +
+  ggh4x::facet_grid2(
+    option ~ confounding_mechanism,
+    scales = "free",           # allows different scales per row/col
+    independent = "all"        # allows different scales **per panel**
+  ) +
+  #facet_grid(option ~ confounding_mechanism, scales = "free_y") +
   geom_hline(data = mutrues, aes(yintercept = theta), 
              color = "red", linetype = "dashed", size = 1) +
   labs(x = NULL, y = "Truncated Exposure Effect Estimate") +                    # Remove x-axis title
   scale_fill_discrete(name = "Method") +              # Change legend title
   theme_bw() +   
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ylim(0.25,2)
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #+
+  #ylim(0.25,2)
 dev.off()
