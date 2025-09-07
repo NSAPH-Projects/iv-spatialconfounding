@@ -71,7 +71,8 @@ mutrues$theta <- unlist(mclapply(1:nrow(mutrues), function(i) {
 }, mc.cores = 2))  # Adjust the number of cores
 
 # mutrues$confounding_mechanism <- c(1, 2, 1, 2, 3, 3, 3, 3)
-mutrues
+# Print mutrues in a nice table for latex with xtable
+print(xtable(mutrues, digits = 4), include.rownames = FALSE)
 #save(mutrues, file = 'results_Sep6/mutrues.RData')
 
 load('results_Sep6/mutrues.RData')
@@ -201,8 +202,8 @@ mutrues <- mutrues %>%
 
 # Temporary trimming for the plot
 # Remove rows of df where confounding_mechanism == 2 and the estimate is outside of [0,2.5]
-df <- df %>%
-  filter(!(confounding_mechanism == 2 & (estimate < 0 | estimate > 2.5)))
+# df <- df %>%
+#   filter(!(confounding_mechanism == 2 & (estimate < 0 | estimate > 2.5)))
 
 # Create the boxplot with horizontal lines for theta
 png("images/boxplot_Sep6.png", width = 2500, height = 1500, res = 200)
