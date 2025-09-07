@@ -302,8 +302,8 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
                                     rangeu = rangeu,
                                     rangec = 0.5,
                                     rangez1 = 0.5,
-                                    rangez2 = 0.75)
-    dat <- compute_data_2U(n = reps, Sigma_GP = Sigma_GP)
+                                    rangez2 = 0.3)
+    dat <- compute_data_GP_2U(n = reps, Sigma_GP = Sigma_GP)
     Ac <- dat$Ac 
     Auc <- dat$Auc
     U1 <- dat$U1
@@ -417,22 +417,22 @@ simfunc <- function(nsims,
                                     rangec = 0.5,
                                     rangez1 = 0.5,
                                     rangez2 = 0.75)
-    dat <- compute_data_2U(n = reps, Sigma_GP = Sigma_GP)
+    dat <- compute_data_GP_2U(n = nsims, Sigma_GP = Sigma_GP)
     Ac <- dat$Ac 
     Auc <- dat$Auc
     U1 <- dat$U1
     U2 <- dat$U2
     A <- Ac + Auc # all have dimension n x nsims
     n <- nrow(A)
-    Y <- matrix(NA, n, reps)
+    Y <- matrix(NA, n, nsims)
     if (option == 'linear'){
-      for (i in 1:reps){
+      for (i in 1:nsims){
         Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
                        , 1)
       }
     }
     if (option == 'nonlinear'){
-      for (i in 1:reps){
+      for (i in 1:nsims){
         Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
                        , 1)
       }
@@ -454,8 +454,8 @@ simfunc <- function(nsims,
   for (method in methods){
     # Create filename for csvs containing estimates
     #if (!within_state_GP){
-      filename <- paste0('results_Mar16/', 'conf', confounding_mechanism, '_', option, '_', method, '.csv')
-      filename_ci <- paste0('results_Mar16/', 'conf', confounding_mechanism, '_', option, '_', method, '_ci.csv')
+      filename <- paste0('results_Sep6/', 'conf', confounding_mechanism, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Sep6/', 'conf', confounding_mechanism, '_', option, '_', method, '_ci.csv')
     #}
     # else{
     #   filename <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '.csv')
@@ -476,8 +476,14 @@ simfunc <- function(nsims,
         colnames(xmat) <- 'Intercept'
       }
       if (method == 'oracle'){
-        xmat <- matrix(U[,sim], ncol = 1)
-        colnames(xmat) <- 'U'
+        if (confounding_mechanism != 5){
+          xmat <- matrix(U[,sim], ncol = 1)
+          colnames(xmat) <- 'U'
+        }
+        else{
+          xmat <- cbind(U1[,sim], U2[,sim])
+          colnames(xmat) <- c('U1', 'U2')
+        }
       }
       
       if (method == 'spatialcoord'){
@@ -577,13 +583,13 @@ compute_Sigma_GP <- function(distmat,
   phic <- rangec/(2*sqrt(kappa)) 
   Sigmau <- geoR::matern(u=distmat, phi=phiu, kappa=kappa)
   Sigmac <- geoR::matern(u=distmat, phi=phic, kappa=kappa)
-  Sigma <- matrix(NA, nrow = 3*n, ncol = 3*n)
+  Sigma <- matrix(0, nrow = 3*n, ncol = 3*n)
   Sigma[1:n, 1:n] <- sigu^2*Sigmau
   Sigma[(n+1):(2*n), (n+1):(2*n)] <- sigc^2*Sigmac
   Sigma[(2*n+1):(3*n), (2*n+1):(3*n)] <- sigz^2*Sigmac
-  # Auc is uncorrelated + indep of Ac and U
-  Sigma[1:n, (n+1):(3*n)] <- 0
-  Sigma[(n+1):(3*n), 1:n] <- 0
+  # # Auc is uncorrelated + indep of Ac and U
+  # Sigma[1:n, (n+1):(3*n)] <- 0
+  # Sigma[(n+1):(3*n), 1:n] <- 0
   # Ac and U are highly dependent
   Sigma[(n+1):(2*n), (2*n+1):(3*n)] <- rho*sigc*sigz*Sigmac
   Sigma[(2*n+1):(3*n), (n+1):(2*n)] <- rho*sigc*sigz*Sigmac
@@ -593,59 +599,46 @@ compute_Sigma_GP <- function(distmat,
 # Function that computes the covariance matrix for two confounders
 compute_Sigma_GP_2U <- function(distmat,
                                 kappa = 2,
-                                rangeu,
-                                rangec,
-                                rangez1,
-                                rangez2,
-                                rho1 = 0.9,   # corr(Ac, U1)
-                                rho2 = 0.7,   # corr(Ac, U2)
-                                sigu = 1,
-                                sigc = 1,
-                                sigz1 = 1,
-                                sigz2 = 1) {
+                                rangeu, rangec, rangez1, rangez2,
+                                rho1 = 0.9, rho2 = 0.7,
+                                sigu = 1, sigc = 1, sigz1 = 1, sigz2 = 1) {
+  stopifnot(abs(rho1) <= 1, abs(rho2) <= 1)
   n <- nrow(distmat)
-  # Convert to geoR phi to match your Paciorek-style usage
-  phi_u  <- rangeu  / (2 * sqrt(kappa))
-  phi_c  <- rangec  / (2 * sqrt(kappa))
-  phi_z1 <- rangez1 / (2 * sqrt(kappa))
-  phi_z2 <- rangez2 / (2 * sqrt(kappa))
+  phi <- function(r) r / (2 * sqrt(kappa))
   
-  Ku  <- geoR::matern(u = distmat, phi = phi_u,  kappa = kappa)
-  Kc  <- geoR::matern(u = distmat, phi = phi_c,  kappa = kappa)
-  Kz1 <- geoR::matern(u = distmat, phi = phi_z1, kappa = kappa)
-  Kz2 <- geoR::matern(u = distmat, phi = phi_z2, kappa = kappa)
+  Ku  <- geoR::matern(u = distmat, phi = phi(rangeu),  kappa = kappa)
+  Kc  <- geoR::matern(u = distmat, phi = phi(rangec),  kappa = kappa)
+  Kz1 <- geoR::matern(u = distmat, phi = phi(rangez1), kappa = kappa)
+  Kz2 <- geoR::matern(u = distmat, phi = phi(rangez2), kappa = kappa)
   
-  # Allocate 4n x 4n
   Sigma <- matrix(0, nrow = 4*n, ncol = 4*n)
+  iAuc <- 1:n; iAc <- (n+1):(2*n); iU1 <- (2*n+1):(3*n); iU2 <- (3*n+1):(4*n)
   
-  # Indices
-  iAuc <- 1:n
-  iAc  <- (n+1):(2*n)
-  iU1  <- (2*n+1):(3*n)
-  iU2  <- (3*n+1):(4*n)
+  # Auc (independent)
+  Sigma[iAuc, iAuc] <- sigu^2 * Ku
   
-  # Marginals
-  Sigma[iAuc, iAuc] <- sigu^2  * Ku
-  Sigma[iAc,  iAc ] <- sigc^2  * Kc
-  Sigma[iU1,  iU1 ] <- sigz1^2 * Kz1
-  Sigma[iU2,  iU2 ] <- sigz2^2 * Kz2
+  # Coregionalized part on Kc (Ac, U1, U2 share it)
+  Sigma[iAc, iAc]   <- sigc^2 * Kc
+  Sigma[iU1, iU1]   <- (rho1^2) * sigz1^2 * Kc
+  Sigma[iU2, iU2]   <- (rho2^2) * sigz2^2 * Kc
   
-  # Cross-covariances:
-  # Auc independent of others -> already 0
-  # Correlate Ac with U1 and U2 using Kc for cross structure
   Sigma[iAc, iU1] <- rho1 * sigc * sigz1 * Kc
   Sigma[iU1, iAc] <- t(Sigma[iAc, iU1])
   
   Sigma[iAc, iU2] <- rho2 * sigc * sigz2 * Kc
   Sigma[iU2, iAc] <- t(Sigma[iAc, iU2])
   
-  # (Optional) If you want U1-U2 dependence, uncomment and choose a kernel (e.g., Kc):
-  # tau <- 0.0
-  # Sigma[iU1, iU2] <- tau * sigz1 * sigz2 * Kc
-  # Sigma[iU2, iU1] <- t(Sigma[iU1, iU2])
+  # U1–U2 correlation induced by sharing Kc
+  Sigma[iU1, iU2] <- (rho1 * rho2 * sigz1 * sigz2) * Kc
+  Sigma[iU2, iU1] <- t(Sigma[iU1, iU2])
+  
+  # Idiosyncratic scales for U1, U2 (their own kernels)
+  Sigma[iU1, iU1] <- Sigma[iU1, iU1] + (1 - rho1^2) * sigz1^2 * Kz1
+  Sigma[iU2, iU2] <- Sigma[iU2, iU2] + (1 - rho2^2) * sigz2^2 * Kz2
   
   return(Sigma)
 }
+
 
 # Function that computes the data from the GP given the covariance matrix
 compute_data_GP <- function(n, 
@@ -660,6 +653,7 @@ compute_data_GP <- function(n,
   # returns a list with the data Auc,Ac,U
   
   stopifnot(nrow(Sigma_GP) %% 3 == 0)
+  
   dat <- matrix(MASS::mvrnorm(n=n, mu = mu, Sigma=Sigma_GP), 
                nrow = nrow(Sigma_GP), ncol = n, 
                byrow = TRUE)
@@ -676,6 +670,7 @@ compute_data_GP_2U <- function(n, Sigma_GP,
                                       rep(0.3, nrow(Sigma_GP)/4),   
                                       rep(-0.1, nrow(Sigma_GP)/4))) 
 {
+
   stopifnot(nrow(Sigma_GP) %% 4 == 0)
   dat <- matrix(MASS::mvrnorm(n = n, mu = mu, Sigma = Sigma_GP),
                 nrow = nrow(Sigma_GP), ncol = n, byrow = TRUE)
