@@ -235,7 +235,7 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
                           #within_state_GP = F,
                           #rangeu,
                           confounding_mechanism,
-                          reps = 50000,
+                          reps = 10000,
                           distmat,
                           lat=NULL,
                           lon=NULL,
@@ -280,7 +280,7 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
     U <- dat$U
     A <- Ac + Auc # all have dimension n x nsims
     Y <- createY(Us = U, As = A, option = option)
-    mutrue = rep(NA, reps)
+    mutrue <- rep(NA, reps)
     
     for (i in 1:reps){
       if (option == 'linear'){
@@ -308,6 +308,7 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
     Auc <- dat$Auc
     U1 <- dat$U1
     U2 <- dat$U2
+    
     A <- Ac + Auc # all have dimension n x nsims
     n <- nrow(A)
     Y <- matrix(NA, n, reps)
@@ -333,7 +334,6 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
       }
     } 
   }
-  
   return(mean(mutrue))
 }
 
@@ -422,6 +422,7 @@ simfunc <- function(nsims,
     Auc <- dat$Auc
     U1 <- dat$U1
     U2 <- dat$U2
+    
     A <- Ac + Auc # all have dimension n x nsims
     n <- nrow(A)
     Y <- matrix(NA, n, nsims)
