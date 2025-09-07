@@ -10,7 +10,7 @@ for cm in "${confounding_mechanisms[@]}"; do
   sbatch --job-name="cm${cm}_${option}" \
       --output="output/cm${cm}_${option}.out" \
       --error="error/cm${cm}_${option}.err" \
-      run_job.sh 500 "$cm" "$option" 
+      run_job.sh 1000 "$cm" "$option" 
   sleep 1 # pause to be kind to the scheduler
   done
 done
