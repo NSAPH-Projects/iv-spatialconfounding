@@ -235,7 +235,7 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
                           #within_state_GP = F,
                           #rangeu,
                           confounding_mechanism,
-                          reps = 10000,
+                          reps = 20000,
                           distmat,
                           lat=NULL,
                           lon=NULL,
@@ -279,18 +279,20 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
     Auc <- dat$Auc
     U <- dat$U
     A <- Ac + Auc # all have dimension n x nsims
-    Y <- createY(Us = U, As = A, option = option)
+    #Y <- createY(Us = U, As = A, option = option)
     mutrue <- rep(NA, reps)
     
     for (i in 1:reps){
       if (option == 'linear'){
         meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+        meanY_A <- -0.5 + (-1)*U[,i] + A[,i] - 0.5*A[,i]*U[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
       }
       if (option == 'nonlinear'){
         meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
           0.1*pmin(A[,i], cutoff)^2*U[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+        meanY_A <- -0.5 + (-1)*U[,i] + A[,i] - 0.5*A[,i]*U[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
       }
     }
   }
@@ -310,27 +312,29 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
     U2 <- dat$U2
     
     A <- Ac + Auc # all have dimension n x nsims
-    n <- nrow(A)
-    Y <- matrix(NA, n, reps)
+    # n <- nrow(A)
+    # Y <- matrix(NA, n, reps)
     
     # linear outcome model
     mutrue <- rep(NA, reps)
     if (option == 'linear'){
       for (i in 1:reps){
-        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
-                       , 1) 
+        # Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
+        #                , 1) 
         meanY_A_U <- -0.5 + (-1)*U1[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U1[,i] - 0.75*pmin(A[,i], cutoff)*U2[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+        meanY_A <- -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
       }
     }
     # nonlinear outcome model
     if (option == 'nonlinear'){
       for (i in 1:reps){
-        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
-                       , 1)
+        # Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
+        #                , 1)
         meanY_A_U <- -0.5 + (-1)*U1[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U1[,i] - 0.75*pmin(A[,i], cutoff)*U2[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
           0.1*pmin(A[,i], cutoff)^2*U1[,i] + 0.05*pmin(A[,i], cutoff)^3*U2[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
+        meanY_A <- -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
+        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
       }
     } 
   }
