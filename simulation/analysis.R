@@ -72,7 +72,7 @@ mutrues$theta <- unlist(mclapply(1:nrow(mutrues), function(i) {
 
 # mutrues$confounding_mechanism <- c(1, 2, 1, 2, 3, 3, 3, 3)
 mutrues
-save(mutrues, file = 'results_Sep6/mutrues.RData')
+#save(mutrues, file = 'results_Sep6/mutrues.RData')
 
 load('results_Sep6/mutrues.RData')
                 
@@ -199,8 +199,13 @@ mutrues <- mutrues %>%
   mutate(confounding_mechanism = factor(confounding_mechanism),
          option = factor(option, levels = c("linear", "nonlinear")))
 
+# Temporary trimming for the plot
+# Remove rows of df where confounding_mechanism == 2 and the estimate is outside of [0,2.5]
+df <- df %>%
+  filter(!(confounding_mechanism == 2 & (estimate < 0 | estimate > 2.5)))
+
 # Create the boxplot with horizontal lines for theta
-png("images/boxplot.png", width = 2000, height = 1500, res = 200)
+png("images/boxplot_Sep6.png", width = 2500, height = 1500, res = 200)
 ggplot(df, aes(x = method, y = estimate, fill = method)) +
   geom_boxplot(alpha = 0.5) +
   ggh4x::facet_grid2(
@@ -210,7 +215,7 @@ ggplot(df, aes(x = method, y = estimate, fill = method)) +
   ) +
   #facet_grid(option ~ confounding_mechanism, scales = "free_y") +
   geom_hline(data = mutrues, aes(yintercept = theta), 
-             color = "red", linetype = "dashed", size = 1) +
+             color = "red", linetype = "twodash", size = 1) +
   labs(x = NULL, y = "Truncated Exposure Effect Estimate") +                    # Remove x-axis title
   scale_fill_discrete(name = "Method") +              # Change legend title
   theme_bw() +   
