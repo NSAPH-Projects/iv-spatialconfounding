@@ -121,13 +121,15 @@ A <- Ac + Auc
 uscounties$A <- A
 uscounties$Ac <- Ac
 uscounties$Auc <- Auc
+uscounties$U <- U
 gs1 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac'),
+  c('A', 'Auc', 'Ac', 'U'),
   c(
     'Exposure A',
     'Unconfounded Exposure Auc',
-    'Confounded Exposure Ac'
+    'Confounded Exposure Ac',
+    'Unmeasured Confounder U'
   ),
   xlimits = c(-115,-85),
   ylimits = c(25,40)
@@ -145,10 +147,12 @@ A <- Ac + Auc
 uscounties$A <- A
 uscounties$Ac <- Ac
 uscounties$Auc <- Auc
+uscounties$U <- U
 gs2 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac'),
+  c('A', 'Auc', 'Ac', 'U'),
   c(
+    '',
     '',
     '',
     ''
@@ -170,10 +174,12 @@ A <- Ac + Auc
 uscounties$A <- A
 uscounties$Ac <- Ac
 uscounties$Auc <- Auc
+uscounties$U <- U
 gs3 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac'),
+  c('A', 'Auc', 'Ac', 'U'),
   c(
+    '',
     '',
     '',
     ''
@@ -181,18 +187,74 @@ gs3 <- plotfunc(
   xlimits = c(-115,-85),
   ylimits = c(25,40)
 )
+
+# FOURTH confounding mechanism 
+dat <- compute_data_spatialcoord(lat = simlist$lat, long = simlist$lon, nsims = 1)
+Ac <- dat$Ac 
+Auc <- dat$Auc
+U <- dat$U
+A <- Ac + Auc
+uscounties$A <- A
+uscounties$Ac <- Ac
+uscounties$Auc <- Auc
+uscounties$U <- U
+gs4 <- plotfunc(
+  uscounties,
+  c('A', 'Auc', 'Ac', 'U'),
+  c(
+    '',
+    '',
+    '',
+    ''
+  ),
+  xlimits = c(-115,-85),
+  ylimits = c(25,40)
+)
+
+# FIFTH confounding mechanism
+rangeu <- 0.01
+Sigma_GP <- compute_Sigma_GP_2U(distmat = distmat,
+                                kappa = 2,
+                                rangeu = rangeu,
+                                rangec = 0.5,
+                                rangez1 = 0.5,
+                                rangez2 = 0.3)
+dat <- compute_data_GP_2U(n = 1, Sigma_GP = Sigma_GP)
+Ac <- dat$Ac 
+Auc <- dat$Auc
+U1 <- dat$U1
+U2 <- dat$U2
+A <- Ac + Auc
+uscounties$A <- A
+uscounties$Ac <- Ac
+uscounties$Auc <- Auc
+uscounties$U1 <- U1
+uscounties$U2 <- U2
+gs5 <- plotfunc(
+  uscounties,
+  c('A', 'Auc', 'Ac', 'U1', 'U2'),
+  c(
+    '',
+    '',
+    '',
+    '',
+    ''
+  ),
+  xlimits = c(-115,-85),
+  ylimits = c(25,40)
+)
+
 png(
   'images/all-three-decomp.jpeg',
-  height = 2700,
-  width = 4000,
-  res = 120
+  height = 4500,
+  width = 5600,
+  res = 140
 )
-ggpubr::ggarrange(gs1[[1]], gs1[[2]], gs1[[3]],  # First row (gs1)
-                  gs2[[1]], gs2[[2]], gs2[[3]],  # Second row (gs2)
-                  gs3[[1]], gs3[[2]], gs3[[3]],  # Third row (gs3)
-             nrow = 3, ncol = 3,
-             labels = c("1)","", "", 
-             "2)", "", "",
-             "3)", "", ""))
+ggpubr::ggarrange(gs1[[1]], gs1[[2]], gs1[[3]], gs1[[4]],  # First row (gs1)
+                  gs2[[1]], gs2[[2]], gs2[[3]], gs2[[4]], # Second row (gs2)
+                  gs3[[1]], gs3[[2]], gs3[[3]], gs3[[4]], # Third row (gs3)
+                  gs4[[1]], gs4[[2]], gs4[[3]], gs4[[4]], # Fourth row (gs4)
+                  gs5[[1]], gs5[[2]], gs5[[3]], ggpubr::ggarrange(gs5[[4]], gs5[[5]], ncol = 2), # Fifth row (gs5)
+             nrow = 5, ncol = 4)
 dev.off()
 
