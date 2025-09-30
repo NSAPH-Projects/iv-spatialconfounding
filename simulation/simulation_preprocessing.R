@@ -244,9 +244,36 @@ gs5 <- plotfunc(
   ylimits = c(25,40)
 )
 
+# SIXTH confounding mechanism
+rangeu <- 0.1
+Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                             rangeu = rangeu, 
+                             rangec = 0.01)
+dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
+Ac <- dat$Ac 
+Auc <- dat$Auc
+U <- dat$U
+A <- Ac + Auc
+uscounties$A <- A
+uscounties$Ac <- Ac
+uscounties$Auc <- Auc
+uscounties$U <- U
+gs6 <- plotfunc(
+  uscounties,
+  c('A', 'Auc', 'Ac', 'U'),
+  c(
+    '',
+    '',
+    '',
+    ''
+  ),
+  xlimits = c(-115,-85),
+  ylimits = c(25,40)
+)
+
 png(
   'images/all-three-decomp.jpeg',
-  height = 4500,
+  height = 5400,
   width = 5600,
   res = 140
 )
@@ -255,6 +282,7 @@ ggpubr::ggarrange(gs1[[1]], gs1[[2]], gs1[[3]], gs1[[4]],  # First row (gs1)
                   gs3[[1]], gs3[[2]], gs3[[3]], gs3[[4]], # Third row (gs3)
                   gs4[[1]], gs4[[2]], gs4[[3]], gs4[[4]], # Fourth row (gs4)
                   gs5[[1]], gs5[[2]], gs5[[3]], ggpubr::ggarrange(gs5[[4]], gs5[[5]], ncol = 2), # Fifth row (gs5)
-             nrow = 5, ncol = 4)
+                  gs6[[1]], gs6[[2]], gs6[[3]], gs6[[4]], # Sixth row (gs6)
+             nrow = 6, ncol = 4)
 dev.off()
 

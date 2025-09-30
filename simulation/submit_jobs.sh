@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define arrays for options and methods
-confounding_mechanisms=(1 2 3 4 5)
+confounding_mechanisms=(1 2 3 4 5 6)
 options=("linear" "nonlinear")
 
 # Loop through each combination and submit jobs
