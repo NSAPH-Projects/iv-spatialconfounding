@@ -362,7 +362,7 @@ simfunc <- function(nsims,
                      'IV-TPS',
                      'IV-GraphLaplacian',
                      'IV-TPS-spatialcoord',
-                     'IV-GraphLaplacian-spatialcoord'
+                     'IV-GraphLaplacian-spatialcoord',
                      'trueIV',
                      'trueIV-spatialcoord'
                    ),
