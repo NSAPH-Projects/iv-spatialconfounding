@@ -274,17 +274,10 @@ computemutrue <- function(option = c('linear', 'nonlinear'),
     dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = reps)
   }
   if (confounding_mechanism == 6){
-    rangeu <- 0.5
+    rangeu <- 0.1
     Sigma_GP <- compute_Sigma_GP(distmat = distmat,
                                  rangeu = rangeu, 
                                  rangec = 0.01)
-    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
-  }
-  if (confounding_mechanism == 7){
-    rangeu <- 0.5
-    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.05)
     dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
   }
   
@@ -367,13 +360,11 @@ simfunc <- function(nsims,
                      'oracle',
                      'spatialcoord',
                      'IV-TPS',
-                     'IV-TPS-reverse',
                      'IV-GraphLaplacian',
-                     'IV-GraphLaplacian-reverse',
                      'IV-TPS-spatialcoord',
-                     'IV-TPS-reverse-spatialcoord',
-                     'IV-GraphLaplacian-spatialcoord',
-                     'IV-GraphLaplacian-reverse-spatialcoord'
+                     'IV-GraphLaplacian-spatialcoord'
+                     'trueIV',
+                     'trueIV-spatialcoord'
                    ),
                    GFT_conf,
                    statemat,
@@ -463,7 +454,7 @@ simfunc <- function(nsims,
     
   }
   if (confounding_mechanism == 6){
-    rangeu <- 0.5
+    rangeu <- 0.1
     Sigma_GP <- compute_Sigma_GP(distmat = distmat,
                                  rangeu = rangeu, 
                                  rangec = 0.01)
@@ -471,14 +462,6 @@ simfunc <- function(nsims,
     dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
   }
   #if (rangeu == 'smallscale') {
-  if (confounding_mechanism == 7){
-    rangeu <- 0.5
-    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.05)
-    # Simulate nsims of data according to GP
-    dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
-  }
   
   if (confounding_mechanism != 5){
     Ac <- dat$Ac 
@@ -532,44 +515,60 @@ simfunc <- function(nsims,
         colnames(xmat) <- c('Latitude', 'Longitude')
       }
       if (method == 'IV-TPS'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
-        xmat <- matrix(predict(mod), ncol = 1)
+        if (confounding_mechanism != 6){
+          mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- matrix(predict(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-TPS'
+        }
+        else{
+          mod <- mgcv::gam(A[,sim] ~ s(lon,lat,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- matrix(residuals(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-TPS-reverse'
+        }
+      }
+      if (method == 'trueIV'){
+        xmat <- matrix(Ac[,sim], ncol = 1)
         colnames(xmat) <- 'Ac-TPS'
       }
-      if (method == 'IV-TPS-reverse'){
-        mod <- mgcv::gam(A[,sim] ~ s(lon,lat,k=floor(0.07*n),fx=T)) # unpenalized
-        xmat <- matrix(residuals(mod), ncol = 1)
-        colnames(xmat) <- 'Ac-TPS-reverse'
-      }
       if (method == 'IV-GraphLaplacian'){
-        mod <- lm(A[,sim] ~ GFT_conf)
-        xmat <- matrix(predict(mod), ncol = 1)
-        colnames(xmat) <- 'Ac-GraphLaplacian'
-      }
-      if (method == 'IV-GraphLaplacian-reverse'){
-        mod <- lm(A[,sim] ~ GFT_conf)
-        xmat <- matrix(residuals(mod), ncol = 1)
-        colnames(xmat) <- 'Ac-GraphLaplacian-reverse'
+        if (confounding_mechanism != 6){
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- matrix(predict(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-GraphLaplacian'
+        }
+        else{
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- matrix(residuals(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-GraphLaplacian-reverse'
+        }
       }
       if (method == 'IV-TPS-spatialcoord'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
-        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
-        colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
-      }
-      if (method == 'IV-TPS-reverse-spatialcoord'){
-        mod <- mgcv::gam(A[,sim] ~ s(lon,lat,k=floor(0.07*n),fx=T)) # unpenalized
-        xmat <- cbind(matrix(residuals(mod), ncol = 1), lat, lon)
-        colnames(xmat) <- c('Ac-TPS-reverse', 'Latitude', 'Longitude')
+        if (confounding_mechanism != 6){
+          mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
+        }
+        else{
+          mod <- mgcv::gam(A[,sim] ~ s(lon,lat,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- cbind(matrix(residuals(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-TPS-reverse', 'Latitude', 'Longitude')
+        }
       }
       if (method == 'IV-GraphLaplacian-spatialcoord'){
-        mod <- lm(A[,sim] ~ GFT_conf)
-        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
-        colnames(xmat) <- c('Ac-GraphLaplacian', 'Latitude', 'Longitude')
+        if (confounding_mechanism != 6){
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-GraphLaplacian', 'Latitude', 'Longitude')
+        }
+        else{
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- cbind(matrix(residuals(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-GraphLaplacian-reverse', 'Latitude', 'Longitude')
+        }
       }
-      if (method == 'IV-GraphLaplacian-reverse-spatialcoord'){
-        mod <- lm(A[,sim] ~ GFT_conf)
-        xmat <- cbind(matrix(residuals(mod), ncol = 1), lat, lon)
-        colnames(xmat) <- c('Ac-GraphLaplacian-reverse', 'Latitude', 'Longitude')
+      if (method == 'trueIV-spatialcoord'){
+        xmat <- cbind(matrix(Ac[,sim], ncol = 1), lat, lon)
+        colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
       }
       
       # Fit the ERF adjusting for xmat.
