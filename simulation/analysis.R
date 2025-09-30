@@ -9,6 +9,8 @@ library(Matrix)
 library(tidyverse)
 library(parallel)
 library(geosphere)
+library(patchwork)
+
 source('../funcs.R')
 load('sim.RData')
 
@@ -49,7 +51,7 @@ method <- sub("^conf\\d+_[^_]+_([^_]+)\\.csv$", "\\1", csvs)
 # mutrues <- data.frame(expand.grid(rangeu = c(0.01, 0.05),
 #                                  option = c('linear', 'nonlinear')))
 # mutrues$withinstate <- F
-mutrues <- data.frame(expand.grid(confounding_mechanism = 1:5,
+mutrues <- data.frame(expand.grid(confounding_mechanism = 1:6,
                                   option = c('linear', 'nonlinear')))
 # mutrues <- rbind(mutrues, data.frame(rangeu = 0.01, option = 'linear', withinstate = T))
 # mutrues <- rbind(mutrues, data.frame(rangeu = 0.01, option = 'nonlinear', withinstate = T))
@@ -73,7 +75,7 @@ mutrues$theta <- unlist(mclapply(1:nrow(mutrues), function(i) {
 # mutrues$confounding_mechanism <- c(1, 2, 1, 2, 3, 3, 3, 3)
 # Print mutrues in a nice table for latex with xtable
 print(xtable(mutrues, digits = 4), include.rownames = FALSE)
-#save(mutrues, file = 'results_Sep6/mutrues.RData')
+save(mutrues, file = 'results_Sep6/mutrues.RData')
 
 load('results_Sep6/mutrues.RData')
                 
@@ -154,9 +156,6 @@ print(xtable(analysisdf_RMSE), include.rownames = FALSE, sanitize.text.function 
 
 folder <- "results_Sep6"
 
-# List all CSV files in that folder (with full paths)
-files <- list.files(folder, pattern = "\\.csv$", full.names = TRUE)
-
 read_estimates <- function(i) {
   
   filename <- csvs[i]
@@ -187,9 +186,13 @@ read_estimates <- function(i) {
 
 # Read all files and combine into one data frame
 df <- map_dfr(1:length(csvs), read_estimates)
+# Rename the method "IV-GraphLaplacian" to "IV-GL" in df
+df$method[df$method == 'IV-GraphLaplacian-spatialcoord'] = "IV-GL+spatialcoord"
+df$method[df$method == 'IV-GraphLaplacian'] = "IV-GL"
+df$method[df$method == 'IV-TPS-spatialcoord'] = "IV-TPS+spatialcoord"
 
-desired_order <- c("oracle", "baseline", "spatialcoord", "IV-TPS", "IV-GraphLaplacian", 
-                   "IV-TPS-spatialcoord", "IV-GraphLaplacian-spatialcoord")
+desired_order <- c("oracle", "baseline", "spatialcoord", "IV-TPS", "IV-GL", 
+                   "IV-TPS+spatialcoord", "IV-GL+spatialcoord")
 df$method <- factor(df$method, levels = desired_order)
 
 # Ensure rangeu and option are factors in both data frames with the same levels:
@@ -200,15 +203,28 @@ mutrues <- mutrues %>%
   mutate(confounding_mechanism = factor(confounding_mechanism),
          option = factor(option, levels = c("linear", "nonlinear")))
 
-# Temporary trimming for the plot
-# Remove rows of df where confounding_mechanism == 2 and the estimate is outside of [0,2.5]
-# df <- df %>%
-#   filter(!(confounding_mechanism == 2 & (estimate < 0 | estimate > 2.5)))
+# Aesthetic trimming for the plot
+# For each confounding_mechanism in df, filter to 1% and 99% of estimates
+df <- df %>%
+  group_by(confounding_mechanism, option, method) %>%
+  filter(estimate >= quantile(estimate, 0.005, na.rm = TRUE) &
+           estimate <= quantile(estimate, 0.995, na.rm = TRUE)) %>%
+  ungroup()
 
 # Create the boxplot with horizontal lines for theta
-png("images/boxplot_Sep6.png", width = 2500, height = 1500, res = 200)
+method_cols <- c(
+  "oracle"                 = "#2E8B57", # green
+  "baseline"               = "#D62728", # red
+  "spatialcoord"           = "purple", # dark yellow (dark goldenrod)
+  "IV-TPS"                 = "#9ECAE1", # light blue
+  "IV-GL"                  = "#FDAE6B", # light orange
+  "IV-TPS+spatialcoord"    = "#1F77B4", # dark blue
+  "IV-GL+spatialcoord"     = "#E6550D"  # dark orange
+)
+png("images/boxplot_Sep6.png", width = 2500, height = 1500, res = 240)
 ggplot(df, aes(x = method, y = estimate, fill = method)) +
-  geom_boxplot(alpha = 0.5) +
+  geom_boxplot(alpha = 0.5) + #, draw_quantiles = c(0.5)) +
+  #stat_summary(fun = median, geom = "point", shape = 18, size = 3, color = "black") +
   ggh4x::facet_grid2(
     option ~ confounding_mechanism,
     scales = "free",           # allows different scales per row/col
@@ -217,9 +233,22 @@ ggplot(df, aes(x = method, y = estimate, fill = method)) +
   #facet_grid(option ~ confounding_mechanism, scales = "free_y") +
   geom_hline(data = mutrues, aes(yintercept = theta), 
              color = "red", linetype = "twodash", size = 1) +
-  labs(x = NULL, y = "Truncated Exposure Effect Estimate") +                    # Remove x-axis title
-  scale_fill_discrete(name = "Method") +              # Change legend title
+  #labs(x = NULL, y = "Truncated Exposure Effect Estimate") +   
+  labs(
+    x = "Confounding mechanism (1–6)",
+    y = "Truncated Exposure Effect Estimate"
+  ) +
+  # Remove x-axis title
+  scale_fill_manual(
+    name = "Method",
+    values = method_cols,
+    breaks = names(method_cols) # matches your desired order
+  ) +
   theme_bw() +   
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) #+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   #ylim(0.25,2)
+  plot_annotation(
+    left = "Outcome model"
+  )
 dev.off()
+
