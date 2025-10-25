@@ -20,20 +20,12 @@ distmat <- distm(cbind(simlist$lon, simlist$lat),
 # Standardize so approximately range (0,2)
 distmat <- distmat/1000000
 
-# read in results files
-
-# Confounding scenarios 1-2
-#csvs_notwithinstate <- list.files('results_Sep6/', pattern = '.csv')
-# # Confounding scenario 3 (GP within state)
-# csvs_withinstate <- list.files('results_Sep6/within_state/', 
-#                                pattern = '^0\\.01.*\\.csv$')
-#csvs <- c(csvs_notwithinstate, csvs_withinstate)
 csvs <- list.files('results_Sep6/', pattern = '.csv')
+
 
 # Create storage for metrics 
 analysisdf <- data.frame(
   confounding_mechanism = character(length(csvs)),
-  #rangeu = character(length(csvs)),
   option = character(length(csvs)),
   method = character(length(csvs)),
   bias = numeric(length(csvs)),
@@ -42,50 +34,27 @@ analysisdf <- data.frame(
 )
 
 # Extract components from filenames
-#rangeu <- gsub("(_.*$)", "", csvs)
 confounding_mechanism <- as.integer(sub("^conf(\\d+)_.*$", "\\1", csvs))
 option <- sub("^conf\\d+_([^_]+)_.*$", "\\1", csvs)
 method <- sub("^conf\\d+_[^_]+_([^_]+)\\.csv$", "\\1", csvs)
 
 # Precompute true estimand for each outcome model and confounding mechanism
-# mutrues <- data.frame(expand.grid(rangeu = c(0.01, 0.05),
-#                                  option = c('linear', 'nonlinear')))
-# mutrues$withinstate <- F
-mutrues <- data.frame(expand.grid(confounding_mechanism = 1:6,
-                                  option = c('linear', 'nonlinear')))
-# mutrues <- rbind(mutrues, data.frame(rangeu = 0.01, option = 'linear', withinstate = T))
-# mutrues <- rbind(mutrues, data.frame(rangeu = 0.01, option = 'nonlinear', withinstate = T))
-# mutrues <- rbind(mutrues, data.frame(rangeu = 0.05, option = 'linear', withinstate = T))
-# mutrues <- rbind(mutrues, data.frame(rangeu = 0.05, option = 'nonlinear', withinstate = T))
-mutrues$theta <- NA
-mutrues$option <- as.character(mutrues$option)
-# 
-mutrues$theta <- unlist(mclapply(1:nrow(mutrues), function(i) {
-  computemutrue(option = mutrues$option[i],
-                #rangeu = mutrues$rangeu[i],
-                #within_state_GP = mutrues$withinstate[i],
-                confounding_mechanism = mutrues$confounding_mechanism[i],
-                distmat = distmat,
-                lat = simlist$lat,
-                lon = simlist$lon,
-                statemat = simlist$statemat,
-                cutoff = 0.5)
-}, mc.cores = 2))  # Adjust the number of cores
+mutrues <- data.frame(expand.grid(
+  confounding_mechanism = 1:7,
+  option = c('linear', 'nonlinear')))
+for (i in 1:nrow(mutrues)){
+  oracle_results <- read.csv('results_Sep6/conf' %>% 
+                               paste0(mutrues$confounding_mechanism[i], '_', 
+                                      mutrues$option[i], '_oracle.csv'))
+  mutrues$theta[i] = mean(as.vector(as.matrix(oracle_results)), na.rm = T)
+}
 
-# mutrues$confounding_mechanism <- c(1, 2, 1, 2, 3, 3, 3, 3)
-# Print mutrues in a nice table for latex with xtable
-print(xtable(mutrues, digits = 4), include.rownames = FALSE)
-save(mutrues, file = 'results_Sep6/mutrues.RData')
-
-load('results_Sep6/mutrues.RData')
-                
 # Loop through results to calculate metrics and create plots.
 for (i in 1:length(csvs)){
   filename <- csvs[i]
   print(filename)
   
   analysisdf$confounding_mechanism[i] <- confounding_mechanism[i]
-  #analysisdf$rangeu[i] <- rangeu[i]
   analysisdf$option[i] <- option[i]
   analysisdf$method[i] <- method[i]
   df_temp <- read.csv(file.path('results_Sep6/', filename))
@@ -95,8 +64,8 @@ for (i in 1:length(csvs)){
   muests <- as.vector(as.matrix(muests))
   
   # Compute true truncated exposure estimate
-  mutrue <- mutrues[mutrues$confounding_mechanism == confounding_mechanism[i] & #mutrues$rangeu == rangeu[i] & 
-                      mutrues$option == option[i],]$theta #& mutrues$withinstate == ifelse(confounding_mechanism[i] == 3, T, F),]$theta
+  mutrue <- mutrues[mutrues$confounding_mechanism == confounding_mechanism[i] & 
+                      mutrues$option == option[i],]$theta 
   df_temp$mutrue <- mutrue
   
   # Save metrics in analysisdf
@@ -121,15 +90,30 @@ analysisdf_bias <- analysisdf_bias[,c("confounding_mechanism",
                                       "oracle",
                                       "baseline", 
                                       "spatialcoord", 
+                                      "trueIV",
                                       "IV-TPS", 
-                                      "IV-GraphLaplacian", 
-                                      "IV-TPS-spatialcoord", 
-                                      "IV-GraphLaplacian-spatialcoord")]
+                                      "IV-GraphLaplacian",
+                                      "trueIV-spatialcoord",
+                                      "IV-TPS-spatialcoord",
+                                      "IV-GraphLaplacian-spatialcoord"
+                                      )]
 
 # Print using xtable and prevent xtable from reformatting the already-formatted text
 print(xtable(analysisdf_bias), 
       include.rownames = FALSE, sanitize.text.function = identity)
-
+# Print absolute bias using xtable
+print(xtable(analysisdf_bias %>%
+               mutate(across(where(is.numeric), ~ abs(.)))), 
+      include.rownames = FALSE, sanitize.text.function = identity)
+# Print absolute bias with the reordered confounding scenarios
+analysisdf_bias_reordered <- analysisdf_bias %>%
+  mutate(confounding_mechanism = factor(confounding_mechanism, 
+                                       levels = c("1", "7", "3", "5", "6", "2", "4"),
+                                       labels = c("1", "2", "3", "4", "5", "6", "7"))) %>%
+  arrange(confounding_mechanism, option)
+print(xtable(analysisdf_bias_reordered %>%
+               mutate(across(where(is.numeric), ~ abs(.)))), 
+      include.rownames = FALSE, sanitize.text.function = identity)
 # Do the same with RMSE
 analysisdf_RMSE <- analysisdf %>%
   mutate(
@@ -144,13 +128,23 @@ analysisdf_RMSE <- analysisdf_RMSE[,c("confounding_mechanism",
                                       "option", 
                                       "oracle",
                                       "baseline", 
-                                      "spatialcoord", 
+                                      "spatialcoord",
+                                      "trueIV",
                                       "IV-TPS", 
-                                      "IV-GraphLaplacian", 
-                                      "IV-TPS-spatialcoord", 
-                                      "IV-GraphLaplacian-spatialcoord")]
+                                      "IV-GraphLaplacian",
+                                      "trueIV-spatialcoord",
+                                      "IV-TPS-spatialcoord",
+                                      "IV-GraphLaplacian-spatialcoord"
+                                      )]
 
 print(xtable(analysisdf_RMSE), include.rownames = FALSE, sanitize.text.function = identity)
+# Print the reordered RMSE
+analysisdf_RMSE_reordered <- analysisdf_RMSE %>%
+  mutate(confounding_mechanism = factor(confounding_mechanism, 
+                                       levels = c("1", "7", "3", "5", "6", "2", "4"),
+                                       labels = c("1", "2", "3", "4", "5", "6", "7"))) %>%
+  arrange(confounding_mechanism, option)
+print(xtable(analysisdf_RMSE_reordered), include.rownames = FALSE, sanitize.text.function = identity)
 
 # Now create facet_wrap boxplots with ggplot2
 
@@ -162,15 +156,9 @@ read_estimates <- function(i) {
   print(filename)
   
   confounding_mechanism <- confounding_mechanism[i]
-  #rangeu <- rangeu[i]
   option <- option[i]
   method <- method[i]
-  #if (confounding_mechanism !=3){
-    dat <- read.csv(file.path('results_Sep6/', filename))
-  #}
-  # else{
-  #   dat <- read.csv(file.path('results_Sep6/within_state/', filename))
-  # }
+  dat <- read.csv(file.path('results_Sep6/', filename))
 
   # If the CSV doesn't have a header and just one column, name it "estimate"
   if (!"estimate" %in% colnames(dat)) {
@@ -190,43 +178,51 @@ df <- map_dfr(1:length(csvs), read_estimates)
 df$method[df$method == 'IV-GraphLaplacian-spatialcoord'] = "IV-GL+spatialcoord"
 df$method[df$method == 'IV-GraphLaplacian'] = "IV-GL"
 df$method[df$method == 'IV-TPS-spatialcoord'] = "IV-TPS+spatialcoord"
+df$method[df$method == 'trueIV-spatialcoord'] = "trueIV+spatialcoord"
 
-desired_order <- c("oracle", "baseline", "spatialcoord", "IV-TPS", "IV-GL", 
-                   "IV-TPS+spatialcoord", "IV-GL+spatialcoord")
+
+desired_order <- c("oracle", "baseline", "spatialcoord", 
+                   "trueIV", 
+                   "IV-TPS", "IV-GL", 
+                   "trueIV+spatialcoord", "IV-TPS+spatialcoord", "IV-GL+spatialcoord"
+                   )
 df$method <- factor(df$method, levels = desired_order)
 
-# Ensure rangeu and option are factors in both data frames with the same levels:
 df <- df %>% 
   mutate(confounding_mechanism = factor(confounding_mechanism),
          option = factor(option, levels = c("linear", "nonlinear")))
 mutrues <- mutrues %>% 
   mutate(confounding_mechanism = factor(confounding_mechanism),
          option = factor(option, levels = c("linear", "nonlinear")))
-
-# Aesthetic trimming for the plot
-# For each confounding_mechanism in df, filter to 1% and 99% of estimates
-df <- df %>%
-  group_by(confounding_mechanism, option, method) %>%
-  filter(estimate >= quantile(estimate, 0.005, na.rm = TRUE) &
-           estimate <= quantile(estimate, 0.995, na.rm = TRUE)) %>%
-  ungroup()
+# Reorder confounding mechanism: 1 (GP), 7 (Leroux), 3 (discrete), 5 (2conf) ,6 (flipped)
+df$confounding_mechanism_reordered <- factor(df$confounding_mechanism, 
+                                              levels = c("1", "7", "3", "5", "6", "2", "4"),
+                                              labels = c("1", "2", "3", "4", "5", "6", "7"))
+mutrues$confounding_mechanism_reordered <- factor(mutrues$confounding_mechanism, 
+                                                 levels = c("1", "7", "3", "5", "6", "2", "4"),
+                                                 labels = c("1", "2", "3", "4", "5", "6", "7"))
+print(xtable(select(mutrues, confounding_mechanism_reordered, option, theta) %>% 
+               arrange(confounding_mechanism_reordered), digits = 4), 
+      include.rownames = FALSE)
 
 # Create the boxplot with horizontal lines for theta
 method_cols <- c(
-  "oracle"                 = "#2E8B57", # green
-  "baseline"               = "#D62728", # red
-  "spatialcoord"           = "purple", # dark yellow (dark goldenrod)
-  "IV-TPS"                 = "#9ECAE1", # light blue
-  "IV-GL"                  = "#FDAE6B", # light orange
-  "IV-TPS+spatialcoord"    = "#1F77B4", # dark blue
-  "IV-GL+spatialcoord"     = "#E6550D"  # dark orange
+  "oracle"                 = "gray",
+  "baseline"               = "#D62728",
+  "spatialcoord"           = "purple", 
+  "trueIV"                 = "lightgreen", 
+  "IV-TPS"                 = "#9ECAE1",
+  "IV-GL"                  = "#FDAE6B", 
+  "trueIV+spatialcoord"    = "#2E8B57", 
+  "IV-TPS+spatialcoord"    = "#1F77B4", 
+  "IV-GL+spatialcoord"     = "#E6550D" 
 )
-png("images/boxplot_Sep6.png", width = 2500, height = 1500, res = 240)
+png("images/boxplot_Sep6.png", width = 2500, height = 1250, res = 200)
 ggplot(df, aes(x = method, y = estimate, fill = method)) +
-  geom_boxplot(alpha = 0.5) + #, draw_quantiles = c(0.5)) +
-  #stat_summary(fun = median, geom = "point", shape = 18, size = 3, color = "black") +
+  geom_boxplot(alpha = 0.5, outliers = F, staplewidth = 1) + #, draw_quantiles = c(0.5)) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 2, color = "blue") +
   ggh4x::facet_grid2(
-    option ~ confounding_mechanism,
+    option ~ confounding_mechanism_reordered,
     scales = "free",           # allows different scales per row/col
     independent = "all"        # allows different scales **per panel**
   ) +
@@ -235,7 +231,7 @@ ggplot(df, aes(x = method, y = estimate, fill = method)) +
              color = "red", linetype = "twodash", size = 1) +
   #labs(x = NULL, y = "Truncated Exposure Effect Estimate") +   
   labs(
-    x = "Confounding mechanism (1–6)",
+    x = "Confounding mechanism (1–7)",
     y = "Truncated Exposure Effect Estimate"
   ) +
   # Remove x-axis title
@@ -245,10 +241,39 @@ ggplot(df, aes(x = method, y = estimate, fill = method)) +
     breaks = names(method_cols) # matches your desired order
   ) +
   theme_bw() +   
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  #ylim(0.25,2)
-  plot_annotation(
-    left = "Outcome model"
-  )
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top") 
 dev.off()
 
+# Plot for the main text: Confounding scenarios 1,3,5,6
+df_sub <- subset(df, confounding_mechanism_reordered %in% 1:5 & 
+               method != 'trueIV' & method != 'trueIV+spatialcoord')
+df_sub <- droplevels(df_sub)
+mutrues_sub <- subset(mutrues, confounding_mechanism_reordered %in% 1:5)
+mutrues_sub <- droplevels(mutrues_sub)
+
+png("images/boxplot_Sep6_maintext.png", width = 2000, height = 1300, res = 200)
+ggplot(df_sub, aes(x = method, y = estimate, fill = method)) +
+  geom_boxplot(alpha = 0.5, outliers = F, staplewidth = 1) + #, draw_quantiles = c(0.5)) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 2, color = "blue") +
+  ggh4x::facet_grid2(
+    option ~ confounding_mechanism_reordered,
+    scales = "free",           # allows different scales per row/col
+    independent = "all"        # allows different scales **per panel**
+  ) +
+  geom_hline(data = mutrues_sub, aes(yintercept = theta), 
+             color = "red", linetype = "twodash", size = 1) +
+  labs(
+    x = "Confounding mechanism (1–5)",
+    y = "Truncated Exposure Effect Estimate"
+  ) +
+  # Remove x-axis title
+  scale_fill_manual(
+    name = "Method",
+    values = method_cols,
+    breaks = names(method_cols) # matches your desired order
+  ) +
+  theme_bw() +   
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top") 
+dev.off()
