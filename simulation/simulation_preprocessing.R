@@ -100,7 +100,8 @@ simlist <- list(
   'lon' = lon,
   'GFT_conf' = GFT_conf,
   'statemat' = statemat,
-  'E' = E
+  'E' = E,
+  'W' = adjmat
 )
 save(simlist, 
      file = 'sim.RData')
@@ -121,13 +122,15 @@ A <- Ac + Auc
 uscounties$A <- A
 uscounties$Ac <- Ac
 uscounties$Auc <- Auc
+uscounties$U <- U
 gs1 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac'),
+  c('A', 'Auc', 'Ac', 'U'),
   c(
     'Exposure A',
     'Unconfounded Exposure Auc',
-    'Confounded Exposure Ac'
+    'Confounded Exposure Ac',
+    'Unmeasured Confounder U'
   ),
   xlimits = c(-115,-85),
   ylimits = c(25,40)
@@ -145,10 +148,12 @@ A <- Ac + Auc
 uscounties$A <- A
 uscounties$Ac <- Ac
 uscounties$Auc <- Auc
+uscounties$U <- U
 gs2 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac'),
+  c('A', 'Auc', 'Ac', 'U'),
   c(
+    '',
     '',
     '',
     ''
@@ -170,10 +175,12 @@ A <- Ac + Auc
 uscounties$A <- A
 uscounties$Ac <- Ac
 uscounties$Auc <- Auc
+uscounties$U <- U
 gs3 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac'),
+  c('A', 'Auc', 'Ac', 'U'),
   c(
+    '',
     '',
     '',
     ''
@@ -181,18 +188,127 @@ gs3 <- plotfunc(
   xlimits = c(-115,-85),
   ylimits = c(25,40)
 )
+
+# FOURTH confounding mechanism 
+dat <- compute_data_spatialcoord(lat = simlist$lat, long = simlist$lon, nsims = 1)
+Ac <- dat$Ac 
+Auc <- dat$Auc
+U <- dat$U
+A <- Ac + Auc
+uscounties$A <- A
+uscounties$Ac <- Ac
+uscounties$Auc <- Auc
+uscounties$U <- U
+gs4 <- plotfunc(
+  uscounties,
+  c('A', 'Auc', 'Ac', 'U'),
+  c(
+    '',
+    '',
+    '',
+    ''
+  ),
+  xlimits = c(-115,-85),
+  ylimits = c(25,40)
+)
+
+# FIFTH confounding mechanism
+rangeu <- 0.01
+Sigma_GP <- compute_Sigma_GP_2U(distmat = distmat,
+                                kappa = 2,
+                                rangeu = rangeu,
+                                rangec = 0.5,
+                                rangez1 = 0.5,
+                                rangez2 = 0.3)
+dat <- compute_data_GP_2U(n = 1, Sigma_GP = Sigma_GP)
+Ac <- dat$Ac 
+Auc <- dat$Auc
+U1 <- dat$U1
+U2 <- dat$U2
+A <- Ac + Auc
+uscounties$A <- A
+uscounties$Ac <- Ac
+uscounties$Auc <- Auc
+uscounties$U1 <- U1
+uscounties$U2 <- U2
+gs5 <- plotfunc(
+  uscounties,
+  c('A', 'Auc', 'Ac', 'U1', 'U2'),
+  c(
+    '',
+    '',
+    '',
+    '',
+    ''
+  ),
+  xlimits = c(-115,-85),
+  ylimits = c(25,40)
+)
+
+# SIXTH confounding mechanism
+rangeu <- 0.1
+Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                             rangeu = rangeu, 
+                             rangec = 0.01)
+dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
+Ac <- dat$Ac 
+Auc <- dat$Auc
+U <- dat$U
+A <- Ac + Auc
+uscounties$A <- A
+uscounties$Ac <- Ac
+uscounties$Auc <- Auc
+uscounties$U <- U
+gs6 <- plotfunc(
+  uscounties,
+  c('A', 'Auc', 'Ac', 'U'),
+  c(
+    '',
+    '',
+    '',
+    ''
+  ),
+  xlimits = c(-115,-85),
+  ylimits = c(25,40)
+)
+
+# SEVENTH confounding mechanism
+W <- adjmat
+dat <- compute_data_leroux(W = W, n = 1)
+Ac <- dat$Ac 
+Auc <- dat$Auc
+U <- dat$U
+A <- Ac + Auc
+uscounties$A <- A
+uscounties$Ac <- Ac
+uscounties$Auc <- Auc
+uscounties$U <- U
+gs7 <- plotfunc(
+  uscounties,
+  c('A', 'Auc', 'Ac', 'U'),
+  c(
+    '',
+    '',
+    '',
+    ''
+  ),
+  xlimits = c(-115,-85),
+  ylimits = c(25,40)
+)
+
 png(
   'images/all-three-decomp.jpeg',
-  height = 2700,
-  width = 4000,
-  res = 120
+  height = 5400,
+  width = 5600,
+  res = 140
 )
-ggpubr::ggarrange(gs1[[1]], gs1[[2]], gs1[[3]],  # First row (gs1)
-                  gs2[[1]], gs2[[2]], gs2[[3]],  # Second row (gs2)
-                  gs3[[1]], gs3[[2]], gs3[[3]],  # Third row (gs3)
-             nrow = 3, ncol = 3,
-             labels = c("1)","", "", 
-             "2)", "", "",
-             "3)", "", ""))
+ggpubr::ggarrange(gs1[[1]], gs1[[2]], gs1[[3]], gs1[[4]],  # First row (gs1)
+                  gs7[[1]], gs7[[2]], gs7[[3]], gs7[[4]], # Seventh row (gs7)
+                  gs3[[1]], gs3[[2]], gs3[[3]], gs3[[4]], # Third row (gs3)
+                  gs5[[1]], gs5[[2]], gs5[[3]], ggpubr::ggarrange(gs5[[4]], gs5[[5]], ncol = 2), # Fifth row (gs5)
+                  gs6[[1]], gs6[[2]], gs6[[3]], gs6[[4]], # Sixth row (gs6)
+                  gs2[[1]], gs2[[2]], gs2[[3]], gs2[[4]], # Second row (gs2)
+                  gs4[[1]], gs4[[2]], gs4[[3]], gs4[[4]], # Fourth row (gs4)
+                  nrow = 7, ncol = 4)
 dev.off()
 

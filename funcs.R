@@ -160,8 +160,10 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, -0.5 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.1*As[,i]^2*Us[,i] # Increase nonlinearity
-                     , 1)
+      eta <- -0.5 - 0.5*Us[,i] +
+        tanh(1.5*As[,i]) - 0.2*Us[,i]*tanh(As[,i]) + 
+        0.1*tanh(As[,i])^2
+      Ys[,i] <- rnorm(n, eta, 1)
     }
   } 
   return(Ys)
@@ -230,76 +232,28 @@ metrics <- function(a.vals, muests, mutrue){
               avgse = avgse))
 }
 
-# Compute the true estimand using MC approximation
-computemutrue <- function(option = c('linear', 'nonlinear'),
-                          within_state_GP = F,
-                          rangeu,
-                          reps = 50000,
-                          distmat,
-                          statemat = NULL,
-                          cutoff = 0.5){
-  # option is a string indicating the form of the outcome model (see createY)
-  # returns a vector of true ERF
-  
-  option <- match.arg(option)
-  
-  if (!within_state_GP){ 
-    # Compute variance of GP
-    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.5)
-    # Simulate reps of data according to GP
-    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
-  }
-  # confounding mech 3
-  else{  
-    # Simulate data as GPs within each state
-    dat <- compute_data_GP_state(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.5,
-                                 n = reps,
-                                 statemat = statemat)
-  }
-  
-  Ac <- dat$Ac 
-  Auc <- dat$Auc
-  U <- dat$U
-  A <- Ac + Auc # all have dimension n x nsims
-  Y <- createY(Us = U, As = A, option = option)
-  mutrue = rep(NA, reps)
-  
-  for (i in 1:reps){
-    if (option == 'linear'){
-      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
-    }
-    if (option == 'nonlinear'){
-      meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
-        0.1*pmin(A[,i], cutoff)^2*U[,i]
-      mutrue[i] <- mean(meanY_A_U)/mean(Y[,i])
-    }
-  }
-  
-  return(mean(mutrue))
-}
-
 # Function that simulates data, estimates truncated exposure effect using different methods, and saves results to csvs
 simfunc <- function(nsims,
                    lat,
                    lon,
-                   rangeu = c('tinyscale', 'smallscale'),
+                   #rangeu = c('tinyscale', 'smallscale'),
+                   confounding_mechanism,
                    option = c('linear', 'nonlinear'),
                    methods = c(
                      'baseline',
+                     'oracle',
                      'spatialcoord',
                      'IV-TPS',
                      'IV-GraphLaplacian',
                      'IV-TPS-spatialcoord',
-                     'IV-GraphLaplacian-spatialcoord'
+                     'IV-GraphLaplacian-spatialcoord',
+                     'trueIV',
+                     'trueIV-spatialcoord'
                    ),
                    GFT_conf,
                    statemat,
-                   within_state_GP = F,
+                   W = NULL,
+                   #within_state_GP = F,
                    cutoff = 0.5) {
   # nsims is the number of simulations
   # lat is a vector of latitudes
@@ -314,59 +268,115 @@ simfunc <- function(nsims,
 
   # writes estimates to a csv file named filename
   
-  rangeu <- match.arg(rangeu)
+  #rangeu <- match.arg(rangeu)
   option <- match.arg(option)
-  n <- length(lat)
-  if (rangeu == 'tinyscale'){
-    rangeu <- 0.01
-  }
-  if (rangeu == 'smallscale') {
-    rangeu <- 0.05
-  }
   
   ################# GENERATE DATA #################
   
   # Compute distance matrix
   distmat <- geosphere::distm(cbind(lon, lat), 
-                  fun = distHaversine)
+                              fun = distHaversine)
   distmat <- distmat/1000000 # scale so range (0,2)
-  # confounding mech 1-2
-  if (!within_state_GP){ 
-    # Compute variance of GP
+  n <- length(lat)
+  #if (rangeu == 'tinyscale'){
+  if (confounding_mechanism == 1){
+    rangeu <- 0.01
     Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                rangeu = rangeu, 
-                                rangec = 0.5)
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
     # Simulate nsims of data according to GP
     dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
   }
-  # confounding mech 3
-  else{  
-    # Simulate data as GPs within each state
+  #if (rangeu == 'smallscale') {
+  if (confounding_mechanism == 2){
+    rangeu <- 0.05
+    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.5)
+    # Simulate nsims of data according to GP
+    dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
+  }
+  if (confounding_mechanism == 3){
+    rangeu <- 0.01
     dat <- compute_data_GP_state(distmat = distmat,
-                                rangeu = rangeu, 
-                                rangec = 0.5,
-                                n = nsims,
-                                statemat = statemat)
+                                 rangeu = rangeu, 
+                                 rangec = 0.5,
+                                 n = nsims,
+                                 statemat = statemat)
+  }
+  if (confounding_mechanism == 4){
+    dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = nsims)
+  }
+  if (confounding_mechanism == 5){
+    rangeu <- 0.01
+    Sigma_GP <- compute_Sigma_GP_2U(distmat = distmat,
+                                    kappa = 2,
+                                    rangeu = rangeu,
+                                    rangec = 0.5,
+                                    rangez1 = 0.5,
+                                    rangez2 = 0.75)
+    dat <- compute_data_GP_2U(n = nsims, Sigma_GP = Sigma_GP)
+    Ac <- dat$Ac 
+    Auc <- dat$Auc
+    U1 <- dat$U1
+    U2 <- dat$U2
+    
+    A <- Ac + Auc # all have dimension n x nsims
+    n <- nrow(A)
+    Y <- matrix(NA, n, nsims)
+    if (option == 'linear'){
+      for (i in 1:nsims){
+        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
+                       , 1)
+      }
+    }
+    if (option == 'nonlinear'){
+      for (i in 1:nsims){
+        eta <- -0.5 - 0.5*U1[,i] +
+          tanh(1.5*A[,i]) - 0.2*U2[,i]*tanh(A[,i]) + 
+          0.1*tanh(A[,i])^2
+        Y[,i] <- rnorm(n, eta, 1)
+      }
+    }
+    
+  }
+  if (confounding_mechanism == 6){
+    rangeu <- 0.1
+    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
+                                 rangeu = rangeu, 
+                                 rangec = 0.01)
+    # Simulate nsims of data according to GP
+    dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
+  }
+  #if (rangeu == 'smallscale') {
+  
+  if (confounding_mechanism == 7){
+    stopifnot(!is.null(W))
+    dat <- compute_data_leroux(W = W, nsims = nsims)
   }
   
-  Ac <- dat$Ac 
-  Auc <- dat$Auc
-  U <- dat$U
-  A <- Ac + Auc # all have dimension n x nsims
-  Y <- createY(Us=U, As=A, option = option)
+  if (confounding_mechanism != 5){
+    Ac <- dat$Ac 
+    Auc <- dat$Auc
+    U <- dat$U
+    A <- Ac + Auc # all have dimension n x nsims
+    Y <- createY(Us=U, As=A, option = option)
+    
+  }
+  
   
   ################# FIT MODELS #################
   
   for (method in methods){
     # Create filename for csvs containing estimates
-    if (!within_state_GP){
-      filename <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '.csv')
-      filename_ci <- paste0('results_Mar16/', rangeu, '_', option, '_', method, '_ci.csv')
-    }
-    else{
-      filename <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '.csv')
-      filename_ci <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
-    }
+    #if (!within_state_GP){
+      filename <- paste0('results_Sep6/', 'conf', confounding_mechanism, '_', option, '_', method, '.csv')
+      filename_ci <- paste0('results_Sep6/', 'conf', confounding_mechanism, '_', option, '_', method, '_ci.csv')
+    #}
+    # else{
+    #   filename <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '.csv')
+    #   filename_ci <- paste0('results_Mar16/within_state/', rangeu, '_', option, '_', method, '_ci.csv')
+    # }
     
     # Create storage for estimates
     #muests <- matrix(NA, nrow = length(avals), ncol = nsims)
@@ -381,30 +391,76 @@ simfunc <- function(nsims,
         xmat <- matrix(rep(1,n), ncol = 1)
         colnames(xmat) <- 'Intercept'
       }
+      if (method == 'oracle'){
+        if (confounding_mechanism != 5){
+          xmat <- matrix(U[,sim], ncol = 1)
+          colnames(xmat) <- 'U'
+        }
+        else{
+          xmat <- cbind(U1[,sim], U2[,sim])
+          colnames(xmat) <- c('U1', 'U2')
+        }
+      }
       
       if (method == 'spatialcoord'){
         xmat <- cbind(lat, lon)
         colnames(xmat) <- c('Latitude', 'Longitude')
       }
       if (method == 'IV-TPS'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
-        xmat <- matrix(predict(mod), ncol = 1)
+        if (confounding_mechanism != 6){
+          mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- matrix(predict(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-TPS'
+        }
+        else{
+          mod <- mgcv::gam(A[,sim] ~ s(lon,lat,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- matrix(residuals(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-TPS-reverse'
+        }
+      }
+      if (method == 'trueIV'){
+        xmat <- matrix(Ac[,sim], ncol = 1)
         colnames(xmat) <- 'Ac-TPS'
       }
       if (method == 'IV-GraphLaplacian'){
-        mod <- lm(A[,sim] ~ GFT_conf)
-        xmat <- matrix(predict(mod), ncol = 1)
-        colnames(xmat) <- 'Ac-GraphLaplacian'
+        if (confounding_mechanism != 6){
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- matrix(predict(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-GraphLaplacian'
+        }
+        else{
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- matrix(residuals(mod), ncol = 1)
+          colnames(xmat) <- 'Ac-GraphLaplacian-reverse'
+        }
       }
       if (method == 'IV-TPS-spatialcoord'){
-        mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
-        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
-        colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
+        if (confounding_mechanism != 6){
+          mod <- mgcv::gam(A[,sim] ~ s(lat,lon,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
+        }
+        else{
+          mod <- mgcv::gam(A[,sim] ~ s(lon,lat,k=floor(0.07*n),fx=T)) # unpenalized
+          xmat <- cbind(matrix(residuals(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-TPS-reverse', 'Latitude', 'Longitude')
+        }
       }
       if (method == 'IV-GraphLaplacian-spatialcoord'){
-        mod <- lm(A[,sim] ~ GFT_conf)
-        xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
-        colnames(xmat) <- c('Ac-GraphLaplacian', 'Latitude', 'Longitude')
+        if (confounding_mechanism != 6){
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- cbind(matrix(predict(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-GraphLaplacian', 'Latitude', 'Longitude')
+        }
+        else{
+          mod <- lm(A[,sim] ~ GFT_conf)
+          xmat <- cbind(matrix(residuals(mod), ncol = 1), lat, lon)
+          colnames(xmat) <- c('Ac-GraphLaplacian-reverse', 'Latitude', 'Longitude')
+        }
+      }
+      if (method == 'trueIV-spatialcoord'){
+        xmat <- cbind(matrix(Ac[,sim], ncol = 1), lat, lon)
+        colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
       }
       
       # Fit the ERF adjusting for xmat.
@@ -479,18 +535,62 @@ compute_Sigma_GP <- function(distmat,
   phic <- rangec/(2*sqrt(kappa)) 
   Sigmau <- geoR::matern(u=distmat, phi=phiu, kappa=kappa)
   Sigmac <- geoR::matern(u=distmat, phi=phic, kappa=kappa)
-  Sigma <- matrix(NA, nrow = 3*n, ncol = 3*n)
+  Sigma <- matrix(0, nrow = 3*n, ncol = 3*n)
   Sigma[1:n, 1:n] <- sigu^2*Sigmau
   Sigma[(n+1):(2*n), (n+1):(2*n)] <- sigc^2*Sigmac
   Sigma[(2*n+1):(3*n), (2*n+1):(3*n)] <- sigz^2*Sigmac
-  # Auc is uncorrelated + indep of Ac and U
-  Sigma[1:n, (n+1):(3*n)] <- 0
-  Sigma[(n+1):(3*n), 1:n] <- 0
+  # # Auc is uncorrelated + indep of Ac and U
+  # Sigma[1:n, (n+1):(3*n)] <- 0
+  # Sigma[(n+1):(3*n), 1:n] <- 0
   # Ac and U are highly dependent
   Sigma[(n+1):(2*n), (2*n+1):(3*n)] <- rho*sigc*sigz*Sigmac
   Sigma[(2*n+1):(3*n), (n+1):(2*n)] <- rho*sigc*sigz*Sigmac
   return(Sigma)
 }
+
+# Function that computes the covariance matrix for two confounders
+compute_Sigma_GP_2U <- function(distmat,
+                                kappa = 2,
+                                rangeu, rangec, rangez1, rangez2,
+                                rho1 = 0.9, rho2 = 0.7,
+                                sigu = 1, sigc = 1, sigz1 = 1, sigz2 = 1) {
+  stopifnot(abs(rho1) <= 1, abs(rho2) <= 1)
+  n <- nrow(distmat)
+  phi <- function(r) r / (2 * sqrt(kappa))
+  
+  Ku  <- geoR::matern(u = distmat, phi = phi(rangeu),  kappa = kappa)
+  Kc  <- geoR::matern(u = distmat, phi = phi(rangec),  kappa = kappa)
+  Kz1 <- geoR::matern(u = distmat, phi = phi(rangez1), kappa = kappa)
+  Kz2 <- geoR::matern(u = distmat, phi = phi(rangez2), kappa = kappa)
+  
+  Sigma <- matrix(0, nrow = 4*n, ncol = 4*n)
+  iAuc <- 1:n; iAc <- (n+1):(2*n); iU1 <- (2*n+1):(3*n); iU2 <- (3*n+1):(4*n)
+  
+  # Auc (independent)
+  Sigma[iAuc, iAuc] <- sigu^2 * Ku
+  
+  # Coregionalized part on Kc (Ac, U1, U2 share it)
+  Sigma[iAc, iAc]   <- sigc^2 * Kc
+  Sigma[iU1, iU1]   <- (rho1^2) * sigz1^2 * Kc
+  Sigma[iU2, iU2]   <- (rho2^2) * sigz2^2 * Kc
+  
+  Sigma[iAc, iU1] <- rho1 * sigc * sigz1 * Kc
+  Sigma[iU1, iAc] <- t(Sigma[iAc, iU1])
+  
+  Sigma[iAc, iU2] <- rho2 * sigc * sigz2 * Kc
+  Sigma[iU2, iAc] <- t(Sigma[iAc, iU2])
+  
+  # U1–U2 correlation induced by sharing Kc
+  Sigma[iU1, iU2] <- (rho1 * rho2 * sigz1 * sigz2) * Kc
+  Sigma[iU2, iU1] <- t(Sigma[iU1, iU2])
+  
+  # Idiosyncratic scales for U1, U2 (their own kernels)
+  Sigma[iU1, iU1] <- Sigma[iU1, iU1] + (1 - rho1^2) * sigz1^2 * Kz1
+  Sigma[iU2, iU2] <- Sigma[iU2, iU2] + (1 - rho2^2) * sigz2^2 * Kz2
+  
+  return(Sigma)
+}
+
 
 # Function that computes the data from the GP given the covariance matrix
 compute_data_GP <- function(n, 
@@ -505,6 +605,7 @@ compute_data_GP <- function(n,
   # returns a list with the data Auc,Ac,U
   
   stopifnot(nrow(Sigma_GP) %% 3 == 0)
+  
   dat <- matrix(MASS::mvrnorm(n=n, mu = mu, Sigma=Sigma_GP), 
                nrow = nrow(Sigma_GP), ncol = n, 
                byrow = TRUE)
@@ -513,6 +614,25 @@ compute_data_GP <- function(n,
               'Ac' = dat[(k+1):(2*k),],
               'U' = dat[(2*k+1):(3*k),]))
 }
+
+# Function that computes the data for two confounders
+compute_data_GP_2U <- function(n, Sigma_GP,
+                               mu = c(rep(0.1, nrow(Sigma_GP)/4),   
+                                      rep(-0.2, nrow(Sigma_GP)/4), 
+                                      rep(0.3, nrow(Sigma_GP)/4),   
+                                      rep(-0.1, nrow(Sigma_GP)/4))) 
+{
+
+  stopifnot(nrow(Sigma_GP) %% 4 == 0)
+  dat <- matrix(MASS::mvrnorm(n = n, mu = mu, Sigma = Sigma_GP),
+                nrow = nrow(Sigma_GP), ncol = n, byrow = TRUE)
+  k <- nrow(Sigma_GP) / 4
+  return(list('Auc' = dat[1:k, ],
+              'Ac'  = dat[(k+1):(2*k), ],
+              'U1'  = dat[(2*k+1):(3*k), ],
+              'U2'  = dat[(3*k+1):(4*k), ]))
+}
+
 
 # Function that computes the data for confounding mechanism 3
 compute_data_GP_state <- function(distmat,
@@ -551,6 +671,31 @@ compute_data_GP_state <- function(distmat,
   return(out)
 }
 
+# Function that creates the data for confounding mechanism 4 (following Gilbert et al. 2021)
+compute_data_spatialcoord <- function(lat, long, nsims){
+  # lat is the latitude
+  # long is the longitude
+  # nsims is the number of simulations 
+  # returns a list with the data Auc,Ac,U
+  
+  n <- length(lat)
+  # standardize lat and long
+  lat <- (lat - min(lat))/(max(lat) - min(lat))
+  long <- (long - min(long))/(max(long) - min(long))
+
+  out <- list('Auc' = matrix(NA, nrow = n, ncol = nsims),
+              'Ac' = matrix(NA, nrow = n, ncol = nsims),
+              'U' = matrix(NA, nrow = n, ncol = nsims))
+  
+  U <- sin(2*pi*lat*long) + lat + long
+  out$U[,] <- U  # same U in every column
+
+  out$Ac  <- replicate(nsims, rnorm(n, mean = U, sd = 0.1)) # ^3
+  out$Auc <- replicate(nsims, rnorm(n, mean = 0, sd = 1)) # 5
+  
+  return(out)
+}
+
 asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta){
   # Calculate parameters
   theta1 <- erfest$res$est[erfest$res$a.vals == cutoff] # kennnedy
@@ -585,3 +730,39 @@ hausdorff_distance <- function(interval1, interval2){
   dist2 <- abs(interval1[2] - interval2[2])
   return(max(dist1,dist2))
 }
+
+rleroux_bivariate <- function(W, rho_sp, tau_sp, R){
+  n  <- nrow(W)
+  D  <- Diagonal(n, rowSums(W))
+  Qs <- tau_sp * ((1 - rho_sp) * Diagonal(n) + rho_sp * (D - W))
+  Qs <- forceSymmetric(Qs)
+  
+  Q  <- kronecker(R, Qs)           # joint precision (2n x 2n), sparse
+  cf <- Cholesky(Q, LDL=FALSE, perm=TRUE, super=TRUE)
+  
+  Z  <- rnorm(2*n)
+  Yp <- solve(cf, Z, system="L")
+  Xp <- solve(cf, Yp, system="Lt")
+  X  <- Xp[order(cf@perm)]
+  list(phi1 = X[1:n], phi2 = X[(n+1):(2*n)])
+}
+
+compute_data_leroux <- function(W, 
+                                rho = 0.8, 
+                                Sigma_cross = matrix(c(1, 0.7, 0.7, 1), 2, 2),
+                                nsims){
+  n <- nrow(W)
+  stopifnot(ncol(W) == n)
+  R <- solve(Sigma_cross)
+  out <- list('Auc' = matrix(NA, nrow = n, ncol = nsims),
+              'Ac' = matrix(NA, nrow = n, ncol = nsims),
+              'U' = matrix(NA, nrow = n, ncol = nsims))
+  for (i in 1:nsims){
+    outi <- rleroux_bivariate(W = W, rho_sp = rho, tau_sp = 1, R = R)
+    out$U[,i] <- outi$phi1
+    out$Ac[,i] <- outi$phi2
+    out$Auc[,i] <- rnorm(n, 0, 1)
+  }
+  return(out)
+}
+
