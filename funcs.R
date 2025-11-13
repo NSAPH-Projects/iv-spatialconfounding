@@ -160,8 +160,10 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, -0.5 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i] - 0.1*As[,i]^2 + 0.1*As[,i]^2*Us[,i] # Increase nonlinearity
-                     , 1)
+      eta <- -0.5 - 0.5*Us[,i] +
+        tanh(1.5*As[,i]) - 0.2*Us[,i]*tanh(As[,i]) + 
+        0.1*tanh(As[,i])^2
+      Ys[,i] <- rnorm(n, eta, 1)
     }
   } 
   return(Ys)
@@ -230,124 +232,6 @@ metrics <- function(a.vals, muests, mutrue){
               avgse = avgse))
 }
 
-# Compute the true estimand using MC approximation
-computemutrue <- function(option = c('linear', 'nonlinear'),
-                          #within_state_GP = F,
-                          #rangeu,
-                          confounding_mechanism,
-                          reps = 20000,
-                          distmat,
-                          lat=NULL,
-                          lon=NULL,
-                          statemat = NULL,
-                          cutoff = 0.5){
-  # option is a string indicating the form of the outcome model (see createY)
-  # returns a vector of true ERF
-  
-  option <- match.arg(option)
-  
-  if (confounding_mechanism == 1){
-    rangeu <- 0.01
-    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.5)
-    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
-  }
-  if (confounding_mechanism == 2){
-    rangeu <- 0.05
-    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.5)
-    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
-  }
-  # confounding mech 3
-  if (confounding_mechanism == 3){ 
-    # Simulate data as GPs within each state
-    rangeu <- 0.01
-    dat <- compute_data_GP_state(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.5,
-                                 n = reps,
-                                 statemat = statemat)
-  }
-  if (confounding_mechanism == 4){
-    dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = reps)
-  }
-  if (confounding_mechanism == 6){
-    rangeu <- 0.1
-    Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                                 rangeu = rangeu, 
-                                 rangec = 0.01)
-    dat <- compute_data_GP(n = reps, Sigma_GP = Sigma_GP)
-  }
-  
-  if (confounding_mechanism != 5){
-    Ac <- dat$Ac 
-    Auc <- dat$Auc
-    U <- dat$U
-    A <- Ac + Auc # all have dimension n x nsims
-    #Y <- createY(Us = U, As = A, option = option)
-    mutrue <- rep(NA, reps)
-    
-    for (i in 1:reps){
-      if (option == 'linear'){
-        meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i]
-        meanY_A <- -0.5 + (-1)*U[,i] + A[,i] - 0.5*A[,i]*U[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
-      }
-      if (option == 'nonlinear'){
-        meanY_A_U <- -0.5 + (-1)*U[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
-          0.1*pmin(A[,i], cutoff)^2*U[,i]
-        meanY_A <- -0.5 + (-1)*U[,i] + A[,i] - 0.5*A[,i]*U[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
-      }
-    }
-  }
-  
-  if (confounding_mechanism == 5){
-    rangeu <- 0.01
-    Sigma_GP <- compute_Sigma_GP_2U(distmat = distmat,
-                                    kappa = 2,
-                                    rangeu = rangeu,
-                                    rangec = 0.5,
-                                    rangez1 = 0.5,
-                                    rangez2 = 0.3)
-    dat <- compute_data_GP_2U(n = reps, Sigma_GP = Sigma_GP)
-    Ac <- dat$Ac 
-    Auc <- dat$Auc
-    U1 <- dat$U1
-    U2 <- dat$U2
-    
-    A <- Ac + Auc # all have dimension n x nsims
-    # n <- nrow(A)
-    # Y <- matrix(NA, n, reps)
-    
-    # linear outcome model
-    mutrue <- rep(NA, reps)
-    if (option == 'linear'){
-      for (i in 1:reps){
-        # Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
-        #                , 1) 
-        meanY_A_U <- -0.5 + (-1)*U1[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U1[,i] - 0.75*pmin(A[,i], cutoff)*U2[,i]
-        meanY_A <- -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
-      }
-    }
-    # nonlinear outcome model
-    if (option == 'nonlinear'){
-      for (i in 1:reps){
-        # Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
-        #                , 1)
-        meanY_A_U <- -0.5 + (-1)*U1[,i] + pmin(A[,i], cutoff) - 0.5*pmin(A[,i], cutoff)*U1[,i] - 0.75*pmin(A[,i], cutoff)*U2[,i] - 0.1*pmin(A[,i], cutoff)^2 + 
-          0.1*pmin(A[,i], cutoff)^2*U1[,i] + 0.05*pmin(A[,i], cutoff)^3*U2[,i]
-        meanY_A <- -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
-        mutrue[i] <- mean(meanY_A_U)/mean(meanY_A)
-      }
-    } 
-  }
-  return(mean(mutrue))
-}
-
 # Function that simulates data, estimates truncated exposure effect using different methods, and saves results to csvs
 simfunc <- function(nsims,
                    lat,
@@ -368,6 +252,7 @@ simfunc <- function(nsims,
                    ),
                    GFT_conf,
                    statemat,
+                   W = NULL,
                    #within_state_GP = F,
                    cutoff = 0.5) {
   # nsims is the number of simulations
@@ -447,8 +332,10 @@ simfunc <- function(nsims,
     }
     if (option == 'nonlinear'){
       for (i in 1:nsims){
-        Y[,i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i] - 0.1*A[,i]^2 + 0.1*A[,i]^2*U1[,i] + 0.05*A[,i]^3*U2[,i]
-                       , 1)
+        eta <- -0.5 - 0.5*U1[,i] +
+          tanh(1.5*A[,i]) - 0.2*U2[,i]*tanh(A[,i]) + 
+          0.1*tanh(A[,i])^2
+        Y[,i] <- rnorm(n, eta, 1)
       }
     }
     
@@ -462,6 +349,11 @@ simfunc <- function(nsims,
     dat <- compute_data_GP(n = nsims, Sigma_GP = Sigma_GP)
   }
   #if (rangeu == 'smallscale') {
+  
+  if (confounding_mechanism == 7){
+    stopifnot(!is.null(W))
+    dat <- compute_data_leroux(W = W, nsims = nsims)
+  }
   
   if (confounding_mechanism != 5){
     Ac <- dat$Ac 
@@ -790,16 +682,16 @@ compute_data_spatialcoord <- function(lat, long, nsims){
   # standardize lat and long
   lat <- (lat - min(lat))/(max(lat) - min(lat))
   long <- (long - min(long))/(max(long) - min(long))
-  
+
   out <- list('Auc' = matrix(NA, nrow = n, ncol = nsims),
               'Ac' = matrix(NA, nrow = n, ncol = nsims),
               'U' = matrix(NA, nrow = n, ncol = nsims))
   
   U <- sin(2*pi*lat*long) + lat + long
   out$U[,] <- U  # same U in every column
-  
-  out$Ac  <- replicate(nsims, rnorm(n, mean = U^3, sd = 1))
-  out$Auc <- replicate(nsims, rnorm(n, mean = 0, sd = 5))
+
+  out$Ac  <- replicate(nsims, rnorm(n, mean = U, sd = 0.1)) # ^3
+  out$Auc <- replicate(nsims, rnorm(n, mean = 0, sd = 1)) # 5
   
   return(out)
 }
@@ -838,3 +730,39 @@ hausdorff_distance <- function(interval1, interval2){
   dist2 <- abs(interval1[2] - interval2[2])
   return(max(dist1,dist2))
 }
+
+rleroux_bivariate <- function(W, rho_sp, tau_sp, R){
+  n  <- nrow(W)
+  D  <- Diagonal(n, rowSums(W))
+  Qs <- tau_sp * ((1 - rho_sp) * Diagonal(n) + rho_sp * (D - W))
+  Qs <- forceSymmetric(Qs)
+  
+  Q  <- kronecker(R, Qs)           # joint precision (2n x 2n), sparse
+  cf <- Cholesky(Q, LDL=FALSE, perm=TRUE, super=TRUE)
+  
+  Z  <- rnorm(2*n)
+  Yp <- solve(cf, Z, system="L")
+  Xp <- solve(cf, Yp, system="Lt")
+  X  <- Xp[order(cf@perm)]
+  list(phi1 = X[1:n], phi2 = X[(n+1):(2*n)])
+}
+
+compute_data_leroux <- function(W, 
+                                rho = 0.8, 
+                                Sigma_cross = matrix(c(1, 0.7, 0.7, 1), 2, 2),
+                                nsims){
+  n <- nrow(W)
+  stopifnot(ncol(W) == n)
+  R <- solve(Sigma_cross)
+  out <- list('Auc' = matrix(NA, nrow = n, ncol = nsims),
+              'Ac' = matrix(NA, nrow = n, ncol = nsims),
+              'U' = matrix(NA, nrow = n, ncol = nsims))
+  for (i in 1:nsims){
+    outi <- rleroux_bivariate(W = W, rho_sp = rho, tau_sp = 1, R = R)
+    out$U[,i] <- outi$phi1
+    out$Ac[,i] <- outi$phi2
+    out$Auc[,i] <- rnorm(n, 0, 1)
+  }
+  return(out)
+}
+
