@@ -4,6 +4,7 @@ library(dplyr)
 library(geosphere)
 library(foreach)
 library(doParallel)
+library(Matrix)
 
 # Load in simulation data,
 # a list of lat (vector), lon (vector), GFT (matrix), statemat (matrix)
@@ -26,7 +27,8 @@ simfunc(nsims,
         confounding_mechanism = confounding_mechanism,
         option = option,
         GFT_conf = simlist$GFT_conf,
-        statemat = simlist$statemat#,
+        statemat = simlist$statemat,
+        W = simlist$W#,
         #within_state_GP = F # change to T for confounding scenario 3
         )
 
