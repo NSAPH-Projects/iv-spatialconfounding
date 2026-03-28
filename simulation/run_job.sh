@@ -12,4 +12,4 @@
 my_packages=${HOME}/R/ifxrstudio/RELEASE_3_18
 rstudio_singularity_image="/n/singularity_images/informatics/ifxrstudio/ifxrstudio:RELEASE_3_18.sif"
 
-singularity exec --cleanenv --env R_LIBS_USER=${my_packages} ${rstudio_singularity_image} Rscript run_simfunc.R "$1" "$2" "$3"
+singularity exec --cleanenv --env R_LIBS_USER=${my_packages} ${rstudio_singularity_image} Rscript run_simfunc.R "$1" "$2" "$3" "$4" "$5"
