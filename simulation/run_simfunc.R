@@ -6,30 +6,30 @@ library(foreach)
 library(doParallel)
 library(Matrix)
 
-# Load in simulation data,
-# a list of lat (vector), lon (vector), GFT (matrix), statemat (matrix)
+# Load in simulation data: lat, lon, B_tps_full, B_gl_full, statemat, W
 load('sim.RData')
 
 set.seed(123)
 args <- commandArgs(trailingOnly = TRUE)
-nsims <- as.integer(args[1])
-#rangeu <- args[2]
+nsims                 <- as.integer(args[1])
 confounding_mechanism <- args[2]
-option <- args[3]
+option                <- args[3]
+select_basis          <- if (length(args) >= 4) as.logical(args[4]) else TRUE
+n_cores               <- if (length(args) >= 5) as.integer(args[5]) else 1L
 
-#print(c(nsims, rangeu, option))
-print(c(nsims, confounding_mechanism, option))
+print(c(nsims, confounding_mechanism, option, select_basis, n_cores))
 
 simfunc(nsims,
         simlist$lat,
         simlist$lon,
-        #rangeu = rangeu,
         confounding_mechanism = confounding_mechanism,
-        option = option,
-        GFT_conf = simlist$GFT_conf,
-        statemat = simlist$statemat,
-        W = simlist$W#,
-        #within_state_GP = F # change to T for confounding scenario 3
+        option                = option,
+        B_tps_full            = simlist$B_tps_full,
+        B_gl_full             = simlist$B_gl_full,
+        statemat              = simlist$statemat,
+        W                     = simlist$W,
+        select_basis          = select_basis,
+        n_cores               = n_cores
         )
 
 

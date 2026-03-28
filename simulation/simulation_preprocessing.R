@@ -84,24 +84,23 @@ adjmat <- (adjmat + t(adjmat)) > 0
 
 # Graph Laplacian
 L <- diag(rowSums(adjmat)) - adjmat
-E <- eigen(L)
-num_vec_remove <- floor(0.07*n)
-# small scale (large eigenvalue) eigenvectors
-GFT <- E$vectors[,1:(n-num_vec_remove)]
-# large scale (small eigenvalue) eigenvectors 
-GFT_conf <- E$vectors[,(n-num_vec_remove+1):n]
+
+# Build ordered GL and TPS bases (largest scale in col 1, smallest in col n).
+# These are passed to simfunc() and used for basis projection.
+B_gl_full  <- build_gl_basis(adjmat)
+B_tps_full <- build_tps_basis(lat, lon)
 
 # Indicator matrix for states
 statemat <- model.matrix(~-1 + State, data = uscounties)
 
 # Save simulation data
 simlist <- list(
-  'lat' = lat,
-  'lon' = lon,
-  'GFT_conf' = GFT_conf,
-  'statemat' = statemat,
-  'E' = E,
-  'W' = adjmat
+  'lat'        = lat,
+  'lon'        = lon,
+  'B_tps_full' = B_tps_full,
+  'B_gl_full'  = B_gl_full,
+  'statemat'   = statemat,
+  'W'          = adjmat
 )
 save(simlist, 
      file = 'sim.RData')
