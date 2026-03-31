@@ -16,9 +16,32 @@ load('sim.RData')
 
 RESULTS_DIR <- "results_Mar27/"
 
+# Temporarily remove outliers (set to FALSE to restore full results).
+# Drops estimates outside median +/- 3*IQR within each method/CM/option group.
+REMOVE_OUTLIERS <- TRUE
+outlier_mask <- function(x) {
+  if (!REMOVE_OUTLIERS) return(rep(FALSE, length(x)))
+  med <- median(x, na.rm = TRUE)
+  iqr <- IQR(x, na.rm = TRUE)
+  (x < med - 3 * iqr | x > med + 3 * iqr) & !is.na(x)
+}
+filter_outliers <- function(x) { x[outlier_mask(x)] <- NA; x }
+
 csvs <- list.files(RESULTS_DIR, pattern = '\\.csv$')
 csvs <- csvs[!grepl('_(ci_lower|ci_upper|time|n_uc)\\.csv$', csvs)]
 
+# # Check coverage of oracle
+# oracle_muests <- read.csv(file.path(RESULTS_DIR, 'conf1_linear_oracle.csv'))
+# oracle_ci_lower <- read.csv(file.path(RESULTS_DIR, 'conf1_linear_oracle_ci_lower.csv'))
+# oracle_ci_upper <- read.csv(file.path(RESULTS_DIR, 'conf1_linear_oracle_ci_upper.csv'))
+# # Calculate se_est from confidence intervals
+# oracle_se_est <- (as.vector(as.matrix(oracle_ci_upper)) - as.vector(as.matrix(oracle_ci_lower))) / (2 * qnorm(0.975))
+# hist(oracle_se_est, main = "Estimated SE from Oracle CIs", xlab = "Estimated SE")
+# # Include line for sample standard deviation of oracle estimates
+# oracle_se_sd <- sd(as.vector(as.matrix(oracle_muests)), na.rm = TRUE)
+# abline(v = oracle_se_sd, col = "red", lwd = 2)
+# mean(oracle_se_est, na.rm = TRUE)
+# oracle_se_sd
 
 # Create storage for metrics
 analysisdf <- data.frame(
@@ -38,7 +61,7 @@ method <- sub("^conf\\d+_[^_]+_([^_]+)\\.csv$", "\\1", csvs)
 
 # Precompute true estimand for each outcome model and confounding mechanism
 mutrues <- data.frame(expand.grid(
-  confounding_mechanism = 1:7,
+  confounding_mechanism = 1:6,
   option = c('linear', 'nonlinear')))
 for (i in 1:nrow(mutrues)){
   fname <- paste0(RESULTS_DIR, 'conf', mutrues$confounding_mechanism[i],
@@ -59,9 +82,10 @@ for (i in 1:length(csvs)){
   analysisdf$method[i] <- method[i]
   df_temp <- read.csv(file.path(RESULTS_DIR, filename))
   
-  muests <- df_temp 
+  muests <- df_temp
   # Convert muests to a vector, it's just a single column
   muests <- as.vector(as.matrix(muests))
+  muests <- filter_outliers(muests)
   
   # Compute true truncated exposure estimate
   mutrue <- mutrues[mutrues$confounding_mechanism == confounding_mechanism[i] & 
@@ -81,6 +105,9 @@ for (i in 1:length(csvs)){
   if (file.exists(fname_lower) && file.exists(fname_upper)) {
     lower <- as.vector(as.matrix(read.csv(fname_lower)))
     upper <- as.vector(as.matrix(read.csv(fname_upper)))
+    mask <- outlier_mask(muests)
+    lower[mask] <- NA
+    upper[mask] <- NA
     analysisdf$coverage[i] <- mean(lower <= mutrue & upper >= mutrue, na.rm = TRUE)
   } else {
     analysisdf$coverage[i] <- NA_real_
@@ -92,7 +119,7 @@ all_methods <- c("oracle", "baseline", "spatialcoord", "trueIV",
                  "IV-TPS", "IV-GraphLaplacian",
                  "trueIV-spatialcoord", "IV-TPS-spatialcoord", "IV-GraphLaplacian-spatialcoord")
 full_grid <- expand.grid(
-  confounding_mechanism = as.character(1:7),
+  confounding_mechanism = as.character(1:6),
   option = c("linear", "nonlinear"),
   method = all_methods,
   stringsAsFactors = FALSE
@@ -129,7 +156,7 @@ print(xtable(analysisdf_bias %>%
 # Print absolute bias with the reordered confounding scenarios
 analysisdf_bias_reordered <- analysisdf_bias %>%
   mutate(confounding_mechanism = factor(confounding_mechanism,
-                                       levels = c("1", "2", "3", "4", "5", "6", "7"))) %>%
+                                       levels = as.character(1:6))) %>%
   arrange(confounding_mechanism, option)
 print(xtable(analysisdf_bias_reordered %>%
                mutate(across(where(is.numeric), ~ abs(.)))), 
@@ -150,7 +177,7 @@ print(xtable(analysisdf_RMSE), include.rownames = FALSE, sanitize.text.function 
 # Print the reordered RMSE
 analysisdf_RMSE_reordered <- analysisdf_RMSE %>%
   mutate(confounding_mechanism = factor(confounding_mechanism,
-                                       levels = c("1", "2", "3", "4", "5", "6", "7"))) %>%
+                                       levels = as.character(1:6))) %>%
   arrange(confounding_mechanism, option)
 print(xtable(analysisdf_RMSE_reordered), include.rownames = FALSE, sanitize.text.function = identity)
 
@@ -174,7 +201,8 @@ read_estimates <- function(i) {
     dat <- dat %>%
       mutate(confounding_mechanism = cm_i,
              option = option_i,
-             method = method_i)
+             method = method_i,
+             estimate = filter_outliers(estimate))
     return(dat)
   }, error = function(e) {
     warning(paste("Skipping", csvs[i], ":", conditionMessage(e)))
@@ -200,16 +228,16 @@ df$method <- factor(df$method, levels = desired_order)
 
 df <- df %>%
   mutate(confounding_mechanism = factor(confounding_mechanism,
-                                        levels = as.character(1:7)),
+                                        levels = as.character(1:6)),
          option = factor(option, levels = c("linear", "nonlinear")))
 mutrues <- mutrues %>% 
   mutate(confounding_mechanism = factor(confounding_mechanism),
          option = factor(option, levels = c("linear", "nonlinear")))
 # Confounding mechanisms 1-7 are already in the correct display order in the CSVs.
 df$confounding_mechanism_reordered <- factor(df$confounding_mechanism,
-                                              levels = c("1", "2", "3", "4", "5", "6", "7"))
+                                              levels = as.character(1:6))
 mutrues$confounding_mechanism_reordered <- factor(mutrues$confounding_mechanism,
-                                                 levels = c("1", "2", "3", "4", "5", "6", "7"))
+                                                 levels = as.character(1:6))
 print(xtable(select(mutrues, confounding_mechanism_reordered, option, theta) %>% 
                arrange(confounding_mechanism_reordered), digits = 4), 
       include.rownames = FALSE)
@@ -240,7 +268,7 @@ ggplot(df, aes(x = method, y = estimate, fill = method)) +
              color = "red", linetype = "twodash", size = 1) +
   #labs(x = NULL, y = "Truncated Exposure Effect Estimate") +   
   labs(
-    x = "Confounding mechanism (1–7)",
+    x = "Confounding mechanism (1–6)",
     y = "Truncated Exposure Effect Estimate"
   ) +
   # Remove x-axis title
@@ -266,7 +294,7 @@ analysisdf_cov <- analysisdf_cov[, c(1:3, 7)] %>%
 
 analysisdf_cov_reordered <- analysisdf_cov %>%
   mutate(confounding_mechanism = factor(confounding_mechanism,
-                                        levels = c("1", "2", "3", "4", "5", "6", "7"))) %>%
+                                        levels = as.character(1:6))) %>%
   arrange(confounding_mechanism, option)
 print(xtable(analysisdf_cov_reordered, digits = 3),
       include.rownames = FALSE, sanitize.text.function = identity)
@@ -277,7 +305,7 @@ cov_long <- analysisdf %>%
   filter(!is.na(coverage)) %>%
   mutate(
     confounding_mechanism = factor(confounding_mechanism,
-                                   levels = as.character(1:7)),
+                                   levels = as.character(1:6)),
     option = factor(option, levels = c("linear", "nonlinear")),
     method = recode(method,
                     "IV-GraphLaplacian-spatialcoord" = "IV-GL+spatialcoord",
@@ -300,7 +328,7 @@ ggplot(cov_long, aes(x = method, y = coverage, color = method)) +
   scale_color_manual(name = "Method", values = method_cols,
                      breaks = names(method_cols)) +
   scale_y_continuous(limits = c(0, 1), breaks = c(0, 0.5, 0.95, 1)) +
-  labs(x = "Confounding mechanism (1–7)", y = "Coverage (nominal 0.95)") +
+  labs(x = "Confounding mechanism (1–6)", y = "Coverage (nominal 0.95)") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "top")
@@ -361,7 +389,7 @@ if (nrow(df_n_uc) > 0) {
   df_n_uc <- df_n_uc %>%
     mutate(
       confounding_mechanism = factor(confounding_mechanism,
-                                     levels = as.character(1:7)),
+                                     levels = as.character(1:6)),
       option = factor(option, levels = c("linear", "nonlinear")),
       method = recode(method,
                       "IV-GraphLaplacian-spatialcoord" = "IV-GL+spatialcoord",
