@@ -16,16 +16,6 @@ load('sim.RData')
 
 RESULTS_DIR <- "results_Mar27/"
 
-# Temporarily remove outliers (set to FALSE to restore full results).
-# Drops estimates outside median +/- 3*IQR within each method/CM/option group.
-REMOVE_OUTLIERS <- TRUE
-outlier_mask <- function(x) {
-  if (!REMOVE_OUTLIERS) return(rep(FALSE, length(x)))
-  med <- median(x, na.rm = TRUE)
-  iqr <- IQR(x, na.rm = TRUE)
-  (x < med - 3 * iqr | x > med + 3 * iqr) & !is.na(x)
-}
-filter_outliers <- function(x) { x[outlier_mask(x)] <- NA; x }
 
 csvs <- list.files(RESULTS_DIR, pattern = '\\.csv$')
 csvs <- csvs[!grepl('_(ci_lower|ci_upper|time|n_uc)\\.csv$', csvs)]
@@ -51,7 +41,8 @@ analysisdf <- data.frame(
   bias = numeric(length(csvs)),
   RMSE = numeric(length(csvs)),
   se = numeric(length(csvs)),
-  coverage = numeric(length(csvs))
+  coverage = numeric(length(csvs)),
+  missingness = numeric(length(csvs))
 )
 
 # Extract components from filenames
@@ -66,8 +57,10 @@ mutrues <- data.frame(expand.grid(
 for (i in 1:nrow(mutrues)){
   fname <- paste0(RESULTS_DIR, 'conf', mutrues$confounding_mechanism[i],
                   '_', mutrues$option[i], '_oracle.csv')
-  mutrues$theta[i] <- if (file.exists(fname))
-    mean(as.vector(as.matrix(read.csv(fname))), na.rm = TRUE)
+  mutrues$theta[i] <- if (file.exists(fname)){
+    x <- as.vector(as.matrix(read.csv(fname)))
+    median(x, na.rm = TRUE)
+  }
   else
     NA_real_
 }
@@ -85,7 +78,7 @@ for (i in 1:length(csvs)){
   muests <- df_temp
   # Convert muests to a vector, it's just a single column
   muests <- as.vector(as.matrix(muests))
-  muests <- filter_outliers(muests)
+  analysisdf$missingness[i] <- mean(is.na(muests))
   
   # Compute true truncated exposure estimate
   mutrue <- mutrues[mutrues$confounding_mechanism == confounding_mechanism[i] & 
@@ -105,9 +98,6 @@ for (i in 1:length(csvs)){
   if (file.exists(fname_lower) && file.exists(fname_upper)) {
     lower <- as.vector(as.matrix(read.csv(fname_lower)))
     upper <- as.vector(as.matrix(read.csv(fname_upper)))
-    mask <- outlier_mask(muests)
-    lower[mask] <- NA
-    upper[mask] <- NA
     analysisdf$coverage[i] <- mean(lower <= mutrue & upper >= mutrue, na.rm = TRUE)
   } else {
     analysisdf$coverage[i] <- NA_real_
@@ -202,7 +192,7 @@ read_estimates <- function(i) {
       mutate(confounding_mechanism = cm_i,
              option = option_i,
              method = method_i,
-             estimate = filter_outliers(estimate))
+             estimate = estimate)
     return(dat)
   }, error = function(e) {
     warning(paste("Skipping", csvs[i], ":", conditionMessage(e)))
@@ -257,7 +247,7 @@ method_cols <- c(
 png("images/boxplot_Sep6.png", width = 2500, height = 1250, res = 200)
 ggplot(df, aes(x = method, y = estimate, fill = method)) +
   geom_boxplot(alpha = 0.5, outliers = F, staplewidth = 1) + #, draw_quantiles = c(0.5)) +
-  stat_summary(fun = mean, geom = "point", shape = 18, size = 2, color = "blue") +
+  # stat_summary(fun = mean, geom = "point", shape = 18, size = 2, color = "blue") +
   ggh4x::facet_grid2(
     option ~ confounding_mechanism_reordered,
     scales = "free",           # allows different scales per row/col
