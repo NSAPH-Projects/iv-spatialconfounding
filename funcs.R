@@ -1,8 +1,10 @@
 # Function used to estimate the exposure-response curve
 ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
                    sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"),
-                   constrain = T, trim = 0.01,
-                   folds = NULL) {
+                   constrain = T, trim = 0.005,
+                   folds = NULL,
+                   y_full = NULL, a_full = NULL, x_full = NULL,
+                   folds_full = NULL, sub_rows = NULL) {
   # y is outcome
   # a is exposure
   # x is covariate matrix
@@ -42,12 +44,103 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # estimate nuisance functions via super learner
   # note: other methods could be used here instead
-  if (is.null(folds)) {
+
+  # Helper: run one cross-fitting pass on (y_cf, a_cf, x_cf) with given folds.
+  # Returns list(pihat, pihat.mat, muhat, muhat.mat) of length n_cf and n_cf x n.pts.
+  .crossfit <- function(y_cf, a_cf, x_cf, folds_cf) {
+    n_cf      <- length(a_cf)
+    K_cf      <- max(folds_cf)
+    pihat_cf     <- numeric(n_cf)
+    pihat_mat_cf <- matrix(NA_real_, n_cf, length(a.vals))
+    muhat_cf     <- numeric(n_cf)
+    muhat_mat_cf <- matrix(NA_real_, n_cf, length(a.vals))
+    cv2 <- list(V = 2L)
+
+    for (k in seq_len(K_cf)) {
+      tr   <- which(folds_cf != k)
+      ho   <- which(folds_cf == k)
+      n_ho <- length(ho)
+
+      x_tr  <- data.frame(x_cf[tr, , drop = FALSE])
+      xa_tr <- data.frame(cbind(x_cf[tr, , drop = FALSE], a = a_cf[tr]))
+      colnames(xa_tr) <- c(colnames(x_cf), "a")
+
+      # newX: all n_cf obs + held-out fold x a.vals grid
+      x_ho_grid  <- data.frame(x_cf[ho[rep(seq_len(n_ho), length(a.vals))], , drop = FALSE])
+      colnames(x_ho_grid) <- colnames(x_cf)
+      x_new_k    <- rbind(data.frame(x_cf), x_ho_grid)
+
+      xa_ho_grid <- data.frame(cbind(
+        x_cf[ho[rep(seq_len(n_ho), length(a.vals))], , drop = FALSE],
+        a = rep(a.vals, each = n_ho)
+      ))
+      colnames(xa_ho_grid) <- c(colnames(x_cf), "a")
+      xa_all_cf   <- data.frame(cbind(x_cf, a = a_cf))
+      colnames(xa_all_cf) <- c(colnames(x_cf), "a")
+      xa_new_k <- rbind(xa_all_cf, xa_ho_grid)
+
+      # cvControl = V=2 reduces SuperLearner's internal CV fold count, preventing
+      # GAM/glm.interaction from running out of residual df on the smaller fold samples.
+      pimod_k  <- SuperLearner(Y = a_cf[tr], X = x_tr, SL.library = sl.lib,
+                               newX = x_new_k, cvControl = cv2)
+      pi_k     <- pimod_k$SL.predict
+      pi2mod_k <- SuperLearner(Y = log(pmax((a_cf[tr] - pi_k[tr])^2, .Machine$double.eps)),
+                               X = x_tr, SL.library = sl.lib,
+                               newX = x_new_k, cvControl = cv2)
+      pi2_k    <- pmax(exp(pi2mod_k$SL.predict), 1e-4)
+      mumod_k  <- SuperLearner(Y = y_cf[tr], X = xa_tr, SL.library = sl.lib,
+                               newX = xa_new_k, cvControl = cv2)
+      mu_k     <- mumod_k$SL.predict
+
+      # Density of standardised residuals, estimated from training fold.
+      # Compute a_std_grid first so the density range covers both observed
+      # and grid values, preventing approx() from returning NA out-of-range.
+      a_std_k    <- (a_cf - pi_k[1:n_cf]) / sqrt(pi2_k[1:n_cf])
+      grid_idx   <- (n_cf + 1):(n_cf + n_ho * length(a.vals))
+      a_std_grid <- (rep(a.vals, each = n_ho) - pi_k[grid_idx]) / sqrt(pi2_k[grid_idx])
+      a_std_all  <- c(a_std_k, a_std_grid)
+      dens_k     <- density(a_std_k[tr], from = min(a_std_all), to = max(a_std_all))
+
+      pihat_cf[ho] <- approx(dens_k$x, dens_k$y, xout = a_std_k[ho], rule = 2)$y /
+                        sqrt(pi2_k[ho])
+      pihat_mat_cf[ho, ] <- matrix(
+        approx(dens_k$x, dens_k$y, xout = a_std_grid, rule = 2)$y / sqrt(pi2_k[grid_idx]),
+        nrow = n_ho, ncol = length(a.vals)
+      )
+      muhat_mat_cf[ho, ] <- matrix(mu_k[grid_idx], nrow = n_ho, ncol = length(a.vals))
+      muhat_cf[ho]       <- mu_k[ho]
+    }
+    pihat_cf <- pmax(pihat_cf, quantile(pihat_cf, trim))
+    list(pihat = pihat_cf, pihat.mat = pihat_mat_cf,
+         muhat = muhat_cf, muhat.mat = muhat_mat_cf)
+  }
+
+  if (!is.null(a_full) && !is.null(folds_full) && !is.null(sub_rows)) {
+    # Preferred path: cross-fit nuisances on the full dataset (n_full obs), then
+    # extract the subset rows for ERF fitting.  Estimating on all data rather than
+    # the truncated subset (a > cutoff - delta) gives larger training folds and
+    # avoids selection bias in the nuisance models.
+    cf <- .crossfit(y_full, a_full, data.frame(x_full), folds_full)
+    pihat     <- cf$pihat[sub_rows]
+    pihat.mat <- cf$pihat.mat[sub_rows, , drop = FALSE]
+    muhat     <- cf$muhat[sub_rows]
+    muhat.mat <- cf$muhat.mat[sub_rows, , drop = FALSE]
+
+  } else if (!is.null(folds)) {
+    # Fallback: cross-fit on the subset passed to ctseff.
+    # K-fold cross-fitting of nuisance functions (supplement Section 3, step 3d-e).
+    cf <- .crossfit(y, a, data.frame(x), folds)
+    pihat     <- cf$pihat
+    pihat.mat <- cf$pihat.mat
+    muhat     <- cf$muhat
+    muhat.mat <- cf$muhat.mat
+
+  } else {
     # In-sample estimation (used inside select_t and when folds not provided).
     pimod      <- SuperLearner(Y = a, X = data.frame(x), SL.library = sl.lib, newX = x.new)
     pimod.vals <- pimod$SL.predict
-    pi2mod     <- SuperLearner(Y = log((a - pimod.vals[1:n])^2), X = x,
-                               SL.library = sl.lib, newX = x.new)
+    pi2mod     <- SuperLearner(Y = log(pmax((a - pimod.vals[1:n])^2, .Machine$double.eps)),
+                               X = x, SL.library = sl.lib, newX = x.new)
     pi2mod.vals <- exp(pi2mod$SL.predict)
     mumod      <- SuperLearner(Y = y, X = cbind(x, a), SL.library = sl.lib, newX = xa.new)
     muhat.vals <- mumod$SL.predict
@@ -61,72 +154,14 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     pihat.mat  <- matrix(pihat.vals[-(1:n)], nrow = n, ncol = length(a.vals))
     muhat      <- muhat.vals[1:n]
     muhat.mat  <- matrix(muhat.vals[-(1:n)], nrow = n, ncol = length(a.vals))
-
-  } else {
-    # K-fold cross-fitting of nuisance functions (supplement Section 3, step 3d-e).
-    # For each fold k, pimod/mumod are trained on the other K-1 folds and
-    # predicted on the held-out fold, giving out-of-fold nuisance estimates.
-    K         <- max(folds)
-    pihat     <- numeric(n)
-    pihat.mat <- matrix(NA_real_, n, length(a.vals))
-    muhat     <- numeric(n)
-    muhat.mat <- matrix(NA_real_, n, length(a.vals))
-
-    for (k in seq_len(K)) {
-      tr   <- which(folds != k)
-      ho   <- which(folds == k)
-      n_ho <- length(ho)
-
-      x_tr  <- data.frame(x[tr, , drop = FALSE])
-      xa_tr <- data.frame(cbind(x[tr, , drop = FALSE], a = a[tr]))
-      colnames(xa_tr) <- c(colnames(x), "a")
-
-      # newX: all n obs (needed for density support from training residuals)
-      #       + held-out fold x a.vals grid (for pihat.mat, muhat.mat)
-      x_ho_grid  <- data.frame(x[ho[rep(seq_len(n_ho), length(a.vals))], , drop = FALSE])
-      colnames(x_ho_grid) <- colnames(x)
-      x_new_k    <- rbind(data.frame(x), x_ho_grid)
-
-      xa_ho_grid <- data.frame(cbind(
-        x[ho[rep(seq_len(n_ho), length(a.vals))], , drop = FALSE],
-        a = rep(a.vals, each = n_ho)
-      ))
-      colnames(xa_ho_grid) <- c(colnames(x), "a")
-      xa_all   <- data.frame(cbind(x, a = a))
-      colnames(xa_all) <- c(colnames(x), "a")
-      xa_new_k <- rbind(xa_all, xa_ho_grid)
-
-      pimod_k  <- SuperLearner(Y = a[tr], X = x_tr, SL.library = sl.lib, newX = x_new_k)
-      pi_k     <- pimod_k$SL.predict          # length n + n_ho*n.pts
-      pi2mod_k <- SuperLearner(Y = log((a[tr] - pi_k[tr])^2),
-                               X = x_tr, SL.library = sl.lib, newX = x_new_k)
-      pi2_k    <- exp(pi2mod_k$SL.predict)    # length n + n_ho*n.pts
-      mumod_k  <- SuperLearner(Y = y[tr], X = xa_tr, SL.library = sl.lib, newX = xa_new_k)
-      mu_k     <- mumod_k$SL.predict          # length n + n_ho*n.pts
-
-      # Density of standardised residuals, estimated from training fold
-      a_std_k  <- (a - pi_k[1:n]) / sqrt(pi2_k[1:n])
-      dens_k   <- density(a_std_k[tr], from = min(a_std_k), to = max(a_std_k))
-
-      # pihat at held-out observed values (out-of-fold)
-      pihat[ho] <- approx(dens_k$x, dens_k$y, xout = a_std_k[ho])$y / sqrt(pi2_k[ho])
-
-      # pihat.mat and muhat.mat at held-out fold x a.vals grid (out-of-fold)
-      grid_idx   <- (n + 1):(n + n_ho * length(a.vals))
-      a_std_grid <- (rep(a.vals, each = n_ho) - pi_k[grid_idx]) / sqrt(pi2_k[grid_idx])
-      pihat.mat[ho, ] <- matrix(
-        approx(dens_k$x, dens_k$y, xout = a_std_grid)$y / sqrt(pi2_k[grid_idx]),
-        nrow = n_ho, ncol = length(a.vals)
-      )
-      muhat.mat[ho, ] <- matrix(mu_k[grid_idx], nrow = n_ho, ncol = length(a.vals))
-      muhat[ho]       <- mu_k[ho]
-    }
-
-    pihat <- pmax(pihat, quantile(pihat, trim))
   }
 
   # construct varpi/m from pihat.mat and muhat.mat (common to both paths)
   varpihat     <- predict(smooth.spline(a.vals, apply(pihat.mat, 2, mean)), x = a)$y
+  # Smooth-spline extrapolates beyond a.vals and can go negative for observations
+  # with a >> max(a.vals). Clip from below at the same floor used for pihat so
+  # the ratio pihat/varpihat retains the correct sign and stays bounded.
+  varpihat     <- pmax(varpihat, quantile(pihat, trim))
   varpihat.mat <- matrix(rep(apply(pihat.mat, 2, mean), n), byrow = T, nrow = n)
   mhat         <- predict(smooth.spline(a.vals, apply(muhat.mat, 2, mean)), x = a)$y
   mhat.mat     <- matrix(rep(apply(muhat.mat, 2, mean), n), byrow = T, nrow = n)
@@ -159,10 +194,17 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   hatvals <- function(bw) {
     asubset = seq(min(a), max(a), length.out = 100)
-    approx(asubset, w.fn(bw, a.vals = asubset), xout = a)$y # sophie's change
+    wvals <- w.fn(bw, a.vals = asubset)
+    tryCatch(
+      approx(asubset, wvals, xout = a)$y, # sophie's change
+      error = function(e) rep(NA_real_, length(a))
+    )
   }
   cts.eff.fn <- function(out, bw) {
-    approx(locpoly(a, out, bandwidth = bw), xout = a)$y 
+    tryCatch(
+      approx(locpoly(a, out, bandwidth = bw), xout = a)$y,
+      error = function(e) rep(NA_real_, length(a))
+    )
   }
   # note: choice of bandwidth range depends on specific problem,
   # make sure to inspect plot of risk as function of bandwidth
@@ -171,6 +213,8 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     mean(((pseudo.out - cts.eff.fn(pseudo.out, bw = h)) / (1 - hats))^2)
   } 
   risk.est <- sapply(bw.seq, risk.fn)
+  if (mean(is.finite(risk.est)) < 0.5)
+    stop("bandwidth selection failed: fewer than half of bandwidths gave finite risk")
   h.opt <- bw.seq[which.min(risk.est)]
   bw.risk <- data.frame(bw = bw.seq, risk = risk.est)
   #print('calculated h.opt')
@@ -180,7 +224,12 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   #  bw.seq, tol=0.01)$minimum
   
   # estimate effect curve with optimal bandwidth
-  est <- approx(locpoly(a, pseudo.out, bandwidth = h.opt), xout = a.vals)$y
+  est <- tryCatch(
+    approx(locpoly(a, pseudo.out, bandwidth = h.opt), xout = a.vals)$y,
+    error = function(e) rep(NA_real_, length(a.vals))
+  )
+  est <- pmin(pmax(est, min(pseudo.out, na.rm = TRUE)), max(pseudo.out, na.rm = TRUE))
+
   #print('calculated est')
   
   phis <- list()
@@ -468,15 +517,15 @@ simfunc <- function(nsims,
                    confounding_mechanism,
                    option = c('linear', 'nonlinear'),
                    methods = c(
-                     'baseline',
-                     'oracle',
-                     'spatialcoord',
-                     'IV-TPS',
-                     'IV-GraphLaplacian',
-                     'IV-TPS-spatialcoord',
-                     'IV-GraphLaplacian-spatialcoord',
-                     'trueIV',
-                     'trueIV-spatialcoord'
+                     #'baseline',
+                     'oracle'#,
+                     # 'spatialcoord',
+                     # 'IV-TPS',
+                     # 'IV-GraphLaplacian',
+                     # 'IV-TPS-spatialcoord',
+                     # 'IV-GraphLaplacian-spatialcoord',
+                     # 'trueIV',
+                     # 'trueIV-spatialcoord'
                    ),
                    B_tps_full,
                    B_gl_full,
@@ -485,7 +534,7 @@ simfunc <- function(nsims,
                    cutoff = 0.5,
                    select_basis = TRUE,
                    n_cores = 1L,
-                   results_dir = "results_Mar27/")
+                   results_dir = "results_Mar29/")
 {
   # nsims is the number of simulations
   # lat is a vector of latitudes
@@ -761,16 +810,20 @@ simfunc <- function(nsims,
         sub_idx  <- which(a > cutoff - delta)
         xsub     <- matrix(xmat[sub_idx, , drop = FALSE], ncol = ncol(xmat))
         colnames(xsub) <- colnames(xmat)
-        folds_sub <- folds[sub_idx]
-        folds_sub <- match(folds_sub, sort(unique(folds_sub)))  # relabel to 1..K
         ctseff(
-          y     = y[sub_idx],
-          a     = a_sub,
-          x     = xsub,
-          n.pts = 5,
-          a.rng = c(cutoff - delta, cutoff + delta),
-          bw.seq = seq(sd(a_sub) / 10, sd(a_sub), length.out = 100),
-          folds  = folds_sub
+          y      = y[sub_idx],
+          a      = a_sub,
+          x      = xsub,
+          n.pts  = 5,
+          a.rng  = c(cutoff - delta, cutoff + delta),
+          bw.seq = seq(sd(a) / 10, sd(a), length.out = 100),
+          # Cross-fit nuisances on the full n obs (not just the a > cutoff-delta
+          # subset) for more stable and less biased nuisance estimation.
+          y_full     = y,
+          a_full     = a,
+          x_full     = xmat,
+          folds_full = folds,
+          sub_rows   = sub_idx
         )
       }, error = function(e) {
         message("Error encountered: ", e$message)
@@ -778,18 +831,22 @@ simfunc <- function(nsims,
       })
 
       # ---- estimate + CI ----
-      ix_cut <- which.min(abs(out$res$a.vals - cutoff))
-      muest <- (out$res$est[ix_cut] * mean(a > cutoff) +
-                  mean(y[a <= cutoff]) * mean(a <= cutoff)) / mean(y)
-      ci <- c(NA_real_, NA_real_)
+      muest <- NA_real_
+      ci    <- c(NA_real_, NA_real_)
       if (is.list(out)) {
+        ix_cut <- which.min(abs(out$res$a.vals - cutoff))
+        muest <- (out$res$est[ix_cut] * mean(a > cutoff) +
+                    mean(y[a <= cutoff]) * mean(a <= cutoff)) / mean(y)
         asym_var <- tryCatch(
           asymptotic_variance_delta(y = y, a = a, erfest = out,
-                                    cutoff = cutoff, delta = delta),
+                                    cutoff = cutoff, delta = delta,
+                                    distmat = distmat),
           error = function(e) NA_real_
         )
         se_est <- sqrt(as.numeric(asym_var) / n)
-        ci <- muest + c(-1, 1) * 1.96 * se_est
+        n_sub <- length(a_sub)
+        #ci <- muest + c(-1, 1) * 1.96 * se_est
+        ci <- muest + c(-1, 1) * qt(0.975, df = n_sub - 1) * se_est
       }
 
       list(muest  = muest,
@@ -1063,18 +1120,19 @@ compute_data_spatialcoord <- function(lat, long, nsims, distmat) {
   )
 }
 
-asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta){
+asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta, distmat,
+                                      hac_cutoff = 0.5){
   # Calculate parameters
   ix_cut <- which.min(abs(erfest$res$a.vals - cutoff))
   theta1 <- erfest$res$est[ix_cut]
   theta2 <- mean(a <= cutoff)
   theta3 <- mean(y[a <= cutoff])
   theta4 <- mean(y)
-  
+
   # Calculate estimated influence functions
   # phi1 comes from ctseff run on the n_sub-observation subset (a > cutoff - delta).
   # Padding with zeros dilutes its variance by n_sub/n; rescale by n/n_sub so that
-  # cov(phi1,...)/n correctly estimates Var(hat_theta1) = Var(phi1_Kennedy)/n_sub.
+  # Sigma_HAC/n correctly estimates Var(hat_theta1) = Var(phi1_Kennedy)/n_sub.
   n <- length(a)
   n_sub <- sum(a > cutoff - delta)
   phi1 <- rep(0, n)
@@ -1084,10 +1142,24 @@ asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta){
   phi3[a <= cutoff] <- (y[a <= cutoff] - mean(y[a <= cutoff])) / theta2
   phi3[a > cutoff] <- 0
   phi4 <- y - mean(y)
+
+  # Conley (1999) spatial HAC covariance matrix.
+  # Bartlett kernel: K(d/h) = max(0, 1 - d/h). hac_cutoff = 1.5 covers all
+  # county pairs in EPA region 6 (max dist ~1.5 units). Larger cutoffs hurt
+  # coverage: phi1 is zero for out-of-subset observations, so after centering
+  # the many (in-subset, out-of-subset) cross-products are net negative and
+  # dominate when given more weight.
+  # Sigma_HAC = (1/n) * t(phi_c) %*% W %*% phi_c  -->  se = sqrt(asym_var / n)
+  phi_mat <- cbind(phi1, phi2, phi3, phi4)
+  phi_c   <- sweep(phi_mat, 2, colMeans(phi_mat))
+  W       <- matrix(pmax(0, 1 - distmat / hac_cutoff), nrow(distmat), ncol(distmat))
+  Sigma   <- t(phi_c) %*% W %*% phi_c / n
   
-  # Calculate the 4 x 4 covariance matrix of the IFs
-  Sigma <- cov(cbind(phi1, phi2, phi3, phi4))
-  
+  # Just take Sigma as the covariance matrix of the influence function vector
+  # phi_mat <- cbind(phi1, phi2, phi3, phi4)
+  # phi_c   <- sweep(phi_mat, 2, colMeans(phi_mat))
+  # Sigma   <- cov(phi_c)
+
   # Calculate partial derivatives of (theta1(1-theta2) + theta3*theta2)/theta4
   grad <- c((1-theta2)/theta4,
             (-theta1 + theta3)/theta4,
