@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -c 8 # Request 8 cores for parallel processing
-#SBATCH -t 00-24:00:00 # Amount of time needed DD-HH:MM:SS
-#SBATCH -p shared # Partition to submit to
-#SBATCH --mem=6000 # Memory
+#SBATCH -t 00-10:00:00 # Amount of time needed DD-HH:MM:SS
+#SBATCH -p hsph # Partition to submit to
+#SBATCH --mem=12000 # Memory
 #SBATCH -o error.out #specify where to save errors returned by the program
 #SBATCH -e log.err #specify where to save the output log
 #SBATCH --mail-type=END #notifications for job done
