@@ -1,7 +1,7 @@
 # Function used to estimate the exposure-response curve
 ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
                    sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"),
-                   constrain = T, trim = 0.005,
+                   constrain = T, trim = 0.01,
                    folds = NULL,
                    y_full = NULL, a_full = NULL, x_full = NULL,
                    folds_full = NULL, sub_rows = NULL) {
@@ -229,7 +229,8 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
     error = function(e) rep(NA_real_, length(a.vals))
   )
   est <- pmin(pmax(est, min(pseudo.out, na.rm = TRUE)), max(pseudo.out, na.rm = TRUE))
-
+  # print(summary(est))
+  
   #print('calculated est')
   
   phis <- list()
@@ -282,13 +283,13 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # linear outcome model
   if (option == 'linear'){
     for (i in 1:nreps){
-      Ys[,i] <- rnorm(n, -0.5 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i], 1) 
+      Ys[,i] <- rnorm(n, -2 + (-1)*Us[,i] + As[,i] - 0.5*As[,i]*Us[,i], 1) 
     }
   }
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      eta <- -0.5 - 0.5*Us[,i] +
+      eta <- -2 - 0.5*Us[,i] +
         tanh(1.5*As[,i]) - 0.2*Us[,i]*tanh(As[,i]) + 
         0.1*tanh(As[,i])^2
       Ys[,i] <- rnorm(n, eta, 1)
@@ -416,6 +417,12 @@ make_spatial_folds <- function(lat, lon, K = 5L) {
   km$cluster
 }
 
+# Partition n observations into K random (non-spatial) folds.
+# Returns an integer vector of fold assignments (values 1..K).
+make_random_folds <- function(n, K = 5L) {
+  sample(rep_len(1:K, n))
+}
+
 # Sequential equivalence-based instrument selection (Supplement Algorithm 1).
 #
 # B_full  : n x m orthonormal basis, col 1 = largest scale, col m = smallest scale.
@@ -531,9 +538,10 @@ simfunc <- function(nsims,
                    B_gl_full,
                    statemat,
                    W = NULL,
-                   cutoff = 0.5,
+                   cutoff = 1,
                    select_basis = TRUE,
                    n_cores = 1L,
+                   spatial_folds = TRUE,
                    results_dir = "results_Mar29/")
 {
   # nsims is the number of simulations
@@ -579,12 +587,12 @@ simfunc <- function(nsims,
     Y   <- matrix(NA, n, nsims)
     if (option == 'linear'){
       for (i in 1:nsims){
-        Y[, i] <- rnorm(n, -0.5 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i], 1)
+        Y[, i] <- rnorm(n, -2 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i], 1)
       }
     }
     if (option == 'nonlinear'){
       for (i in 1:nsims){
-        eta <- -0.5 - 0.5*U1[,i] +
+        eta <- -2 - 0.5*U1[,i] +
           tanh(1.5*A[,i]) - 0.2*U2[,i]*tanh(A[,i]) +
           0.1*tanh(A[,i])^2
         Y[, i] <- rnorm(n, eta, 1)
@@ -594,8 +602,8 @@ simfunc <- function(nsims,
   # Mechanism 5: reversed-scale GP (B_uc is large-scale, B_c is small-scale)
   if (confounding_mechanism == 5){
     dat <- compute_data_GP(nsims = nsims, distmat = distmat,
-                           theta_B1uc = 0.80, theta_B2uc = 0.50,
-                           theta_B1c  = 0.10, theta_B2c  = 0.05)
+                           theta_B1uc = 0.50, theta_B2uc = 0.20,
+                           theta_B1c  = 0.05, theta_B2c  = 0.01)
   }
 
   if (confounding_mechanism == 2){
@@ -614,9 +622,9 @@ simfunc <- function(nsims,
   
   ################# FIT MODELS #################
 
-  # Pre-compute spatial folds once; used by select_t() for basis selection
+  # Pre-compute folds once; used by select_t() for basis selection
   # and by ctseff() for cross-fitting nuisance functions.
-  folds <- make_spatial_folds(lat, lon)
+  folds <- if (spatial_folds) make_spatial_folds(lat, lon) else make_random_folds(n)
 
   t_simfunc_start <- proc.time()["elapsed"]
 
@@ -835,6 +843,7 @@ simfunc <- function(nsims,
       ci    <- c(NA_real_, NA_real_)
       if (is.list(out)) {
         ix_cut <- which.min(abs(out$res$a.vals - cutoff))
+        # print(c(out$res$est[ix_cut], mean(a > cutoff), mean(y[a <= cutoff]), mean(a <= cutoff), mean(y)))
         muest <- (out$res$est[ix_cut] * mean(a > cutoff) +
                     mean(y[a <= cutoff]) * mean(a <= cutoff)) / mean(y)
         asym_var <- tryCatch(
@@ -845,8 +854,8 @@ simfunc <- function(nsims,
         )
         se_est <- sqrt(as.numeric(asym_var) / n)
         n_sub <- length(a_sub)
-        #ci <- muest + c(-1, 1) * 1.96 * se_est
-        ci <- muest + c(-1, 1) * qt(0.975, df = n_sub - 1) * se_est
+        ci <- muest + c(-1, 1) * 1.96 * se_est
+        #ci <- muest + c(-1, 1) * qt(0.975, df = n_sub - 1) * se_est
       }
 
       list(muest  = muest,
@@ -1021,9 +1030,9 @@ compute_Sigma_GP_2U <- function(distmat,
 #   Ac  = 1.0*B1_c  + 0.8*B2_c
 #   U   = rho1*B1_c + rho2*B2_c + Zu
 compute_data_GP <- function(nsims, distmat,
-                            theta_B1uc = 0.10, theta_B2uc = 0.05,
-                            theta_B1c  = 0.80, theta_B2c  = 0.50,
-                            theta_u    = 1.00,
+                            theta_B1uc = 0.05, theta_B2uc = 0.01,
+                            theta_B1c  = 0.50, theta_B2c  = 0.20,
+                            theta_u    = 0.80,
                             rho1 = 0.8, rho2 = 0.6,
                             kappa = 2) {
   n   <- nrow(distmat)
@@ -1050,9 +1059,9 @@ compute_data_GP <- function(nsims, distmat,
 #   U1 = rho1*B1_c + rho2*B2_c + Zu1  (Zu1 ~ GP(R(theta_u1)))
 #   U2 = rho3*B1_c + rho4*B2_c + Zu2  (Zu2 ~ GP(R(theta_u2)))
 compute_data_GP_2U <- function(nsims, distmat,
-                               theta_B1uc = 0.10, theta_B2uc = 0.05,
-                               theta_B1c  = 0.80, theta_B2c  = 0.50,
-                               theta_u1   = 0.50, theta_u2   = 0.30,
+                               theta_B1uc = 0.05, theta_B2uc = 0.01,
+                               theta_B1c  = 0.50, theta_B2c  = 0.20,
+                               theta_u1   = 0.80, theta_u2   = 0.30,
                                rho1 = 0.8, rho2 = 0.6,
                                rho3 = 0.5, rho4 = 0.4,
                                kappa = 2) {
@@ -1120,8 +1129,44 @@ compute_data_spatialcoord <- function(lat, long, nsims, distmat) {
   )
 }
 
+# Estimate the effective spatial range of the phi1 influence function for
+# adaptive HAC bandwidth selection. Uses the unpadded phi values for the
+# a > cutoff - delta subset to avoid the artificial autocorrelation created
+# by zero-padding (which would bias the range estimate upward).
+# Returns the first binned distance at which the empirical autocorrelation of
+# phi1 drops below `target` * var(phi1), or `dmax` if still correlated throughout.
+hac_adaptive_cutoff <- function(phi1_raw, sub_idx, distmat,
+                                 target = 0.05, n_bins = 15L, fallback = 0.05) {
+  ok <- !is.na(phi1_raw)
+  if (sum(ok) < 10L) return(fallback)
+
+  phi1_use <- phi1_raw[ok]
+  phi1_c   <- phi1_use - mean(phi1_use)
+  var0     <- var(phi1_c)
+  if (var0 < 1e-12) return(fallback)
+
+  sub_ok <- sub_idx[ok]
+  dsub   <- distmat[sub_ok, sub_ok]
+  ut     <- upper.tri(dsub)
+  dvec   <- dsub[ut]
+  cprod  <- outer(phi1_c, phi1_c)[ut]
+
+  pos_d  <- dvec[dvec > 0]
+  if (length(pos_d) == 0L) return(fallback)
+  dmax   <- quantile(pos_d, 0.8)
+  breaks <- seq(0, dmax, length.out = n_bins + 1L)
+  grp    <- findInterval(dvec, breaks, rightmost.closed = TRUE)
+
+  acov  <- tapply(cprod, grp, mean)
+  mid_d <- (breaks[-1] + breaks[-length(breaks)]) / 2
+
+  below <- which(!is.na(acov) & acov < target * var0)
+  if (length(below) == 0L) return(dmax)   # all bins still correlated
+  mid_d[min(below)]
+}
+
 asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta, distmat,
-                                      hac_cutoff = 0.5){
+                                      hac_cutoff = 3){
   # Calculate parameters
   ix_cut <- which.min(abs(erfest$res$a.vals - cutoff))
   theta1 <- erfest$res$est[ix_cut]
@@ -1143,18 +1188,26 @@ asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta, distmat,
   phi3[a > cutoff] <- 0
   phi4 <- y - mean(y)
 
+  # Adaptive HAC bandwidth: estimate the effective spatial range of phi1 from
+  # data. Mechanisms with long-range confounding produce phi1 values correlated
+  # over long distances -> larger cutoff -> larger SE. Short-range mechanisms
+  # produce rapidly-decaying phi1 autocorrelation -> smaller cutoff -> smaller
+  # SE. This prevents systematic over/under-coverage across mechanisms with
+  # different spatial scales. Pass an explicit hac_cutoff to override.
+  if (is.null(hac_cutoff)) {
+    sub_idx    <- which(a > cutoff - delta)
+    phi1_raw   <- erfest$phi[[ix_cut]]   # unpadded, unscaled
+    hac_cutoff <- hac_adaptive_cutoff(phi1_raw, sub_idx, distmat)
+  }
+
   # Conley (1999) spatial HAC covariance matrix.
-  # Bartlett kernel: K(d/h) = max(0, 1 - d/h). hac_cutoff = 1.5 covers all
-  # county pairs in EPA region 6 (max dist ~1.5 units). Larger cutoffs hurt
-  # coverage: phi1 is zero for out-of-subset observations, so after centering
-  # the many (in-subset, out-of-subset) cross-products are net negative and
-  # dominate when given more weight.
+  # Bartlett kernel: K(d/h) = max(0, 1 - d/h).
   # Sigma_HAC = (1/n) * t(phi_c) %*% W %*% phi_c  -->  se = sqrt(asym_var / n)
   phi_mat <- cbind(phi1, phi2, phi3, phi4)
   phi_c   <- sweep(phi_mat, 2, colMeans(phi_mat))
   W       <- matrix(pmax(0, 1 - distmat / hac_cutoff), nrow(distmat), ncol(distmat))
   Sigma   <- t(phi_c) %*% W %*% phi_c / n
-  
+
   # Just take Sigma as the covariance matrix of the influence function vector
   # phi_mat <- cbind(phi1, phi2, phi3, phi4)
   # phi_c   <- sweep(phi_mat, 2, colMeans(phi_mat))
