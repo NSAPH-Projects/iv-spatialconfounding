@@ -1,6 +1,6 @@
 # Function used to estimate the exposure-response curve
 ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
-                   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean"),
+                   sl.lib = c("SL.gam", "SL.glm", "SL.glm.interaction", "SL.mean", "SL.earth"),
                    constrain = T, trim = 0.01,
                    folds = NULL,
                    y_full = NULL, a_full = NULL, x_full = NULL,
@@ -12,7 +12,6 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   # a.rng is the range of exposure values to evaluate the ERF
   # n.pts is the number of points within a.rng at which to evaluate the ERF
   # sl.lib is the library of SuperLearner algorithms to use
-  # constrain is a boolean indicating whether pseudo-outcome is restricted to (min(Y), max(Y))
   # trim is the quantile at which to trim the density estimate to prevent extreme IPW weights
   # returns a list of two dataframes and a list
   
@@ -87,7 +86,9 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
       pi2mod_k <- SuperLearner(Y = log(pmax((a_cf[tr] - pi_k[tr])^2, .Machine$double.eps)),
                                X = x_tr, SL.library = sl.lib,
                                newX = x_new_k, cvControl = cv2)
-      pi2_k    <- pmax(exp(pi2mod_k$SL.predict), 1e-4)
+      pi2_k    <- pmax(pmin(exp(pi2mod_k$SL.predict),
+                           100 * var(a_cf[tr] - pi_k[tr])),
+                      1e-4)
       mumod_k  <- SuperLearner(Y = y_cf[tr], X = xa_tr, SL.library = sl.lib,
                                newX = xa_new_k, cvControl = cv2)
       mu_k     <- mumod_k$SL.predict
@@ -169,14 +170,11 @@ ctseff <- function(y, a, x, bw.seq, n.pts = 100, a.rng = c(min(a), max(a)),
   
   # form adjusted/pseudo outcome xi
   pseudo.out <- (y - muhat) / (pihat / varpihat) + mhat
-  # Keep unconstrained copy for influence function computation: clipping pseudo.out
-  # before computing phis shrinks the residuals and biases the variance downward.
   pseudo.out.if <- pseudo.out
   if (constrain){
     pseudo.out[pseudo.out > max(y)] <- max(y)
     pseudo.out[pseudo.out < min(y)] <- min(y)
   }
-
   #print('calculated pseudo.out')
   
   # leave-one-out cross-validation to select bandwidth
@@ -289,9 +287,7 @@ createY <- function(Us, As, option = c('linear', 'nonlinear')){
   # nonlinear outcome model
   if (option == 'nonlinear'){
     for (i in 1:nreps){
-      eta <- -2 - 0.5*Us[,i] +
-        tanh(1.5*As[,i]) - 0.2*Us[,i]*tanh(As[,i]) + 
-        0.1*tanh(As[,i])^2
+      eta <- -2 - Us[,i] + As[,i] - 0.4*As[,i]^2 - 0.25*Us[,i]*As[,i]
       Ys[,i] <- rnorm(n, eta, 1)
     }
   } 
@@ -336,7 +332,7 @@ plotfunc <- function(df, names, labels=names,
             legend.position = "bottom",
             legend.direction = "horizontal", 
             legend.text.align = 0.75,
-            legend.key.width = unit(100, "points"),
+            legend.key.width = unit(80, "points"),
             panel.grid.major = element_line(colour = "transparent"),
             legend.text = element_text(size = 20),
             legend.title = element_text(size = 25)
@@ -437,8 +433,9 @@ make_random_folds <- function(n, K = 5L) {
 # x_extra    : optional matrix of additional covariates (n x p); NULL if none.
 # delta_bw   : half-bandwidth for the local ERF window around cutoff.
 #
-# Returns an integer vector of length K: fold-specific selected instrument counts.
-select_t <- function(y, a, B_full, n_uc_star, n_uc_cands, alpha = 1.0,
+# Returns an integer vector of length K (all equal): globally selected instrument count
+# chosen by the one-SE rule on cross-fold variance of the psi path.
+select_t <- function(y, a, B_full, n_uc_star, n_uc_cands, alpha = 5.0,
                      folds, cutoff, x_extra = NULL, delta_bw = 0.05) {
   K       <- max(folds)
   m       <- ncol(B_full)
@@ -481,7 +478,7 @@ select_t <- function(y, a, B_full, n_uc_star, n_uc_cands, alpha = 1.0,
           x      = xsub,
           n.pts  = 5L,
           a.rng  = c(cutoff - delta_bw, cutoff + delta_bw),
-          bw.seq = seq(sd(a_sub) / 10, sd(a_sub), length.out = 50L)
+          bw.seq = seq(sd(a) / 10, sd(a), length.out = 50L)
         )
         ix <- which.min(abs(erf$res$a.vals - cutoff))
         (erf$res$est[ix] * mean(a_tr > cutoff) +
@@ -490,29 +487,38 @@ select_t <- function(y, a, B_full, n_uc_star, n_uc_cands, alpha = 1.0,
     }
   }
 
-  # For each fold k: select t_k using psi_by_fold[k, ] (estimated on training folds != k),
-  # with SE calibrated from the other K-1 folds' core estimates.
+  # Fold-specific one-SE rule (reference-based).
+  # For fold k, use only the OTHER K-1 rows of psi_by_fold to select n_uc_k.
+  # This ensures the selection for fold k is independent of fold k's data entirely
+  # (neither its holdout nor its training set), supporting valid post-selection inference.
+
+  # Guard: exclude candidates where Ac has too few columns (near-zero IV).
+  # n_uc_cands[n_cand] = m gives Ac with 0 columns and a degenerate (likely NA) psi.
+  min_cols_c <- max(5L, floor(0.02 * m))
+
   t_by_fold <- integer(K)
   for (k in seq_len(K)) {
-    other_core <- psi_by_fold[-k, 1L]
-    n_other    <- sum(!is.na(other_core))
-    se_k       <- if (n_other > 1L)
-                    sd(other_core, na.rm = TRUE) / sqrt(n_other)
-                  else
-                    sd(psi_by_fold[, 1L], na.rm = TRUE) / sqrt(K)
-    delta_k <- alpha * se_k
+    other       <- psi_by_fold[-k, , drop = FALSE]          # (K-1) x n_cand
+    psi_bar_k   <- colMeans(other, na.rm = TRUE)
+    psi_se_k    <- apply(other, 2L,
+                         function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x))))
 
-    t_k <- n_uc_cands[1L]
-    for (j in seq_len(n_cand - 1L)) {
-      d <- psi_by_fold[k, j + 1L] - psi_by_fold[k, j]
-      if (!is.na(d) && abs(d) < delta_k) {
-        t_k <- n_uc_cands[j + 1L]
-      } else {
-        break
-      }
+    valid_k <- which((m - n_uc_cands) >= min_cols_c & !is.na(psi_bar_k))
+    if (length(valid_k) == 0L) {
+      t_by_fold[k] <- n_uc_cands[1L]
+      next
     }
-    t_by_fold[k] <- t_k
-    print(paste0("fold ", k, ": selected n_uc = ", t_k))
+
+    ref_j_k     <- max(valid_k)
+    dist_k      <- abs(psi_bar_k - psi_bar_k[ref_j_k])
+    thr_k       <- alpha * psi_se_k[ref_j_k]
+
+    eligible_k  <- valid_k[dist_k[valid_k] <= thr_k]
+    j_star_k    <- if (length(eligible_k) > 0L) min(eligible_k) else ref_j_k
+    t_by_fold[k] <- n_uc_cands[j_star_k]
+
+    message(sprintf("select_t fold %d: ref_j=%d  n_uc_ref=%d  thr=%.4f  n_uc_sel=%d",
+                    k, ref_j_k, n_uc_cands[ref_j_k], thr_k, t_by_fold[k]))
   }
   t_by_fold
 }
@@ -524,15 +530,15 @@ simfunc <- function(nsims,
                    confounding_mechanism,
                    option = c('linear', 'nonlinear'),
                    methods = c(
-                     #'baseline',
-                     'oracle'#,
+                     # 'baseline',
+                      'oracle',
                      # 'spatialcoord',
-                     # 'IV-TPS',
-                     # 'IV-GraphLaplacian',
-                     # 'IV-TPS-spatialcoord',
-                     # 'IV-GraphLaplacian-spatialcoord',
                      # 'trueIV',
-                     # 'trueIV-spatialcoord'
+                     # 'trueIV-spatialcoord',
+                     'IV-TPS',
+                     'IV-GraphLaplacian'#,
+                     # 'IV-TPS-spatialcoord',
+                     # 'IV-GraphLaplacian-spatialcoord'
                    ),
                    B_tps_full,
                    B_gl_full,
@@ -541,8 +547,9 @@ simfunc <- function(nsims,
                    cutoff = 1,
                    select_basis = TRUE,
                    n_cores = 1L,
-                   spatial_folds = TRUE,
-                   results_dir = "results_Mar29/")
+                   spatial_folds = FALSE,
+                   results_dir = "results_Apr9/",
+                   iv_control = list())
 {
   # nsims is the number of simulations
   # lat is a vector of latitudes
@@ -551,8 +558,57 @@ simfunc <- function(nsims,
   # methods are the methods used to estimate truncated exposure effect
   # statemat is the matrix of state-level indicators
   # cutoff is c
-  # select_basis: if TRUE, use select_t() to choose n_uc; otherwise use floor(0.07*n)
+  # select_basis: if TRUE, use the manuscript selection rule; otherwise use a
+  # single fixed candidate containing 90% of the ordered basis elements.
   # results_dir: directory to write output CSVs
+
+  iv_defaults <- list(
+    alpha = 1,
+    density_trim = 0,
+    ipw_ratio_trim = 0,
+    core_fraction = 0.9,
+    step = 5L,
+    min_confounded = NULL,
+    fixed_n_uc_fraction = 0.9,
+    n_grid = 25L,
+    sl_library = c("SL.gam", "SL.glm", "SL.mean", "SL.glm.interaction"),
+    candidate_bandwidth = NULL,
+    candidate_bw_seq = NULL,
+    final_bandwidth = NULL,
+    final_bw_seq = NULL,
+    constrain = TRUE,
+    save_diagnostics = TRUE
+  )
+  if (!is.list(iv_control)) {
+    stop("iv_control must be a list.")
+  }
+  iv_control <- utils::modifyList(iv_defaults, iv_control)
+  iv_methods <- c(
+    "IV-TPS",
+    "IV-GraphLaplacian",
+    "IV-TPS-spatialcoord",
+    "IV-GraphLaplacian-spatialcoord"
+  )
+  required_estimator_functions <- "estimate_crossfit_truncated_effect"
+  if (any(methods %in% iv_methods)) {
+    required_estimator_functions <- c(
+      required_estimator_functions,
+      "make_candidate_grid",
+      "estimate_truncated_effect_candidate",
+      "estimate_selected_truncated_effect"
+    )
+  }
+  missing_estimator_functions <- required_estimator_functions[
+    !vapply(required_estimator_functions, exists, logical(1), mode = "function")
+  ]
+  if (length(missing_estimator_functions) > 0L) {
+      stop(
+        paste0(
+          "Source the manuscript-aligned R modules before simfunc(): ",
+          paste(missing_estimator_functions, collapse = ", ")
+        )
+      )
+  }
 
   confounding_mechanism <- as.integer(confounding_mechanism)
   option <- match.arg(option)
@@ -561,57 +617,70 @@ simfunc <- function(nsims,
   
   # Compute distance matrix
   distmat <- geosphere::distm(cbind(lon, lat), 
-                              fun = distHaversine)
+                              fun = geosphere::distHaversine)
   distmat <- distmat/1000000 # scale so range (0,2)
   n <- length(lat)
-  # Mechanism 1: baseline GP
+  # Mechanism 1: TPS-basis confounding (IV-TPS recovers Ac exactly)
   if (confounding_mechanism == 1){
-    dat <- compute_data_GP(nsims = nsims, distmat = distmat)
+    dat <- compute_data_TPS_basis(B_tps_full = B_tps_full, nsims = nsims)
   }
-  # Mechanism 3: within-state GP
+  # Mechanism 2: GL-basis confounding (IV-GraphLaplacian recovers Ac exactly)
+  if (confounding_mechanism == 2){
+    dat <- compute_data_GL_basis(B_gl_full = B_gl_full, nsims = nsims)
+  }
+  # Mechanism 3: two-confounder TPS-basis
   if (confounding_mechanism == 3){
-    dat <- compute_data_GP_state(nsims = nsims, distmat = distmat, statemat = statemat)
-  }
-  # Mechanism 6: coordinate-based nonlinear
-  if (confounding_mechanism == 6){
-    dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = nsims, distmat = distmat)
-  }
-  # Mechanism 4: two-confounder GP
-  if (confounding_mechanism == 4){
-    dat <- compute_data_GP_2U(nsims = nsims, distmat = distmat)
-    Ac  <- dat$Ac
-    Auc <- dat$Auc
-    U1  <- dat$U1
-    U2  <- dat$U2
+    dat <- compute_data_TPS_2U(B_tps_full = B_tps_full, nsims = nsims)
+    Ac  <- dat$Ac;  Auc <- dat$Auc;  U1 <- dat$U1;  U2 <- dat$U2
     A   <- Ac + Auc
     Y   <- matrix(NA, n, nsims)
     if (option == 'linear'){
-      for (i in 1:nsims){
+      for (i in 1:nsims)
         Y[, i] <- rnorm(n, -2 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i], 1)
-      }
     }
     if (option == 'nonlinear'){
       for (i in 1:nsims){
-        eta <- -2 - 0.5*U1[,i] +
-          tanh(1.5*A[,i]) - 0.2*U2[,i]*tanh(A[,i]) +
-          0.1*tanh(A[,i])^2
+        eta <- -2 - U1[,i] + A[,i] - 0.4*A[,i]^2 - 0.25*U1[,i]*A[,i] - 0.25*U2[,i]*A[,i]
         Y[, i] <- rnorm(n, eta, 1)
       }
     }
   }
-  # Mechanism 5: reversed-scale GP (B_uc is large-scale, B_c is small-scale)
-  if (confounding_mechanism == 5){
-    dat <- compute_data_GP(nsims = nsims, distmat = distmat,
-                           theta_B1uc = 0.50, theta_B2uc = 0.20,
-                           theta_B1c  = 0.05, theta_B2c  = 0.01)
+  # Mechanism 4: reversed-scale TPS (confounding in high-frequency TPS components)
+  if (confounding_mechanism == 4){
+    dat <- compute_data_TPS_reversed(B_tps_full = B_tps_full, nsims = nsims)
   }
-
-  if (confounding_mechanism == 2){
+  # Mechanism 5: bivariate Leroux CAR
+  if (confounding_mechanism == 5){
     stopifnot(!is.null(W))
     dat <- compute_data_leroux(W = W, nsims = nsims)
   }
+  # Mechanism 6: two-confounder GL-basis
+  if (confounding_mechanism == 6){
+    dat <- compute_data_GL_2U(B_gl_full = B_gl_full, nsims = nsims)
+    Ac  <- dat$Ac;  Auc <- dat$Auc;  U1 <- dat$U1;  U2 <- dat$U2
+    A   <- Ac + Auc
+    Y   <- matrix(NA, n, nsims)
+    if (option == 'linear'){
+      for (i in 1:nsims)
+        Y[, i] <- rnorm(n, -2 + (-1)*U1[,i] + A[,i] - 0.5*A[,i]*U1[,i] - 0.75*A[,i]*U2[,i], 1)
+    }
+    if (option == 'nonlinear'){
+      for (i in 1:nsims){
+        eta <- -2 - U1[,i] + A[,i] - 0.4*A[,i]^2 - 0.25*U1[,i]*A[,i] - 0.25*U2[,i]*A[,i]
+        Y[, i] <- rnorm(n, eta, 1)
+      }
+    }
+  }
+  # Mechanism 7: coordinate-based nonlinear
+  if (confounding_mechanism == 7){
+    dat <- compute_data_spatialcoord(lat = lat, long = lon, nsims = nsims, distmat = distmat)
+  }
+  # Mechanism 8: reversed-scale GL (confounding in high-frequency GL components)
+  if (confounding_mechanism == 8){
+    dat <- compute_data_GL_reversed(B_gl_full = B_gl_full, nsims = nsims)
+  }
 
-  if (confounding_mechanism != 4){
+  if (!confounding_mechanism %in% c(3, 6)){
     Ac <- dat$Ac
     Auc <- dat$Auc
     U <- dat$U
@@ -622,9 +691,15 @@ simfunc <- function(nsims,
   
   ################# FIT MODELS #################
 
-  # Pre-compute folds once; used by select_t() for basis selection
-  # and by ctseff() for cross-fitting nuisance functions.
+  # Normalize coordinates to [0,1] once; used by all spatialcoord methods so
+  # that SuperLearner splines operate on the same scale as the DGP basis functions.
+  lat_n_m <- (lat  - min(lat))  / (max(lat)  - min(lat))
+  lon_n_m <- (lon - min(lon)) / (max(lon) - min(lon))
+
+  # Pre-compute outer folds once. The default is the uniform random split in
+  # Supplement Algorithm 1; spatial folds remain available as a sensitivity run.
   folds <- if (spatial_folds) make_spatial_folds(lat, lon) else make_random_folds(n)
+  n_outer_folds <- length(unique(folds))
 
   t_simfunc_start <- proc.time()["elapsed"]
 
@@ -641,12 +716,124 @@ simfunc <- function(nsims,
 
       # ---- build xmat ----
       n_uc_sel <- NA_integer_
+      n_uc_folds <- rep(NA_integer_, n_outer_folds)
+      selection_diagnostics <- NULL
+      cor_Ac   <- NA_real_
+      y <- Y[, sim]
+      a <- A[, sim]
+
+      # The IV methods use the complete manuscript algorithm: fold-specific
+      # selection, training-only A^c projection, held-out pseudo-outcomes, and
+      # pooled doubly robust estimation. Non-IV methods continue through the
+      # legacy ctseff() path below.
+      if (method %in% iv_methods) {
+        B_method <- if (method %in% c("IV-TPS", "IV-TPS-spatialcoord")) {
+          B_tps_full
+        } else {
+          B_gl_full
+        }
+        x_extra <- if (method %in% c(
+          "IV-TPS-spatialcoord",
+          "IV-GraphLaplacian-spatialcoord"
+        )) {
+          out <- cbind(lat_n_m, lon_n_m)
+          colnames(out) <- c("Latitude", "Longitude")
+          out
+        } else {
+          NULL
+        }
+        instrument_scale <- if (confounding_mechanism %in% c(4L, 8L)) {
+          "large"
+        } else {
+          "small"
+        }
+        m <- ncol(B_method)
+        n_uc_cands <- if (select_basis) {
+          make_candidate_grid(
+            m = m,
+            core_fraction = iv_control$core_fraction,
+            step = iv_control$step,
+            min_confounded = iv_control$min_confounded
+          )
+        } else {
+          as.integer(floor(iv_control$fixed_n_uc_fraction * m))
+        }
+
+        iv_fit <- tryCatch(
+          estimate_selected_truncated_effect(
+            y = y,
+            a = a,
+            x = x_extra,
+            B = B_method,
+            cutoff = cutoff,
+            n_uc_cands = n_uc_cands,
+            outer_folds = folds,
+            alpha = iv_control$alpha,
+            density_trim = iv_control$density_trim,
+            ipw_ratio_trim = iv_control$ipw_ratio_trim,
+            instrument_scale = instrument_scale,
+            candidate_args = list(
+              nuisance_args = list(
+                sl_library = iv_control$sl_library,
+                density_trim = iv_control$density_trim
+              ),
+              n_grid = iv_control$n_grid,
+              bandwidth = iv_control$candidate_bandwidth,
+              bw_seq = iv_control$candidate_bw_seq,
+              constrain = iv_control$constrain,
+              density_trim = iv_control$density_trim,
+              ipw_ratio_trim = iv_control$ipw_ratio_trim
+            ),
+            final_nuisance_args = list(
+              sl_library = iv_control$sl_library,
+              density_trim = iv_control$density_trim
+            ),
+            n_grid = iv_control$n_grid,
+            bandwidth = iv_control$final_bandwidth,
+            bw_seq = iv_control$final_bw_seq,
+            constrain = iv_control$constrain
+          ),
+          error = function(e) {
+            message("Manuscript IV estimator error: ", e$message)
+            NULL
+          }
+        )
+
+        if (is.null(iv_fit)) {
+          return(list(
+            muest = NA_real_,
+            ci = c(NA_real_, NA_real_),
+            n_uc = NA_integer_,
+            n_uc_folds = n_uc_folds,
+            selection_diagnostics = NULL,
+            cor_Ac = NA_real_,
+            time_s = proc.time()["elapsed"] - t_sim_start
+          ))
+        }
+
+        n_uc_folds <- as.integer(iv_fit$selected_n_uc)
+        n_uc_sel <- as.integer(round(mean(n_uc_folds)))
+        selection_diagnostics <- iv_fit$selection_diagnostics
+        attr(selection_diagnostics, "final_diagnostics") <- iv_fit$diagnostics
+        attr(selection_diagnostics, "fold_summaries") <- iv_fit$fold_summaries
+        cor_Ac <- stats::cor(iv_fit$Ac_crossfit, Ac[, sim])
+        return(list(
+          muest = iv_fit$psi,
+          ci = iv_fit$confidence_interval,
+          n_uc = n_uc_sel,
+          n_uc_folds = n_uc_folds,
+          selection_diagnostics = selection_diagnostics,
+          cor_Ac = cor_Ac,
+          time_s = proc.time()["elapsed"] - t_sim_start
+        ))
+      }
+
       if (method == 'baseline'){
         xmat <- matrix(rep(1, n), ncol = 1)
         colnames(xmat) <- 'Intercept'
       }
       if (method == 'oracle'){
-        if (confounding_mechanism != 4){
+        if (!confounding_mechanism %in% c(3, 6)){
           xmat <- matrix(U[, sim], ncol = 1)
           colnames(xmat) <- 'U'
         } else {
@@ -655,212 +842,55 @@ simfunc <- function(nsims,
         }
       }
       if (method == 'spatialcoord'){
-        xmat <- cbind(lat, lon)
+        xmat <- cbind(lat_n_m, lon_n_m)
         colnames(xmat) <- c('Latitude', 'Longitude')
       }
-      if (method == 'IV-TPS'){
-        m      <- ncol(B_tps_full)
-        Ac_vec <- numeric(n)
-        if (select_basis) {
-          t_by_fold_k <- select_t(y = Y[, sim], a = A[, sim], B_full = B_tps_full,
-                                  n_uc_star  = floor(0.9 * n),
-                                  n_uc_cands = seq(floor(0.9 * n), m - 3L, by = 3L),
-                                  alpha = 1.0, folds = folds, cutoff = cutoff)
-          n_uc_sel <- round(mean(t_by_fold_k))
-          for (k in seq_len(max(folds))) {
-            ho     <- which(folds == k)
-            n_uc_k <- t_by_fold_k[k]
-            if (confounding_mechanism != 5) {
-              B_c_k  <- B_tps_full[, seq_len(m - n_uc_k), drop = FALSE]
-              Ac_vec[ho] <- drop(B_c_k[ho, , drop = FALSE] %*% (t(B_c_k) %*% A[, sim]))
-            } else {
-              B_uc_k <- B_tps_full[, seq(m - n_uc_k + 1L, m), drop = FALSE]
-              Ac_vec[ho] <- drop(B_uc_k[ho, , drop = FALSE] %*% (t(B_uc_k) %*% A[, sim]))
-            }
-          }
-        } else {
-          n_uc     <- floor(0.9 * n)
-          n_uc_sel <- n_uc
-          if (confounding_mechanism != 5) {
-            B_c    <- B_tps_full[, seq_len(m - n_uc), drop = FALSE]
-            Ac_vec <- drop(B_c %*% (t(B_c) %*% A[, sim]))
-          } else {
-            B_uc   <- B_tps_full[, seq(m - n_uc + 1L, m), drop = FALSE]
-            Ac_vec <- drop(B_uc %*% (t(B_uc) %*% A[, sim]))
-          }
-        }
-        xmat <- matrix(Ac_vec, ncol = 1)
-        colnames(xmat) <- if (confounding_mechanism != 5) 'Ac-TPS' else 'Ac-TPS-reverse'
-      }
-      if (method == 'IV-GraphLaplacian'){
-        m      <- ncol(B_gl_full)
-        Ac_vec <- numeric(n)
-        if (select_basis) {
-          t_by_fold_k <- select_t(y = Y[, sim], a = A[, sim], B_full = B_gl_full,
-                                  n_uc_star  = floor(0.9 * n),
-                                  n_uc_cands = seq(floor(0.9 * n), m - 3L, by = 3L),
-                                  alpha = 1.0, folds = folds, cutoff = cutoff)
-          n_uc_sel <- round(mean(t_by_fold_k))
-          for (k in seq_len(max(folds))) {
-            ho     <- which(folds == k)
-            n_uc_k <- t_by_fold_k[k]
-            if (confounding_mechanism != 5) {
-              B_c_k  <- B_gl_full[, seq_len(m - n_uc_k), drop = FALSE]
-              Ac_vec[ho] <- drop(B_c_k[ho, , drop = FALSE] %*% (t(B_c_k) %*% A[, sim]))
-            } else {
-              B_uc_k <- B_gl_full[, seq(m - n_uc_k + 1L, m), drop = FALSE]
-              Ac_vec[ho] <- drop(B_uc_k[ho, , drop = FALSE] %*% (t(B_uc_k) %*% A[, sim]))
-            }
-          }
-        } else {
-          n_uc     <- floor(0.9 * n)
-          n_uc_sel <- n_uc
-          if (confounding_mechanism != 5) {
-            B_c    <- B_gl_full[, seq_len(m - n_uc), drop = FALSE]
-            Ac_vec <- drop(B_c %*% (t(B_c) %*% A[, sim]))
-          } else {
-            B_uc   <- B_gl_full[, seq(m - n_uc + 1L, m), drop = FALSE]
-            Ac_vec <- drop(B_uc %*% (t(B_uc) %*% A[, sim]))
-          }
-        }
-        xmat <- matrix(Ac_vec, ncol = 1)
-        colnames(xmat) <- if (confounding_mechanism != 5) 'Ac-GraphLaplacian' else 'Ac-GraphLaplacian-reverse'
-      }
-      if (method == 'IV-TPS-spatialcoord'){
-        m      <- ncol(B_tps_full)
-        Ac_vec <- numeric(n)
-        if (select_basis) {
-          t_by_fold_k <- select_t(y = Y[, sim], a = A[, sim], B_full = B_tps_full,
-                                  n_uc_star  = floor(0.9 * n),
-                                  n_uc_cands = seq(floor(0.9 * n), m - 3L, by = 3L),
-                                  alpha = 1.0, folds = folds, cutoff = cutoff,
-                                  x_extra = cbind(lat, lon))
-          n_uc_sel <- round(mean(t_by_fold_k))
-          for (k in seq_len(max(folds))) {
-            ho     <- which(folds == k)
-            n_uc_k <- t_by_fold_k[k]
-            if (confounding_mechanism != 5) {
-              B_c_k  <- B_tps_full[, seq_len(m - n_uc_k), drop = FALSE]
-              Ac_vec[ho] <- drop(B_c_k[ho, , drop = FALSE] %*% (t(B_c_k) %*% A[, sim]))
-            } else {
-              B_uc_k <- B_tps_full[, seq(m - n_uc_k + 1L, m), drop = FALSE]
-              Ac_vec[ho] <- drop(B_uc_k[ho, , drop = FALSE] %*% (t(B_uc_k) %*% A[, sim]))
-            }
-          }
-        } else {
-          n_uc     <- floor(0.9 * n)
-          n_uc_sel <- n_uc
-          if (confounding_mechanism != 5) {
-            B_c    <- B_tps_full[, seq_len(m - n_uc), drop = FALSE]
-            Ac_vec <- drop(B_c %*% (t(B_c) %*% A[, sim]))
-          } else {
-            B_uc   <- B_tps_full[, seq(m - n_uc + 1L, m), drop = FALSE]
-            Ac_vec <- drop(B_uc %*% (t(B_uc) %*% A[, sim]))
-          }
-        }
-        Achat <- matrix(Ac_vec, ncol = 1)
-        xmat  <- cbind(Achat, lat, lon)
-        colnames(xmat) <- c(if (confounding_mechanism != 5) 'Ac-TPS' else 'Ac-TPS-reverse',
-                            'Latitude', 'Longitude')
-      }
-      if (method == 'IV-GraphLaplacian-spatialcoord'){
-        m      <- ncol(B_gl_full)
-        Ac_vec <- numeric(n)
-        if (select_basis) {
-          t_by_fold_k <- select_t(y = Y[, sim], a = A[, sim], B_full = B_gl_full,
-                                  n_uc_star  = floor(0.9 * n),
-                                  n_uc_cands = seq(floor(0.9 * n), m - 3L, by = 3L),
-                                  alpha = 1.0, folds = folds, cutoff = cutoff,
-                                  x_extra = cbind(lat, lon))
-          n_uc_sel <- round(mean(t_by_fold_k))
-          for (k in seq_len(max(folds))) {
-            ho     <- which(folds == k)
-            n_uc_k <- t_by_fold_k[k]
-            if (confounding_mechanism != 5) {
-              B_c_k  <- B_gl_full[, seq_len(m - n_uc_k), drop = FALSE]
-              Ac_vec[ho] <- drop(B_c_k[ho, , drop = FALSE] %*% (t(B_c_k) %*% A[, sim]))
-            } else {
-              B_uc_k <- B_gl_full[, seq(m - n_uc_k + 1L, m), drop = FALSE]
-              Ac_vec[ho] <- drop(B_uc_k[ho, , drop = FALSE] %*% (t(B_uc_k) %*% A[, sim]))
-            }
-          }
-        } else {
-          n_uc     <- floor(0.9 * n)
-          n_uc_sel <- n_uc
-          if (confounding_mechanism != 5) {
-            B_c    <- B_gl_full[, seq_len(m - n_uc), drop = FALSE]
-            Ac_vec <- drop(B_c %*% (t(B_c) %*% A[, sim]))
-          } else {
-            B_uc   <- B_gl_full[, seq(m - n_uc + 1L, m), drop = FALSE]
-            Ac_vec <- drop(B_uc %*% (t(B_uc) %*% A[, sim]))
-          }
-        }
-        Achat <- matrix(Ac_vec, ncol = 1)
-        xmat  <- cbind(Achat, lat, lon)
-        colnames(xmat) <- c(if (confounding_mechanism != 5) 'Ac-GraphLaplacian' else 'Ac-GraphLaplacian-reverse',
-                            'Latitude', 'Longitude')
-      }
       if (method == 'trueIV-spatialcoord'){
-        xmat <- cbind(matrix(Ac[, sim], ncol = 1), lat, lon)
-        colnames(xmat) <- c('Ac-TPS', 'Latitude', 'Longitude')
+        xmat <- cbind(matrix(Ac[, sim], ncol = 1), lat_n_m, lon_n_m)
+        colnames(xmat) <- c('Ac_TPS', 'Latitude', 'Longitude')
       }
       if (method == 'trueIV'){
         xmat <- matrix(Ac[, sim], ncol = 1)
-        colnames(xmat) <- 'Ac-TPS'
+        colnames(xmat) <- 'Ac_TPS'
       }
 
-      # ---- fit ERF ----
-      delta <- 0.05
-      y <- Y[, sim]
-      a <- A[, sim]
-      a_sub <- a[a > cutoff - delta]
-      out <- tryCatch({
-        sub_idx  <- which(a > cutoff - delta)
-        xsub     <- matrix(xmat[sub_idx, , drop = FALSE], ncol = ncol(xmat))
-        colnames(xsub) <- colnames(xmat)
-        ctseff(
-          y      = y[sub_idx],
-          a      = a_sub,
-          x      = xsub,
-          n.pts  = 5,
-          a.rng  = c(cutoff - delta, cutoff + delta),
-          bw.seq = seq(sd(a) / 10, sd(a), length.out = 100),
-          # Cross-fit nuisances on the full n obs (not just the a > cutoff-delta
-          # subset) for more stable and less biased nuisance estimation.
-          y_full     = y,
-          a_full     = a,
-          x_full     = xmat,
-          folds_full = folds,
-          sub_rows   = sub_idx
-        )
-      }, error = function(e) {
-        message("Error encountered: ", e$message)
-        NA
-      })
+      non_iv_fit <- tryCatch(
+        estimate_crossfit_truncated_effect(
+          y = y,
+          a = a,
+          w = xmat,
+          cutoff = cutoff,
+          outer_folds = folds,
+          density_trim = iv_control$density_trim,
+          ipw_ratio_trim = iv_control$ipw_ratio_trim,
+          final_nuisance_args = list(
+            sl_library = iv_control$sl_library,
+            density_trim = iv_control$density_trim
+          ),
+          n_grid = iv_control$n_grid,
+          bandwidth = iv_control$final_bandwidth,
+          bw_seq = iv_control$final_bw_seq,
+          constrain = iv_control$constrain
+        ),
+        error = function(e) {
+          message("Manuscript non-IV estimator error: ", e$message)
+          NULL
+        }
+      )
 
-      # ---- estimate + CI ----
-      muest <- NA_real_
-      ci    <- c(NA_real_, NA_real_)
-      if (is.list(out)) {
-        ix_cut <- which.min(abs(out$res$a.vals - cutoff))
-        # print(c(out$res$est[ix_cut], mean(a > cutoff), mean(y[a <= cutoff]), mean(a <= cutoff), mean(y)))
-        muest <- (out$res$est[ix_cut] * mean(a > cutoff) +
-                    mean(y[a <= cutoff]) * mean(a <= cutoff)) / mean(y)
-        asym_var <- tryCatch(
-          asymptotic_variance_delta(y = y, a = a, erfest = out,
-                                    cutoff = cutoff, delta = delta,
-                                    distmat = distmat),
-          error = function(e) NA_real_
-        )
-        se_est <- sqrt(as.numeric(asym_var) / n)
-        n_sub <- length(a_sub)
-        ci <- muest + c(-1, 1) * 1.96 * se_est
-        #ci <- muest + c(-1, 1) * qt(0.975, df = n_sub - 1) * se_est
+      muest <- if (is.null(non_iv_fit)) NA_real_ else non_iv_fit$psi
+      ci <- if (is.null(non_iv_fit)) {
+        c(NA_real_, NA_real_)
+      } else {
+        non_iv_fit$confidence_interval
       }
 
       list(muest  = muest,
            ci     = ci,
            n_uc   = n_uc_sel,
+           n_uc_folds = n_uc_folds,
+           selection_diagnostics = selection_diagnostics,
+           cor_Ac = cor_Ac,
            time_s = proc.time()["elapsed"] - t_sim_start)
 
     }, mc.cores = n_cores)
@@ -873,6 +903,19 @@ simfunc <- function(nsims,
     cis       <- do.call(rbind, lapply(results_list, safe, "ci",
                                        c(NA_real_, NA_real_)))
     n_uc_sels <- as.integer(sapply(results_list, safe, "n_uc", NA_integer_))
+    n_uc_by_fold <- do.call(rbind, lapply(
+      results_list,
+      safe,
+      field = "n_uc_folds",
+      default = rep(NA_integer_, n_outer_folds)
+    ))
+    selection_diagnostics <- lapply(
+      results_list,
+      safe,
+      field = "selection_diagnostics",
+      default = NULL
+    )
+    cor_Ac_sels <- sapply(results_list, safe, "cor_Ac", NA_real_)
     sim_times <- sapply(results_list, safe, "time_s", NA_real_)
 
     t_method_elapsed <- proc.time()["elapsed"] - t_method_start
@@ -937,6 +980,52 @@ simfunc <- function(nsims,
         write.csv(cbind(olddf_n_uc, df_n_uc), filename_n_uc, row.names = FALSE)
       } else {
         write.csv(df_n_uc, filename_n_uc, row.names = FALSE)
+      }
+
+      # Preserve the legacy mean-selection file above and additionally save the
+      # actual fold-specific selections required by the manuscript algorithm.
+      for (fold_index in seq_len(ncol(n_uc_by_fold))) {
+        filename_n_uc_fold <- paste0(
+          results_dir, 'conf', confounding_mechanism, '_', option, '_', method,
+          '_n_uc_fold', fold_index, '.csv'
+        )
+        df_n_uc_fold <- data.frame(n_uc = n_uc_by_fold[, fold_index])
+        if (file.exists(filename_n_uc_fold)) {
+          write.csv(
+            cbind(read.csv(filename_n_uc_fold), df_n_uc_fold),
+            filename_n_uc_fold,
+            row.names = FALSE
+          )
+        } else {
+          write.csv(df_n_uc_fold, filename_n_uc_fold, row.names = FALSE)
+        }
+      }
+
+      if (isTRUE(iv_control$save_diagnostics) &&
+          any(lengths(selection_diagnostics) > 0L)) {
+        diagnostic_tag <- paste0(
+          format(Sys.time(), "%Y%m%dT%H%M%S"), "_", Sys.getpid()
+        )
+        saveRDS(
+          selection_diagnostics,
+          file = paste0(
+            results_dir, 'conf', confounding_mechanism, '_', option, '_', method,
+            '_selection_diagnostics_', diagnostic_tag, '.rds'
+          )
+        )
+      }
+    }
+
+    # Save per-sim correlation between estimated Ac and true Ac (IV-TPS and IV-GL only)
+    if (any(!is.na(cor_Ac_sels))) {
+      filename_cor_Ac <- paste0(results_dir, 'conf', confounding_mechanism,
+                                '_', option, '_', method, '_cor_Ac.csv')
+      df_cor_Ac <- data.frame(cor_Ac = cor_Ac_sels)
+      if (file.exists(filename_cor_Ac)) {
+        write.csv(cbind(read.csv(filename_cor_Ac), df_cor_Ac),
+                  filename_cor_Ac, row.names = FALSE)
+      } else {
+        write.csv(df_cor_Ac, filename_cor_Ac, row.names = FALSE)
       }
     }
   }
@@ -1030,9 +1119,9 @@ compute_Sigma_GP_2U <- function(distmat,
 #   Ac  = 1.0*B1_c  + 0.8*B2_c
 #   U   = rho1*B1_c + rho2*B2_c + Zu
 compute_data_GP <- function(nsims, distmat,
-                            theta_B1uc = 0.05, theta_B2uc = 0.01,
-                            theta_B1c  = 0.50, theta_B2c  = 0.20,
-                            theta_u    = 0.80,
+                            theta_B1uc = 0.025, theta_B2uc = 0.01,
+                            theta_B1c  = 0.20, theta_B2c  = 0.10,
+                            theta_u    = 0.30,
                             rho1 = 0.8, rho2 = 0.6,
                             kappa = 2) {
   n   <- nrow(distmat)
@@ -1048,7 +1137,7 @@ compute_data_GP <- function(nsims, distmat,
   B2c  <- gp(geoR::matern(u = distmat, phi = phi(theta_B2c),  kappa = kappa))
   Zu   <- gp(geoR::matern(u = distmat, phi = phi(theta_u),    kappa = kappa))
   list(
-    Auc = 0.6 * B1uc + 0.4 * B2uc,
+    Auc = 1.1 * B1uc + 0.7 * B2uc,
     Ac  = 1.0 * B1c  + 0.8 * B2c,
     U   = rho1 * B1c + rho2 * B2c + Zu
   )
@@ -1059,9 +1148,9 @@ compute_data_GP <- function(nsims, distmat,
 #   U1 = rho1*B1_c + rho2*B2_c + Zu1  (Zu1 ~ GP(R(theta_u1)))
 #   U2 = rho3*B1_c + rho4*B2_c + Zu2  (Zu2 ~ GP(R(theta_u2)))
 compute_data_GP_2U <- function(nsims, distmat,
-                               theta_B1uc = 0.05, theta_B2uc = 0.01,
-                               theta_B1c  = 0.50, theta_B2c  = 0.20,
-                               theta_u1   = 0.80, theta_u2   = 0.30,
+                               theta_B1uc = 0.025, theta_B2uc = 0.01,
+                               theta_B1c  = 0.20, theta_B2c  = 0.10,
+                               theta_u1   = 0.30, theta_u2   = 0.20,
                                rho1 = 0.8, rho2 = 0.6,
                                rho3 = 0.5, rho4 = 0.4,
                                kappa = 2) {
@@ -1078,7 +1167,7 @@ compute_data_GP_2U <- function(nsims, distmat,
   Zu1  <- gp(geoR::matern(u = distmat, phi = phi(theta_u1),   kappa = kappa))
   Zu2  <- gp(geoR::matern(u = distmat, phi = phi(theta_u2),   kappa = kappa))
   list(
-    Auc = 0.6 * B1uc + 0.4 * B2uc,
+    Auc = 1.1 * B1uc + 0.7 * B2uc,
     Ac  = 1.0 * B1c  + 0.8 * B2c,
     U1  = rho1 * B1c + rho2 * B2c + Zu1,
     U2  = rho3 * B1c + rho4 * B2c + Zu2
@@ -1105,7 +1194,7 @@ compute_data_GP_state <- function(nsims, distmat, statemat) {
   return(out)
 }
 
-# Coordinate-based nonlinear mechanism (supplement Section 4.2, mechanism 6).
+# Coordinate-based nonlinear mechanism (supplement Section 4.2, mechanism 7).
 # U = sin(2*pi*lat*long) + lat + long  (deterministic, normalized coordinates)
 # B1_c = U, B2_c = 0;  B1_uc, B2_uc ~ independent GP fields
 # Auc = 0.6*B1_uc + 0.4*B2_uc
@@ -1114,18 +1203,25 @@ compute_data_spatialcoord <- function(lat, long, nsims, distmat) {
   n      <- length(lat)
   lat_n  <- (lat  - min(lat))  / (max(lat)  - min(lat))
   long_n <- (long - min(long)) / (max(long) - min(long))
-  U      <- sin(2 * pi * lat_n * long_n) + lat_n + long_n
-  phi    <- function(r, kappa = 2) r / (2 * sqrt(kappa))
+  # Coordinate basis functions (fixed in space)
+  f1 <- sin(pi * lat_n)
+  f2 <- cos(pi * long_n)
+  f3 <- lat_n * long_n
+  # Random coefficients per simulation -> U varies across sims
+  a1 <- rnorm(nsims); a2 <- rnorm(nsims); a3 <- rnorm(nsims)
+  U_raw <- outer(f1, a1) + outer(f2, a2) + outer(f3, a3)  # n x nsims
+  U <- sweep(U_raw, 2, colMeans(U_raw), "-")               # center each column
+  phi_fn <- function(r, kappa = 2) r / (2 * sqrt(kappa))
   gp     <- function(K) {
     s <- MASS::mvrnorm(nsims, rep(0, n), K)
     if (nsims == 1L) matrix(s, n, 1L) else t(s)
   }
-  B1uc  <- gp(geoR::matern(u = distmat, phi = phi(0.10), kappa = 2))
-  B2uc  <- gp(geoR::matern(u = distmat, phi = phi(0.05), kappa = 2))
+  B1uc  <- gp(geoR::matern(u = distmat, phi = phi_fn(0.10), kappa = 2))
+  B2uc  <- gp(geoR::matern(u = distmat, phi = phi_fn(0.05), kappa = 2))
   list(
-    Auc = 0.6 * B1uc + 0.4 * B2uc,
-    Ac  = matrix(U, n, nsims),   # 1.0*B1_c + 0.8*0, B1_c = U
-    U   = matrix(U, n, nsims)
+    Auc = 1.1 * B1uc + 0.7 * B2uc,
+    Ac  = U,
+    U   = U
   )
 }
 
@@ -1135,8 +1231,19 @@ compute_data_spatialcoord <- function(lat, long, nsims, distmat) {
 # by zero-padding (which would bias the range estimate upward).
 # Returns the first binned distance at which the empirical autocorrelation of
 # phi1 drops below `target` * var(phi1), or `dmax` if still correlated throughout.
+# Estimate the HAC bandwidth from the unpadded phi1 influence function values
+# (for the a > cutoff - delta subsample only, to avoid zero-padding artifacts).
+# Uses `target = 0`: finds the first distance bin where the empirical
+# spatial autocorrelation of phi1 turns NEGATIVE. This distinguishes:
+#   - Long-range positive processes (GP, mech 1/4): autocorrelation never goes
+#     negative -> returns max pairwise distance -> large h -> captures positive
+#     long-range correlations -> SE increases toward 0.95 from under-coverage.
+#   - CAR / within-state / deterministic processes (mech 2/3/6): negative
+#     autocorrelation appears at some intermediate distance -> h = that distance
+#     -> includes the negative long-range contributions -> HAC decreases -> SE
+#     decreases toward 0.95 from over-coverage.
 hac_adaptive_cutoff <- function(phi1_raw, sub_idx, distmat,
-                                 target = 0.05, n_bins = 15L, fallback = 0.05) {
+                                 target = 0, n_bins = 20L, fallback = 0.05) {
   ok <- !is.na(phi1_raw)
   if (sum(ok) < 10L) return(fallback)
 
@@ -1153,20 +1260,20 @@ hac_adaptive_cutoff <- function(phi1_raw, sub_idx, distmat,
 
   pos_d  <- dvec[dvec > 0]
   if (length(pos_d) == 0L) return(fallback)
-  dmax   <- quantile(pos_d, 0.8)
+  dmax   <- max(pos_d)              # use full range so negative bins aren't missed
   breaks <- seq(0, dmax, length.out = n_bins + 1L)
   grp    <- findInterval(dvec, breaks, rightmost.closed = TRUE)
 
   acov  <- tapply(cprod, grp, mean)
   mid_d <- (breaks[-1] + breaks[-length(breaks)]) / 2
 
-  below <- which(!is.na(acov) & acov < target * var0)
-  if (length(below) == 0L) return(dmax)   # all bins still correlated
+  below <- which(!is.na(acov) & acov < target)   # first bin with negative autocov
+  if (length(below) == 0L) return(dmax)           # never negative -> use full range
   mid_d[min(below)]
 }
 
 asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta, distmat,
-                                      hac_cutoff = 3){
+                                      hac_cutoff = NULL){
   # Calculate parameters
   ix_cut <- which.min(abs(erfest$res$a.vals - cutoff))
   theta1 <- erfest$res$est[ix_cut]
@@ -1194,24 +1301,20 @@ asymptotic_variance_delta <- function(y, a, erfest, cutoff, delta, distmat,
   # produce rapidly-decaying phi1 autocorrelation -> smaller cutoff -> smaller
   # SE. This prevents systematic over/under-coverage across mechanisms with
   # different spatial scales. Pass an explicit hac_cutoff to override.
-  if (is.null(hac_cutoff)) {
-    sub_idx    <- which(a > cutoff - delta)
-    phi1_raw   <- erfest$phi[[ix_cut]]   # unpadded, unscaled
-    hac_cutoff <- hac_adaptive_cutoff(phi1_raw, sub_idx, distmat)
-  }
+  # if (is.null(hac_cutoff)) {
+  #   sub_idx    <- which(a > cutoff - delta)
+  #   phi1_raw   <- erfest$phi[[ix_cut]]   # unpadded, unscaled
+  #   hac_cutoff <- hac_adaptive_cutoff(phi1_raw, sub_idx, distmat)
+  # }
 
   # Conley (1999) spatial HAC covariance matrix.
   # Bartlett kernel: K(d/h) = max(0, 1 - d/h).
   # Sigma_HAC = (1/n) * t(phi_c) %*% W %*% phi_c  -->  se = sqrt(asym_var / n)
   phi_mat <- cbind(phi1, phi2, phi3, phi4)
   phi_c   <- sweep(phi_mat, 2, colMeans(phi_mat))
-  W       <- matrix(pmax(0, 1 - distmat / hac_cutoff), nrow(distmat), ncol(distmat))
-  Sigma   <- t(phi_c) %*% W %*% phi_c / n
-
-  # Just take Sigma as the covariance matrix of the influence function vector
-  # phi_mat <- cbind(phi1, phi2, phi3, phi4)
-  # phi_c   <- sweep(phi_mat, 2, colMeans(phi_mat))
-  # Sigma   <- cov(phi_c)
+  # W       <- matrix(pmax(0, 1 - distmat / hac_cutoff), nrow(distmat), ncol(distmat))
+  # Sigma   <- t(phi_c) %*% W %*% phi_c / n
+  Sigma   <- cov(phi_c)
 
   # Calculate partial derivatives of (theta1(1-theta2) + theta3*theta2)/theta4
   grad <- c((1-theta2)/theta4,
@@ -1256,7 +1359,7 @@ rleroux_bivariate <- function(W, rho_sp, tau_sp, R){
   list(phi1 = X[1:n], phi2 = X[(n+1):(2*n)])
 }
 
-# Bivariate Leroux CAR mechanism (supplement Section 4.2, mechanism 2).
+# Bivariate Leroux CAR mechanism (supplement Section 4.2, mechanism 5).
 #   (U, B1_c) ~ bivariate Leroux with rho_c=0.8, cross-corr 0.7
 #   B2_c ~ univariate Leroux(rho_c) independently
 #   B1_uc, B2_uc ~ univariate Leroux(rho_uc=0.1) independently
@@ -1264,7 +1367,7 @@ rleroux_bivariate <- function(W, rho_sp, tau_sp, R){
 compute_data_leroux <- function(W, nsims) {
   n      <- nrow(W)
   stopifnot(ncol(W) == n)
-  rho_c  <- 0.8
+  rho_c  <- 0.6
   rho_uc <- 0.1
   R_c    <- solve(matrix(c(1, 0.7, 0.7, 1), 2, 2))
   out <- list(Auc = matrix(NA_real_, n, nsims),
@@ -1279,8 +1382,195 @@ compute_data_leroux <- function(W, nsims) {
     B2uc_i <- rleroux_univariate(W = W, rho_sp = rho_uc)
     out$U[, i]   <- U_i
     out$Ac[, i]  <- 1.0 * B1c_i  + 0.8 * B2c_i
-    out$Auc[, i] <- 0.6 * B1uc_i + 0.4 * B2uc_i
+    out$Auc[, i] <- 1.1 * B1uc_i + 0.7 * B2uc_i
   }
   return(out)
 }
 
+# TPS-basis confounding mechanism (mechanism 1).
+# Ac and U are generated from the n_c lowest-frequency TPS eigenvectors;
+# Auc is generated from the remaining high-frequency TPS eigenvectors.
+# Because B_tps_full is orthonormal, the IV-TPS projection B_c %*% t(B_c) %*% A
+# recovers Ac exactly (Auc is orthogonal to Col(B_c) by construction).
+# Coefficients are scaled by sqrt(n/n_c) so each component has average
+# marginal variance ≈ 1, matching the GP mechanisms.
+#   Ac  = B_c  %*% (sc_c  * a1)
+#   Auc = B_uc %*% (sc_uc * au)
+#   U   = B_c  %*% (sc_c  * (rho1*a1 + rho2*a2))
+compute_data_TPS_basis <- function(B_tps_full, nsims,
+                                   n_c  = NULL,
+                                   rho1 = 0.8, rho2 = 0.6) {
+  n   <- nrow(B_tps_full)
+  m   <- ncol(B_tps_full)
+  if (is.null(n_c)) n_c <- m - floor(0.9 * n)
+  n_uc <- m - n_c
+  B_c  <- B_tps_full[, seq_len(n_c),      drop = FALSE]
+  B_uc <- B_tps_full[, seq(n_c + 1L, m), drop = FALSE]
+  sc_c  <- sqrt(n / n_c)
+  sc_uc <- sqrt(n / n_uc)
+  Ac  <- matrix(NA_real_, n, nsims)
+  Auc <- matrix(NA_real_, n, nsims)
+  U   <- matrix(NA_real_, n, nsims)
+  for (i in seq_len(nsims)) {
+    a1 <- rnorm(n_c);  a2 <- rnorm(n_c);  au <- rnorm(n_uc)
+    Ac[, i]  <- B_c  %*% (sc_c  * a1)
+    Auc[, i] <- B_uc %*% (sc_uc * au)
+    U[, i]   <- B_c  %*% (sc_c  * (rho1 * a1 + rho2 * a2))
+  }
+  list(Ac = Ac, Auc = Auc, U = U)
+}
+
+# GL-basis confounding mechanism (mechanism 2).
+# Identical structure to mechanism 1 but using the Graph Laplacian eigenvectors
+# instead of TPS eigenvectors.  IV-GraphLaplacian recovers Ac exactly.
+compute_data_GL_basis <- function(B_gl_full, nsims,
+                                  n_c  = NULL,
+                                  rho1 = 0.8, rho2 = 0.6) {
+  n   <- nrow(B_gl_full)
+  m   <- ncol(B_gl_full)
+  if (is.null(n_c)) n_c <- m - floor(0.9 * n)
+  n_uc <- m - n_c
+  B_c  <- B_gl_full[, seq_len(n_c),      drop = FALSE]
+  B_uc <- B_gl_full[, seq(n_c + 1L, m), drop = FALSE]
+  sc_c  <- sqrt(n / n_c)
+  sc_uc <- sqrt(n / n_uc)
+  Ac  <- matrix(NA_real_, n, nsims)
+  Auc <- matrix(NA_real_, n, nsims)
+  U   <- matrix(NA_real_, n, nsims)
+  for (i in seq_len(nsims)) {
+    a1 <- rnorm(n_c);  a2 <- rnorm(n_c);  au <- rnorm(n_uc)
+    Ac[, i]  <- B_c  %*% (sc_c  * a1)
+    Auc[, i] <- B_uc %*% (sc_uc * au)
+    U[, i]   <- B_c  %*% (sc_c  * (rho1 * a1 + rho2 * a2))
+  }
+  list(Ac = Ac, Auc = Auc, U = U)
+}
+
+# Two-confounder TPS-basis mechanism (mechanism 3).
+# Two independent confounded "fields" B1_c, B2_c are drawn from the low-frequency
+# TPS subspace; Auc from the high-frequency TPS subspace.
+# U1 and U2 are each correlated with both B1_c and B2_c via different weights,
+# mirroring compute_data_GP_2U but using TPS projections instead of GP fields.
+# IV-TPS recovers Ac exactly (Ac in Col(B_c), Auc orthogonal to Col(B_c)).
+compute_data_TPS_2U <- function(B_tps_full, nsims,
+                                n_c  = NULL,
+                                rho1 = 0.8, rho2 = 0.6,
+                                rho3 = 0.5, rho4 = 0.4) {
+  n   <- nrow(B_tps_full)
+  m   <- ncol(B_tps_full)
+  if (is.null(n_c)) n_c <- m - floor(0.9 * n)
+  n_uc <- m - n_c
+  B_c  <- B_tps_full[, seq_len(n_c),      drop = FALSE]
+  B_uc <- B_tps_full[, seq(n_c + 1L, m), drop = FALSE]
+  sc_c  <- sqrt(n / n_c)
+  sc_uc <- sqrt(n / n_uc)
+  Ac  <- matrix(NA_real_, n, nsims)
+  Auc <- matrix(NA_real_, n, nsims)
+  U1  <- matrix(NA_real_, n, nsims)
+  U2  <- matrix(NA_real_, n, nsims)
+  for (i in seq_len(nsims)) {
+    a1  <- rnorm(n_c);  a2  <- rnorm(n_c)
+    au1 <- rnorm(n_c);  au2 <- rnorm(n_c)
+    auc <- rnorm(n_uc)
+    B1c <- B_c %*% (sc_c * a1)
+    B2c <- B_c %*% (sc_c * a2)
+    Ac[, i]  <- 1.0 * B1c + 0.8 * B2c
+    Auc[, i] <- B_uc %*% (sc_uc * auc)
+    U1[, i]  <- rho1 * B1c + rho2 * B2c + B_c %*% (sc_c * au1)
+    U2[, i]  <- rho3 * B1c + rho4 * B2c + B_c %*% (sc_c * au2)
+  }
+  list(Ac = Ac, Auc = Auc, U1 = U1, U2 = U2)
+}
+
+# Two-confounder GL-basis mechanism (mechanism 6).
+# Identical structure to mechanism 3 but using Graph Laplacian eigenvectors.
+# IV-GraphLaplacian recovers Ac exactly.
+compute_data_GL_2U <- function(B_gl_full, nsims,
+                               n_c  = NULL,
+                               rho1 = 0.8, rho2 = 0.6,
+                               rho3 = 0.5, rho4 = 0.4) {
+  n   <- nrow(B_gl_full)
+  m   <- ncol(B_gl_full)
+  if (is.null(n_c)) n_c <- m - floor(0.9 * n)
+  n_uc <- m - n_c
+  B_c  <- B_gl_full[, seq_len(n_c),      drop = FALSE]
+  B_uc <- B_gl_full[, seq(n_c + 1L, m), drop = FALSE]
+  sc_c  <- sqrt(n / n_c)
+  sc_uc <- sqrt(n / n_uc)
+  Ac  <- matrix(NA_real_, n, nsims)
+  Auc <- matrix(NA_real_, n, nsims)
+  U1  <- matrix(NA_real_, n, nsims)
+  U2  <- matrix(NA_real_, n, nsims)
+  for (i in seq_len(nsims)) {
+    a1  <- rnorm(n_c);  a2  <- rnorm(n_c)
+    au1 <- rnorm(n_c);  au2 <- rnorm(n_c)
+    auc <- rnorm(n_uc)
+    B1c <- B_c %*% (sc_c * a1)
+    B2c <- B_c %*% (sc_c * a2)
+    Ac[, i]  <- 1.0 * B1c + 0.8 * B2c
+    Auc[, i] <- B_uc %*% (sc_uc * auc)
+    U1[, i]  <- rho1 * B1c + rho2 * B2c + B_c %*% (sc_c * au1)
+    U2[, i]  <- rho3 * B1c + rho4 * B2c + B_c %*% (sc_c * au2)
+  }
+  list(Ac = Ac, Auc = Auc, U1 = U1, U2 = U2)
+}
+
+# Reversed-scale TPS mechanism (mechanism 4).
+# Same confounded/unconfounded proportions as compute_data_TPS_basis (a small
+# n_c-sized confounded block, ~10% of the basis), but Ac and U now live in the
+# HIGH-frequency (small-scale, last n_c columns) subspace instead of the
+# low-frequency (first n_c columns) subspace, and Auc lives in the remaining
+# low-frequency columns. This matches the instrument_scale = "large" partition
+# used at estimation time (partition_basis_columns(): confounded = last n_uc
+# columns' complement, i.e. the high-frequency tail), so IV-TPS with the
+# reversed-scale flip applied should recover Ac about as well as it recovers
+# Ac under compute_data_TPS_basis for the standard (non-reversed) mechanism.
+compute_data_TPS_reversed <- function(B_tps_full, nsims,
+                                      n_c  = NULL,
+                                      rho1 = 0.8, rho2 = 0.6) {
+  n    <- nrow(B_tps_full)
+  m    <- ncol(B_tps_full)
+  if (is.null(n_c)) n_c <- m - floor(0.9 * n)  # small confounded count
+  n_uc <- m - n_c                             # large instrument count
+  B_c  <- B_tps_full[, seq(n_uc + 1L, m), drop = FALSE]  # last n_c cols (high-freq): confounded
+  B_uc <- B_tps_full[, seq_len(n_uc),     drop = FALSE]  # first n_uc cols (low-freq): instruments
+  sc_c  <- sqrt(n / n_c)
+  sc_uc <- sqrt(n / n_uc)
+  Ac  <- matrix(NA_real_, n, nsims)
+  Auc <- matrix(NA_real_, n, nsims)
+  U   <- matrix(NA_real_, n, nsims)
+  for (i in seq_len(nsims)) {
+    a1 <- rnorm(n_c);  a2 <- rnorm(n_c);  au <- rnorm(n_uc)
+    Ac[, i]  <- B_c  %*% (sc_c  * a1)
+    Auc[, i] <- B_uc %*% (sc_uc * au)
+    U[, i]   <- B_c  %*% (sc_c  * (rho1 * a1 + rho2 * a2))
+  }
+  list(Ac = Ac, Auc = Auc, U = U)
+}
+
+# Reversed-scale GL mechanism (mechanism 8).
+# Identical structure to compute_data_TPS_reversed but using Graph Laplacian
+# eigenvectors: a small, high-frequency confounded block (last n_c columns)
+# matching the instrument_scale = "large" partition at estimation time.
+compute_data_GL_reversed <- function(B_gl_full, nsims,
+                                     n_c  = NULL,
+                                     rho1 = 0.8, rho2 = 0.6) {
+  n    <- nrow(B_gl_full)
+  m    <- ncol(B_gl_full)
+  if (is.null(n_c)) n_c <- m - floor(0.9 * n)
+  n_uc <- m - n_c
+  B_c  <- B_gl_full[, seq(n_uc + 1L, m), drop = FALSE]
+  B_uc <- B_gl_full[, seq_len(n_uc),     drop = FALSE]
+  sc_c  <- sqrt(n / n_c)
+  sc_uc <- sqrt(n / n_uc)
+  Ac  <- matrix(NA_real_, n, nsims)
+  Auc <- matrix(NA_real_, n, nsims)
+  U   <- matrix(NA_real_, n, nsims)
+  for (i in seq_len(nsims)) {
+    a1 <- rnorm(n_c);  a2 <- rnorm(n_c);  au <- rnorm(n_uc)
+    Ac[, i]  <- B_c  %*% (sc_c  * a1)
+    Auc[, i] <- B_uc %*% (sc_uc * au)
+    U[, i]   <- B_c  %*% (sc_c  * (rho1 * a1 + rho2 * a2))
+  }
+  list(Ac = Ac, Auc = Auc, U = U)
+}
