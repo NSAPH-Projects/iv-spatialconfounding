@@ -27,35 +27,35 @@ uscounties <- uscounties %>% filter(!STATEFP10 %in% c('02', '15', '72'))
 # Add EPA regions
 # source https://www.epa.gov/aboutepa/regional-and-geographic-offices
 states <- c('CT', 'ME', 'MA', 'NH', 'RI', 'VT', 
-           'NY', 'NJ', 'PR', 'VI', 
-           'DE', 'DC', 'MD', 'PA', 'VA', 'WV', 
-           'AL', 'FL', 'GA', 'KY', 'MS', 'NC', 'SC', 'TN', 
-           'IL', 'IN', 'MI', 'MN', 'OH', 'WI', 
-           'AR', 'LA', 'NM', 'OK', 'TX', 
-           'IA', 'KS', 'MO', 'NE', 
-           'CO', 'MT', 'ND', 'SD', 'UT', 'WY', 
-           'AZ', 'CA', 'HI', 'NV', 
-           'AK', 'ID', 'OR', 'WA')
+            'NY', 'NJ', 'PR', 'VI', 
+            'DE', 'DC', 'MD', 'PA', 'VA', 'WV', 
+            'AL', 'FL', 'GA', 'KY', 'MS', 'NC', 'SC', 'TN', 
+            'IL', 'IN', 'MI', 'MN', 'OH', 'WI', 
+            'AR', 'LA', 'NM', 'OK', 'TX', 
+            'IA', 'KS', 'MO', 'NE', 
+            'CO', 'MT', 'ND', 'SD', 'UT', 'WY', 
+            'AZ', 'CA', 'HI', 'NV', 
+            'AK', 'ID', 'OR', 'WA')
 statefps  <- c('09', '23', '25', '33', '44', '50', 
-              '36', '34', '72', '78', 
-              '10', '11', '24', '42', '51', '54', 
-              '01', '12', '13', '21', '28', '37', '45', '47', 
-              '17', '18', '26', '27', '39', '55', 
-              '05', '22', '35', '40', '48', 
-              '19', '20', '29', '31', 
-              '08', '30', '38', '46', '56', '49', 
-              '04', '06', '15', '32', 
-              '02', '16', '41', '53')
+               '36', '34', '72', '78', 
+               '10', '11', '24', '42', '51', '54', 
+               '01', '12', '13', '21', '28', '37', '45', '47', 
+               '17', '18', '26', '27', '39', '55', 
+               '05', '22', '35', '40', '48', 
+               '19', '20', '29', '31', 
+               '08', '30', '38', '46', '56', '49', 
+               '04', '06', '15', '32', 
+               '02', '16', '41', '53')
 regions <- c(rep(1,6),
-            rep(2,4),
-            rep(3,6),
-            rep(4,8),
-            rep(5,6),
-            rep(6,5),
-            rep(7,4),
-            rep(8,6),
-            rep(9,4),
-            rep(10,4))
+             rep(2,4),
+             rep(3,6),
+             rep(4,8),
+             rep(5,6),
+             rep(6,5),
+             rep(7,4),
+             rep(8,6),
+             rep(9,4),
+             rep(10,4))
 region_data <- data.frame(State = states, STATEFP = statefps, Region = regions)
 uscounties <- left_join(uscounties, region_data, by = c('STATEFP10' = 'STATEFP'))
 
@@ -69,7 +69,7 @@ n <- nrow(uscounties)
 lat <- as.numeric(uscounties$INTPTLAT10)
 lon <- as.numeric(uscounties$INTPTLON10)
 distmat <- geosphere::distm(cbind(lon, lat), 
-                 fun = distHaversine)
+                            fun = distHaversine)
 # scale distance matrix so range is between (0,2)
 distmat <- distmat/1000000
 
@@ -84,231 +84,129 @@ adjmat <- (adjmat + t(adjmat)) > 0
 
 # Graph Laplacian
 L <- diag(rowSums(adjmat)) - adjmat
-E <- eigen(L)
-num_vec_remove <- floor(0.07*n)
-# small scale (large eigenvalue) eigenvectors
-GFT <- E$vectors[,1:(n-num_vec_remove)]
-# large scale (small eigenvalue) eigenvectors 
-GFT_conf <- E$vectors[,(n-num_vec_remove+1):n]
+
+# Build ordered GL and TPS bases (largest scale in col 1, smallest in col n).
+# These are passed to simfunc() and used for basis projection.
+B_gl_full  <- build_gl_basis(adjmat)
+B_tps_full <- build_tps_basis(lat, lon)
 
 # Indicator matrix for states
 statemat <- model.matrix(~-1 + State, data = uscounties)
 
 # Save simulation data
 simlist <- list(
-  'lat' = lat,
-  'lon' = lon,
-  'GFT_conf' = GFT_conf,
-  'statemat' = statemat,
-  'E' = E,
-  'W' = adjmat
+  'lat'        = lat,
+  'lon'        = lon,
+  'B_tps_full' = B_tps_full,
+  'B_gl_full'  = B_gl_full,
+  'statemat'   = statemat,
+  'W'          = adjmat
 )
 save(simlist, 
      file = 'sim.RData')
 
-####################### Plot data on maps from 3 confounding mechanisms. #########################
+####################### Plot data on maps for each confounding mechanism. #########################
 
 set.seed(33)
 
-# FIRST Confounding mechanism 
-Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                    rangeu = 0.01, 
-                    rangec = 0.5)
-dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
-Ac <- dat$Ac 
-Auc <- dat$Auc
-U <- dat$U
-A <- Ac + Auc
-uscounties$A <- A
-uscounties$Ac <- Ac
-uscounties$Auc <- Auc
-uscounties$U <- U
+# Helper: extract vector column from nsims=1 output
+col1 <- function(x) x[, 1]
+
+# MECHANISM 1: Baseline GP
+dat <- compute_data_GP(nsims = 1, distmat = distmat)
+uscounties$Auc <- col1(dat$Auc)
+uscounties$Ac  <- col1(dat$Ac)
+uscounties$U   <- col1(dat$U)
+uscounties$A   <- uscounties$Ac + uscounties$Auc
 gs1 <- plotfunc(
   uscounties,
   c('A', 'Auc', 'Ac', 'U'),
-  c(
-    'Exposure A',
-    'Unconfounded Exposure Auc',
-    'Confounded Exposure Ac',
-    'Unmeasured Confounder U'
-  ),
-  xlimits = c(-115,-85),
-  ylimits = c(25,40)
+  c('Exposure A', 'Instrumental variation Auc', 'Non-instrumental variation Ac', 'Confounder U'),
+  xlimits = c(-115,-85), ylimits = c(25,40)
 )
 
-# SECOND confounding mechanism
-Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                            rangeu = 0.05, 
-                            rangec = 0.5)
-dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
-Ac <- dat$Ac 
-Auc <- dat$Auc
-U <- dat$U
-A <- Ac + Auc
-uscounties$A <- A
-uscounties$Ac <- Ac
-uscounties$Auc <- Auc
-uscounties$U <- U
+# MECHANISM 2: Bivariate Leroux CAR
+dat <- compute_data_leroux(W = adjmat, nsims = 1)
+uscounties$Auc <- col1(dat$Auc)
+uscounties$Ac  <- col1(dat$Ac)
+uscounties$U   <- col1(dat$U)
+uscounties$A   <- uscounties$Ac + uscounties$Auc
 gs2 <- plotfunc(
   uscounties,
   c('A', 'Auc', 'Ac', 'U'),
-  c(
-    '',
-    '',
-    '',
-    ''
-  ),
-  xlimits = c(-115,-85),
-  ylimits = c(25,40)
+  c('', '', '', ''),
+  xlimits = c(-115,-85), ylimits = c(25,40)
 )
 
-# THIRD confounding mechanism
-dat <- compute_data_GP_state(distmat = distmat,
-                            rangeu = 0.01, 
-                            rangec = 0.5,
-                            n = 1,
-                            statemat = statemat)
-Ac <- dat$Ac 
-Auc <- dat$Auc
-U <- dat$U
-A <- Ac + Auc
-uscounties$A <- A
-uscounties$Ac <- Ac
-uscounties$Auc <- Auc
-uscounties$U <- U
+# MECHANISM 3: Within-state GP
+dat <- compute_data_GP_state(nsims = 1, distmat = distmat, statemat = statemat)
+uscounties$Auc <- col1(dat$Auc)
+uscounties$Ac  <- col1(dat$Ac)
+uscounties$U   <- col1(dat$U)
+uscounties$A   <- uscounties$Ac + uscounties$Auc
 gs3 <- plotfunc(
   uscounties,
   c('A', 'Auc', 'Ac', 'U'),
-  c(
-    '',
-    '',
-    '',
-    ''
-  ),
-  xlimits = c(-115,-85),
-  ylimits = c(25,40)
+  c('', '', '', ''),
+  xlimits = c(-115,-85), ylimits = c(25,40)
 )
 
-# FOURTH confounding mechanism 
-dat <- compute_data_spatialcoord(lat = simlist$lat, long = simlist$lon, nsims = 1)
-Ac <- dat$Ac 
-Auc <- dat$Auc
-U <- dat$U
-A <- Ac + Auc
-uscounties$A <- A
-uscounties$Ac <- Ac
-uscounties$Auc <- Auc
-uscounties$U <- U
+# MECHANISM 4: Two-confounder GP
+dat <- compute_data_GP_2U(nsims = 1, distmat = distmat)
+uscounties$Auc <- col1(dat$Auc)
+uscounties$Ac  <- col1(dat$Ac)
+uscounties$U1  <- col1(dat$U1)
+uscounties$U2  <- col1(dat$U2)
+uscounties$A   <- uscounties$Ac + uscounties$Auc
 gs4 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac', 'U'),
-  c(
-    '',
-    '',
-    '',
-    ''
-  ),
-  xlimits = c(-115,-85),
-  ylimits = c(25,40)
+  c('A', 'Auc', 'Ac', 'U1', 'U2'),
+  c('', '', '', '', ''),
+  xlimits = c(-115,-85), ylimits = c(25,40)
 )
 
-# FIFTH confounding mechanism
-rangeu <- 0.01
-Sigma_GP <- compute_Sigma_GP_2U(distmat = distmat,
-                                kappa = 2,
-                                rangeu = rangeu,
-                                rangec = 0.5,
-                                rangez1 = 0.5,
-                                rangez2 = 0.3)
-dat <- compute_data_GP_2U(n = 1, Sigma_GP = Sigma_GP)
-Ac <- dat$Ac 
-Auc <- dat$Auc
-U1 <- dat$U1
-U2 <- dat$U2
-A <- Ac + Auc
-uscounties$A <- A
-uscounties$Ac <- Ac
-uscounties$Auc <- Auc
-uscounties$U1 <- U1
-uscounties$U2 <- U2
+# MECHANISM 5: Reversed-scale GP
+dat <- compute_data_GP(nsims = 1, distmat = distmat,
+                       theta_B1uc = 0.80, theta_B2uc = 0.50,
+                       theta_B1c  = 0.10, theta_B2c  = 0.05)
+uscounties$Auc <- col1(dat$Auc)
+uscounties$Ac  <- col1(dat$Ac)
+uscounties$U   <- col1(dat$U)
+uscounties$A   <- uscounties$Ac + uscounties$Auc
 gs5 <- plotfunc(
   uscounties,
-  c('A', 'Auc', 'Ac', 'U1', 'U2'),
-  c(
-    '',
-    '',
-    '',
-    '',
-    ''
-  ),
-  xlimits = c(-115,-85),
-  ylimits = c(25,40)
+  c('A', 'Auc', 'Ac', 'U'),
+  c('', '', '', ''),
+  xlimits = c(-115,-85), ylimits = c(25,40)
 )
 
-# SIXTH confounding mechanism
-rangeu <- 0.1
-Sigma_GP <- compute_Sigma_GP(distmat = distmat,
-                             rangeu = rangeu, 
-                             rangec = 0.01)
-dat <- compute_data_GP(n = 1, Sigma_GP = Sigma_GP)
-Ac <- dat$Ac 
-Auc <- dat$Auc
-U <- dat$U
-A <- Ac + Auc
-uscounties$A <- A
-uscounties$Ac <- Ac
-uscounties$Auc <- Auc
-uscounties$U <- U
+# MECHANISM 6: Coordinate-based nonlinear
+dat <- compute_data_spatialcoord(lat = simlist$lat, long = simlist$lon,
+                                 nsims = 1, distmat = distmat)
+uscounties$Auc <- col1(dat$Auc)
+uscounties$Ac  <- col1(dat$Ac)
+uscounties$U   <- col1(dat$U)
+uscounties$A   <- uscounties$Ac + uscounties$Auc
 gs6 <- plotfunc(
   uscounties,
   c('A', 'Auc', 'Ac', 'U'),
-  c(
-    '',
-    '',
-    '',
-    ''
-  ),
-  xlimits = c(-115,-85),
-  ylimits = c(25,40)
-)
-
-# SEVENTH confounding mechanism
-W <- adjmat
-dat <- compute_data_leroux(W = W, n = 1)
-Ac <- dat$Ac 
-Auc <- dat$Auc
-U <- dat$U
-A <- Ac + Auc
-uscounties$A <- A
-uscounties$Ac <- Ac
-uscounties$Auc <- Auc
-uscounties$U <- U
-gs7 <- plotfunc(
-  uscounties,
-  c('A', 'Auc', 'Ac', 'U'),
-  c(
-    '',
-    '',
-    '',
-    ''
-  ),
-  xlimits = c(-115,-85),
-  ylimits = c(25,40)
+  c('', '', '', ''),
+  xlimits = c(-115,-85), ylimits = c(25,40)
 )
 
 png(
-  'images/all-three-decomp.jpeg',
-  height = 5400,
-  width = 5600,
+  'images/all-decomp.jpeg',
+  height = 4600,
+  width = 5800,
   res = 140
 )
-ggpubr::ggarrange(gs1[[1]], gs1[[2]], gs1[[3]], gs1[[4]],  # First row (gs1)
-                  gs7[[1]], gs7[[2]], gs7[[3]], gs7[[4]], # Seventh row (gs7)
-                  gs3[[1]], gs3[[2]], gs3[[3]], gs3[[4]], # Third row (gs3)
-                  gs5[[1]], gs5[[2]], gs5[[3]], ggpubr::ggarrange(gs5[[4]], gs5[[5]], ncol = 2), # Fifth row (gs5)
-                  gs6[[1]], gs6[[2]], gs6[[3]], gs6[[4]], # Sixth row (gs6)
-                  gs2[[1]], gs2[[2]], gs2[[3]], gs2[[4]], # Second row (gs2)
-                  gs4[[1]], gs4[[2]], gs4[[3]], gs4[[4]], # Fourth row (gs4)
-                  nrow = 7, ncol = 4)
+ggpubr::ggarrange(
+  gs1[[1]], gs1[[2]], gs1[[3]], gs1[[4]],  # Mechanism 1
+  gs2[[1]], gs2[[2]], gs2[[3]], gs2[[4]],  # Mechanism 2
+  gs3[[1]], gs3[[2]], gs3[[3]], gs3[[4]],  # Mechanism 3
+  gs4[[1]], gs4[[2]], gs4[[3]], ggpubr::ggarrange(gs4[[4]], gs4[[5]], ncol = 2), # Mechanism 4
+  gs5[[1]], gs5[[2]], gs5[[3]], gs5[[4]],  # Mechanism 5
+  gs6[[1]], gs6[[2]], gs6[[3]], gs6[[4]],  # Mechanism 6
+  nrow = 6, ncol = 4
+)
 dev.off()
-

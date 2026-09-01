@@ -1,13 +1,13 @@
 # History files
-.Rhistory
+*.Rhistory
 .Rapp.history
 
 # DS_Store files
 .DS_Store
 
 # Session Data files
-.RData
-.RDataTmp*
+*.RData
+*.RDataTmp*
 
 # User-specific files
 .Ruserdata
@@ -25,6 +25,9 @@
 
 # Data
 *.rds
+*.csv
+*.zip
+*.RData
 
 # Folders
 *archived*
@@ -34,3 +37,21 @@ simulation/sensitivity
 
 # htmls
 *.html
+
+# Other
+*.tex
+*tests*
+*old*
+*data_application_may2026*
+*docs*
+*0.8*
+*.log
+
+# specific files
+funcs_cluster_apr15.R
+data_application/timing_test.R
+
+# Images (for now)
+*.png
+*.pdf
+*.jpeg
