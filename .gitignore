@@ -27,6 +27,7 @@
 *.rds
 *.csv
 *.zip
+*.RData
 
 # Folders
 *archived*
@@ -39,6 +40,10 @@ simulation/sensitivity
 
 # Other
 *.tex
+*tests*
+*old*
+*data_application_may2026*
+*docs*
 
 # Images (for now)
 *.png
