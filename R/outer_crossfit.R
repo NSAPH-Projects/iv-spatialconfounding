@@ -1,8 +1,8 @@
-# Five-fold outer orchestration for the manuscript-aligned truncated effect.
+# Five-fold CV for estimation of the truncated exposure effect.
 #
 # Dependencies:
-#   R/manuscript_basis_selection.R
-#   R/manuscript_truncated_effect.R
+#   R/basis_selection.R
+#   R/truncated_effect.R
 
 .validate_external_nuisance_result <- function(result, n_target, n_grid) {
   required <- c("pihat", "muhat", "muhat_grid", "varpi_grid", "m_grid")
@@ -58,7 +58,7 @@ estimate_nuisance_superlearner_external <- function(
     cv_control = list(V = 2L),
     variance_floor = 1e-4) {
   if (!requireNamespace("SuperLearner", quietly = TRUE)) {
-    .effect_stop("SuperLearner is required for the manuscript nuisance estimator.")
+    .effect_stop("SuperLearner is required for the nuisance estimator.")
   }
 
   w_train <- as.data.frame(.name_adjustment_matrix(w_train))
@@ -243,6 +243,7 @@ estimate_selected_truncated_effect <- function(
     bw_seq = NULL,
     kernel = stats::dnorm,
     constrain = FALSE,
+    local_degree = 1L,
     keep_fold_details = FALSE,
     fixed_adjustment = NULL) {
   use_fixed_adjustment <- !is.null(fixed_adjustment)
@@ -551,11 +552,13 @@ estimate_selected_truncated_effect <- function(
     outcome = pseudo_fit_full[above],
     target = cutoff,
     bandwidth = bandwidth,
-    kernel = kernel
+    kernel = kernel,
+    degree = local_degree
   )
   theta1 <- local_fit$beta[1L]
   above_index <- which(above)
   correction_intercept <- correction_slope <- rep(NA_real_, n_above)
+  correction_quadratic <- if (local_degree == 2L) rep(NA_real_, n_above) else NULL
   grid_u <- (a_grid - cutoff) / bandwidth
   grid_kernel <- kernel(grid_u) / bandwidth
 
@@ -573,14 +576,31 @@ estimate_selected_truncated_effect <- function(
       sweep(correction_base, 2L, grid_u, `*`),
       a_grid
     )
+    if (local_degree == 2L) {
+      correction_quadratic[positions] <- .trapezoid_rows(
+        sweep(correction_base, 2L, grid_u^2, `*`),
+        a_grid
+      )
+    }
   }
 
-  local_residual <- pseudo_fit_full[above] -
-    local_fit$beta[1L] - local_fit$beta[2L] * local_fit$u
-  phi_moments <- rbind(
-    local_fit$weights * local_residual + correction_intercept,
-    local_fit$u * local_fit$weights * local_residual + correction_slope
-  )
+  if (local_degree == 1L) {
+    local_residual <- pseudo_fit_full[above] -
+      local_fit$beta[1L] - local_fit$beta[2L] * local_fit$u
+    phi_moments <- rbind(
+      local_fit$weights * local_residual + correction_intercept,
+      local_fit$u * local_fit$weights * local_residual + correction_slope
+    )
+  } else {
+    local_residual <- pseudo_fit_full[above] -
+      local_fit$beta[1L] - local_fit$beta[2L] * local_fit$u -
+      local_fit$beta[3L] * local_fit$u^2
+    phi_moments <- rbind(
+      local_fit$weights * local_residual + correction_intercept,
+      local_fit$u * local_fit$weights * local_residual + correction_slope,
+      local_fit$u^2 * local_fit$weights * local_residual + correction_quadratic
+    )
+  }
   phi1_subpopulation <- drop(t(solve(local_fit$D, phi_moments))[, 1L])
 
   theta2 <- mean(below)
@@ -689,6 +709,7 @@ estimate_crossfit_truncated_effect <- function(
     bw_seq = NULL,
     kernel = stats::dnorm,
     constrain = FALSE,
+    local_degree = 1L,
     keep_fold_details = FALSE) {
   estimate_selected_truncated_effect(
     y = y,
@@ -709,6 +730,7 @@ estimate_crossfit_truncated_effect <- function(
     bw_seq = bw_seq,
     kernel = kernel,
     constrain = constrain,
+    local_degree = local_degree,
     keep_fold_details = keep_fold_details,
     fixed_adjustment = w
   )

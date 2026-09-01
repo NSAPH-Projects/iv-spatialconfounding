@@ -1,10 +1,4 @@
-# Manuscript-aligned helpers for spatial basis selection.
-#
-# The functions in this file implement the deterministic parts of Supplement
-# Section 4 and provide an explicit boundary for the doubly robust candidate
-# estimator. They are intentionally not wired into funcs.R yet: the existing
-# ctseff() candidate path does not provide the cross-fitted influence-function
-# contributions required by the manuscript's paired selection rule.
+# Helper functions for spatial basis selection.
 
 .basis_stop <- function(message) {
   stop(message, call. = FALSE)
@@ -93,7 +87,7 @@ make_candidate_grid <- function(m,
 
 # Return column indices for B^c and B^uc.
 #
-# `instrument_scale = "small"` is the primary manuscript procedure: B is
+# `instrument_scale = "small"` is the primary: B is
 # ordered from largest to smallest spatial scale and its last n_uc columns are
 # candidate instruments. `"large"` supports the reversed-scale simulation.
 partition_basis_columns <- function(m, n_uc,
@@ -274,12 +268,11 @@ make_uniform_folds <- function(n, K = 5L) {
 
 # Select n_uc for one outer fold using only that fold's training observations.
 #
-# `estimate_candidate` is the boundary to the manuscript-aligned doubly robust
-# estimator. It is called once per candidate with these named arguments:
+# `estimate_candidate` is called once per candidate with these named arguments:
 #   y, a, x, Ac, cutoff, folds, n_uc
 # It must use the supplied two-fold split and return:
 #   list(psi = <scalar>, influence_curve = <length(training rows) vector>)
-# The influence curve must be for the final truncated-effect estimate, after the
+# The influence curve must be for the final truncated effect estimate, after the
 # delta-method combination of its four components.
 select_basis_outer_fold <- function(y, a, x = NULL, B, outer_train_idx,
                                     n_uc_cands, cutoff, estimate_candidate,

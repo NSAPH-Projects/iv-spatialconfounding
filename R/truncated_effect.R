@@ -1,10 +1,10 @@
-# Manuscript-aligned doubly robust estimation of the truncated exposure effect.
+# Doubly robust estimation of the truncated exposure effect.
 #
 # This file implements the candidate estimator used inside each outer training
-# fold during basis selection. It follows Supplement Sections 4.2--4.3:
+# fold during basis selection.
 # nuisance estimation is restricted to A >= cutoff, pseudo-outcomes are
-# cross-fitted, nu(c) is estimated by a one-sided local linear regression, and
-# the final influence curve combines four components through the delta method.
+# cross-fitted, nu(c) is estimated by a one-sided local quadratic regression, (quadratic better than linear for boundary)
+# and the final influence curve combines four components through the delta method.
 
 .effect_stop <- function(message) {
   stop(message, call. = FALSE)
@@ -89,10 +89,13 @@
 }
 
 .local_linear_at <- function(a, outcome, target, bandwidth,
-                             kernel = stats::dnorm) {
+                             kernel = stats::dnorm, degree = 1L) {
+  if (!degree %in% c(1L, 2L)) {
+    .effect_stop("degree must be 1 (local linear) or 2 (local quadratic).")
+  }
   u <- (a - target) / bandwidth
   weights <- kernel(u) / bandwidth
-  design <- cbind(1, u)
+  design <- if (degree == 1L) cbind(1, u) else cbind(1, u, u^2)
   D <- crossprod(design, design * weights) / length(a)
 
   if (any(!is.finite(D)) || rcond(D) < 1e-10) {
@@ -101,7 +104,7 @@
   moment <- colMeans(design * (weights * outcome))
   beta <- drop(solve(D, moment))
 
-  list(beta = beta, D = D, u = u, weights = weights, design = design)
+  list(beta = beta, D = D, u = u, weights = weights, design = design, degree = degree)
 }
 
 .select_local_linear_bandwidth <- function(a, outcome, bw_seq,
@@ -179,7 +182,7 @@ estimate_nuisance_superlearner <- function(
     cv_control = list(V = 2L),
     variance_floor = 1e-4) {
   if (!requireNamespace("SuperLearner", quietly = TRUE)) {
-    .effect_stop("SuperLearner is required for the manuscript nuisance estimator.")
+    .effect_stop("SuperLearner is required for the nuisance estimator.")
   }
 
   w <- as.data.frame(w)
@@ -326,7 +329,8 @@ estimate_truncated_effect_candidate <- function(
     kernel = stats::dnorm,
     density_trim = 0,
     ipw_ratio_trim = 0,
-    constrain = FALSE) {
+    constrain = FALSE,
+    local_degree = 1L) {
   n <- length(y)
   if (!is.numeric(y) || !is.numeric(a) || length(a) != n || n < 8L ||
       any(!is.finite(y)) || any(!is.finite(a))) {
@@ -487,7 +491,8 @@ estimate_truncated_effect_candidate <- function(
     outcome = pseudo_for_fit,
     target = cutoff,
     bandwidth = bandwidth,
-    kernel = kernel
+    kernel = kernel,
+    degree = local_degree
   )
   theta1 <- local_fit$beta[1L]
 
@@ -501,12 +506,27 @@ estimate_truncated_effect_candidate <- function(
     a_grid
   )
 
-  local_residual <- pseudo_for_fit -
-    local_fit$beta[1L] - local_fit$beta[2L] * local_fit$u
-  phi_moments <- rbind(
-    local_fit$weights * local_residual + correction_intercept,
-    local_fit$u * local_fit$weights * local_residual + correction_slope
-  )
+  if (local_degree == 1L) {
+    local_residual <- pseudo_for_fit -
+      local_fit$beta[1L] - local_fit$beta[2L] * local_fit$u
+    phi_moments <- rbind(
+      local_fit$weights * local_residual + correction_intercept,
+      local_fit$u * local_fit$weights * local_residual + correction_slope
+    )
+  } else {
+    correction_quadratic <- .trapezoid_rows(
+      sweep(correction_base, 2L, grid_u^2, `*`),
+      a_grid
+    )
+    local_residual <- pseudo_for_fit -
+      local_fit$beta[1L] - local_fit$beta[2L] * local_fit$u -
+      local_fit$beta[3L] * local_fit$u^2
+    phi_moments <- rbind(
+      local_fit$weights * local_residual + correction_intercept,
+      local_fit$u * local_fit$weights * local_residual + correction_slope,
+      local_fit$u^2 * local_fit$weights * local_residual + correction_quadratic
+    )
+  }
   phi1_subpopulation <- drop(t(solve(local_fit$D, phi_moments))[, 1L])
 
   theta2 <- mean(below)
