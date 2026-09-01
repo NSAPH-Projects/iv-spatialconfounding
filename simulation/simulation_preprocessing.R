@@ -27,35 +27,35 @@ uscounties <- uscounties %>% filter(!STATEFP10 %in% c('02', '15', '72'))
 # Add EPA regions
 # source https://www.epa.gov/aboutepa/regional-and-geographic-offices
 states <- c('CT', 'ME', 'MA', 'NH', 'RI', 'VT', 
-           'NY', 'NJ', 'PR', 'VI', 
-           'DE', 'DC', 'MD', 'PA', 'VA', 'WV', 
-           'AL', 'FL', 'GA', 'KY', 'MS', 'NC', 'SC', 'TN', 
-           'IL', 'IN', 'MI', 'MN', 'OH', 'WI', 
-           'AR', 'LA', 'NM', 'OK', 'TX', 
-           'IA', 'KS', 'MO', 'NE', 
-           'CO', 'MT', 'ND', 'SD', 'UT', 'WY', 
-           'AZ', 'CA', 'HI', 'NV', 
-           'AK', 'ID', 'OR', 'WA')
+            'NY', 'NJ', 'PR', 'VI', 
+            'DE', 'DC', 'MD', 'PA', 'VA', 'WV', 
+            'AL', 'FL', 'GA', 'KY', 'MS', 'NC', 'SC', 'TN', 
+            'IL', 'IN', 'MI', 'MN', 'OH', 'WI', 
+            'AR', 'LA', 'NM', 'OK', 'TX', 
+            'IA', 'KS', 'MO', 'NE', 
+            'CO', 'MT', 'ND', 'SD', 'UT', 'WY', 
+            'AZ', 'CA', 'HI', 'NV', 
+            'AK', 'ID', 'OR', 'WA')
 statefps  <- c('09', '23', '25', '33', '44', '50', 
-              '36', '34', '72', '78', 
-              '10', '11', '24', '42', '51', '54', 
-              '01', '12', '13', '21', '28', '37', '45', '47', 
-              '17', '18', '26', '27', '39', '55', 
-              '05', '22', '35', '40', '48', 
-              '19', '20', '29', '31', 
-              '08', '30', '38', '46', '56', '49', 
-              '04', '06', '15', '32', 
-              '02', '16', '41', '53')
+               '36', '34', '72', '78', 
+               '10', '11', '24', '42', '51', '54', 
+               '01', '12', '13', '21', '28', '37', '45', '47', 
+               '17', '18', '26', '27', '39', '55', 
+               '05', '22', '35', '40', '48', 
+               '19', '20', '29', '31', 
+               '08', '30', '38', '46', '56', '49', 
+               '04', '06', '15', '32', 
+               '02', '16', '41', '53')
 regions <- c(rep(1,6),
-            rep(2,4),
-            rep(3,6),
-            rep(4,8),
-            rep(5,6),
-            rep(6,5),
-            rep(7,4),
-            rep(8,6),
-            rep(9,4),
-            rep(10,4))
+             rep(2,4),
+             rep(3,6),
+             rep(4,8),
+             rep(5,6),
+             rep(6,5),
+             rep(7,4),
+             rep(8,6),
+             rep(9,4),
+             rep(10,4))
 region_data <- data.frame(State = states, STATEFP = statefps, Region = regions)
 uscounties <- left_join(uscounties, region_data, by = c('STATEFP10' = 'STATEFP'))
 
@@ -69,7 +69,7 @@ n <- nrow(uscounties)
 lat <- as.numeric(uscounties$INTPTLAT10)
 lon <- as.numeric(uscounties$INTPTLON10)
 distmat <- geosphere::distm(cbind(lon, lat), 
-                 fun = distHaversine)
+                            fun = distHaversine)
 # scale distance matrix so range is between (0,2)
 distmat <- distmat/1000000
 
@@ -210,4 +210,3 @@ ggpubr::ggarrange(
   nrow = 6, ncol = 4
 )
 dev.off()
-
