@@ -19,8 +19,8 @@ load('sim.RData')
 # Safe to run against a still-running cluster job: any (mechanism, option,
 # method) combination without a file yet just shows up as NA/blank below,
 # nothing errors.
-results_dir <- "results_manuscript_cluster_1000reps/"
-results_label <- "cluster_1000reps"
+results_dir <- "results_manuscript_cluster_1000reps_quadratic_alpha1.5/"
+results_label <- "cluster_1000reps_alpha1.5"
 n_mechanisms <- 8
 mechanism_levels <- as.character(1:n_mechanisms)
 option_levels <- c("linear", "nonlinear")
@@ -188,7 +188,7 @@ if (!is.null(df) && nrow(df) > 0) {
   print(
     ggplot(df, aes(x = method, y = estimate, fill = method)) +
       geom_boxplot(alpha = 0.5, outliers = FALSE, staplewidth = 1) +
-      stat_summary(fun = mean, geom = "point", shape = 18, size = 2, color = "blue") +
+      #stat_summary(fun = mean, geom = "point", shape = 18, size = 2, color = "blue") +
       ggh4x::facet_grid2(
         option ~ confounding_mechanism,
         scales = "free",
@@ -198,6 +198,39 @@ if (!is.null(df) && nrow(df) > 0) {
                  color = "red", linetype = "twodash", size = 1) +
       labs(
         x = sprintf("Confounding mechanism (1-%d)", n_mechanisms),
+        y = "Truncated Exposure Effect Estimate"
+      ) +
+      scale_fill_manual(
+        name = "Method",
+        values = method_cols,
+        breaks = names(method_cols)
+      ) +
+      theme_bw() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            legend.position = "top")
+  )
+  dev.off()
+  
+  dfsub <- df %>%
+    filter(confounding_mechanism %in% 1:6) %>%
+    droplevels()
+  mutrues_f_sub <- mutrues_f %>%
+    filter(confounding_mechanism %in% 1:6) %>%
+    droplevels()
+  png(sprintf("images/boxplot_%s_maintext.png", results_label), width = 1875, height = 1250, res = 200)
+  print(
+    ggplot(dfsub, aes(x = method, y = estimate, fill = method)) +
+      geom_boxplot(alpha = 0.5, outliers = FALSE, staplewidth = 1) +
+      #stat_summary(fun = mean, geom = "point", shape = 18, size = 2, color = "blue") +
+      ggh4x::facet_grid2(
+        option ~ confounding_mechanism,
+        scales = "free",
+        independent = "all"
+      ) +
+      geom_hline(data = mutrues_f_sub, aes(yintercept = theta),
+                 color = "red", linetype = "twodash", size = 1) +
+      labs(
+        x = sprintf("Confounding mechanism (1-%d)", 6),
         y = "Truncated Exposure Effect Estimate"
       ) +
       scale_fill_manual(
@@ -317,7 +350,7 @@ for (i in seq_len(nrow(mutrues_sorted))) {
 }
 cat("   \\hline\n\\end{tabular}\\end{center}\n")
 
-# ---- Coverage / CI width, wide table matching the manuscript layout ----
+# ---- Coverage / CI width, wide table  ----
 # Two stacked panels (coverage, then width) sharing one header row, one
 # column per method. Built directly rather than through xtable, since the
 # target layout (p{}-width columns, makecell headers, a multicolumn panel
@@ -360,8 +393,7 @@ cat("\\label{tab:combined_tall_results_coverage_width}\n\\end{table}\n")
 
 # ---- n_uc selection histogram (replaces the old n_uc_hist_Mar27.png) ----
 # Pools every fold-level n_uc selection across all reps for IV-TPS/IV-GL,
-# faceted by mechanism x option, in place of the manuscript's old
-# n_uc_hist_Mar27.png (Figure fig:iv-select).
+# faceted by mechanism x option
 nuc_rows <- list()
 for (mech in 1:n_mechanisms) {
   for (opt in option_levels) {
