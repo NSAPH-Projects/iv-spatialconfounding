@@ -558,7 +558,7 @@ simfunc <- function(nsims,
   # methods are the methods used to estimate truncated exposure effect
   # statemat is the matrix of state-level indicators
   # cutoff is c
-  # select_basis: if TRUE, use the manuscript selection rule; otherwise use a
+  # select_basis: if TRUE, use the stability selection criterion; otherwise use a
   # single fixed candidate containing 90% of the ordered basis elements.
   # results_dir: directory to write output CSVs
 
@@ -577,6 +577,7 @@ simfunc <- function(nsims,
     final_bandwidth = NULL,
     final_bw_seq = NULL,
     constrain = TRUE,
+    local_degree = 2L,
     save_diagnostics = TRUE
   )
   if (!is.list(iv_control)) {
@@ -604,7 +605,7 @@ simfunc <- function(nsims,
   if (length(missing_estimator_functions) > 0L) {
       stop(
         paste0(
-          "Source the manuscript-aligned R modules before simfunc(): ",
+          "Source the R modules before simfunc(): ",
           paste(missing_estimator_functions, collapse = ", ")
         )
       )
@@ -722,7 +723,7 @@ simfunc <- function(nsims,
       y <- Y[, sim]
       a <- A[, sim]
 
-      # The IV methods use the complete manuscript algorithm: fold-specific
+      # The IV methods execute: fold-specific
       # selection, training-only A^c projection, held-out pseudo-outcomes, and
       # pooled doubly robust estimation. Non-IV methods continue through the
       # legacy ctseff() path below.
@@ -782,7 +783,8 @@ simfunc <- function(nsims,
               bw_seq = iv_control$candidate_bw_seq,
               constrain = iv_control$constrain,
               density_trim = iv_control$density_trim,
-              ipw_ratio_trim = iv_control$ipw_ratio_trim
+              ipw_ratio_trim = iv_control$ipw_ratio_trim,
+              local_degree = iv_control$local_degree
             ),
             final_nuisance_args = list(
               sl_library = iv_control$sl_library,
@@ -791,10 +793,11 @@ simfunc <- function(nsims,
             n_grid = iv_control$n_grid,
             bandwidth = iv_control$final_bandwidth,
             bw_seq = iv_control$final_bw_seq,
-            constrain = iv_control$constrain
+            constrain = iv_control$constrain,
+            local_degree = iv_control$local_degree
           ),
           error = function(e) {
-            message("Manuscript IV estimator error: ", e$message)
+            message("IV estimator error: ", e$message)
             NULL
           }
         )
@@ -870,10 +873,11 @@ simfunc <- function(nsims,
           n_grid = iv_control$n_grid,
           bandwidth = iv_control$final_bandwidth,
           bw_seq = iv_control$final_bw_seq,
-          constrain = iv_control$constrain
+          constrain = iv_control$constrain,
+          local_degree = iv_control$local_degree
         ),
         error = function(e) {
-          message("Manuscript non-IV estimator error: ", e$message)
+          message("non-IV estimator error: ", e$message)
           NULL
         }
       )
@@ -983,7 +987,7 @@ simfunc <- function(nsims,
       }
 
       # Preserve the legacy mean-selection file above and additionally save the
-      # actual fold-specific selections required by the manuscript algorithm.
+      # actual fold-specific selections required by the algorithm.
       for (fold_index in seq_len(ncol(n_uc_by_fold))) {
         filename_n_uc_fold <- paste0(
           results_dir, 'conf', confounding_mechanism, '_', option, '_', method,
