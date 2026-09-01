@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -c 8 # Request 8 cores for parallel processing
 #SBATCH -t 00-10:00:00 # Amount of time needed DD-HH:MM:SS
-#SBATCH -p serial_requeue # Partition to submit to
-#SBATCH --mem=12000 # Memory
+#SBATCH -p hsph # Partition to submit to
+#SBATCH --mem=6000 # Memory
 #SBATCH -o /n/home07/swoodward/instrumental_variables_simulation_aug25/error.out #specify where to save errors returned by the program
 #SBATCH -e /n/home07/swoodward/instrumental_variables_simulation_aug25/log.err #specify where to save the output log
 #SBATCH --mail-type=END #notifications for job done
