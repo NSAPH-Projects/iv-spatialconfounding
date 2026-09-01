@@ -1,8 +1,8 @@
-# Load simulation and manuscript-aligned estimation functions
+# Load simulation and estimation functions
 source("../funcs.R")
-source("../R/manuscript_basis_selection.R")
-source("../R/manuscript_truncated_effect.R")
-source("../R/manuscript_outer_crossfit.R")
+source("../R/basis_selection.R")
+source("../R/truncated_effect.R")
+source("../R/outer_crossfit.R")
 
 library(dplyr)
 library(geosphere)
@@ -14,12 +14,12 @@ load("sim.RData")
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) < 3L || length(args) > 9L) {
+if (length(args) < 3L || length(args) > 10L) {
   stop(
     paste(
       "Usage: Rscript run_simfunc.R",
       "<nsims> <mechanism> <linear|nonlinear>",
-      "[select_basis] [n_cores] [results_dir] [seed] [methods] [core_fraction]"
+      "[select_basis] [n_cores] [results_dir] [seed] [methods] [core_fraction] [alpha]"
     )
   )
 }
@@ -45,6 +45,14 @@ parse_fraction <- function(value, name) {
   if (length(out) != 1L || is.na(out) || !is.finite(out) ||
       out <= 0 || out >= 1) {
     stop(name, " must be a finite number strictly between 0 and 1.")
+  }
+  out
+}
+
+parse_positive_number <- function(value, name) {
+  out <- suppressWarnings(as.numeric(value))
+  if (length(out) != 1L || is.na(out) || !is.finite(out) || out <= 0) {
+    stop(name, " must be a positive finite number.")
   }
   out
 }
@@ -97,6 +105,12 @@ core_fraction <- if (length(args) >= 9L) {
   0.9 # SMW change 0825
 }
 
+alpha <- if (length(args) >= 10L) {
+  parse_positive_number(args[[10]], "alpha")
+} else {
+  1
+}
+
 allowed_methods <- c(
   "baseline",
   "oracle",
@@ -137,7 +151,8 @@ print(list(
   results_dir = results_dir,
   seed = seed,
   methods = methods,
-  core_fraction = core_fraction
+  core_fraction = core_fraction,
+  alpha = alpha
 ))
 
 simfunc(
@@ -154,5 +169,5 @@ simfunc(
   select_basis = select_basis,
   n_cores = n_cores,
   results_dir = results_dir,
-  iv_control = list(core_fraction = core_fraction)
+  iv_control = list(core_fraction = core_fraction, alpha = alpha)
 )
