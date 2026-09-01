@@ -45,7 +45,13 @@ simulation/sensitivity
 *data_application_may2026*
 *docs*
 *0.8*
+*.log
+
+# specific files
+funcs_cluster_apr15.R
+data_application/timing_test.R
 
 # Images (for now)
 *.png
 *.pdf
+*.jpeg
