@@ -1,15 +1,8 @@
 library(ggplot2)
-library(sf)
-library(tidyr)
-library(mgcv)
 library(dplyr)
-library(utils)
+library(tidyr)
+library(purrr)
 library(xtable)
-library(Matrix)
-library(tidyverse)
-library(parallel)
-library(geosphere)
-library(patchwork)
 
 source('funcs.R')
 load('sim.RData')
@@ -207,7 +200,7 @@ if (!is.null(df) && nrow(df) > 0) {
         labeller = labeller(confounding_mechanism = function(x) paste("Confounding \nmechanism", x))
       ) +
       geom_hline(data = mutrues_f, aes(yintercept = theta),
-                 color = "red", linetype = "twodash", size = 1) +
+                 color = "red", linetype = "twodash", linewidth = 1) +
       labs(
         x = "Method",
         y = "Truncated Exposure Effect Estimate"
@@ -248,7 +241,7 @@ if (!is.null(df) && nrow(df) > 0) {
         labeller = labeller(confounding_mechanism = function(x) paste("Confounding \nmechanism", x))
       ) +
       geom_hline(data = mutrues_f_sub, aes(yintercept = theta),
-                 color = "red", linetype = "twodash", size = 1) +
+                 color = "red", linetype = "twodash", linewidth = 1) +
       labs(
         x = "Method",
         y = "Truncated Exposure Effect Estimate"
@@ -339,73 +332,6 @@ for (i in seq_len(nrow(file_index))) {
 }
 ci_summary <- ci_summary %>% arrange(confounding_mechanism, option, method)
 print(xtable(ci_summary, digits = 3), include.rownames = FALSE)
-
-# ---- Error boxplots: estimate minus each replicate's own true psi ----
-# The raw-estimate boxplots above compare every method with one pooled line
-# (the oracle mean), so between-replicate variation in the truth shows up as
-# spread, and a skewed truth distribution (e.g. mechanism 6) makes unbiased
-# methods look offset (box = median, line = mean). Subtracting each
-# replicate's own true psi (true_psi, as used for coverage) removes that:
-# bias is the offset of the white diamond (mean error) from zero.
-error_rows <- list()
-for (i in seq_len(nrow(file_index))) {
-  row <- file_index[i, ]
-  truth_sub <- true_psi[true_psi$mechanism == row$confounding_mechanism &
-                          true_psi$option == row$option, ]
-  if (nrow(truth_sub) == 0) next
-  truth_sub <- truth_sub[order(truth_sub$replicate), ]
-  est <- as.vector(as.matrix(read.csv(file.path(results_dir, row$csv))))
-  k <- min(length(est), nrow(truth_sub))
-  error_rows[[length(error_rows) + 1]] <- data.frame(
-    confounding_mechanism = row$confounding_mechanism, option = row$option,
-    method = row$method, error = est[seq_len(k)] - truth_sub$psi_true[seq_len(k)]
-  )
-}
-error_df <- if (length(error_rows) > 0) bind_rows(error_rows) else NULL
-
-if (!is.null(error_df) && nrow(error_df) > 0) {
-  method_labels <- c(oracle = "Oracle", baseline = "Baseline", spatialcoord = "Spatial coordinates",
-                     trueIV = "True IV", `IV-TPS` = "IV-TPS", `IV-GraphLaplacian` = "IV-GL")
-  error_cols <- c("Oracle" = "gray", "Baseline" = "#D62728", "Spatial coordinates" = "purple",
-                  "True IV" = "lightgreen", "IV-TPS" = "#9ECAE1", "IV-GL" = "#FDAE6B")
-  error_df$method <- factor(method_labels[error_df$method], levels = unname(method_labels))
-  error_df$option <- factor(error_df$option, levels = option_levels)
-  error_df$confounding_mechanism <- factor(error_df$confounding_mechanism, levels = mechanism_levels)
-  error_df <- droplevels(error_df)
-
-  error_plot <- function(d) {
-    ggplot(d, aes(x = method, y = error, fill = method)) +
-      geom_hline(yintercept = 0, color = "red", linetype = "twodash", linewidth = 1) +
-      geom_boxplot(alpha = 0.5, outliers = FALSE, staplewidth = 1) +
-      stat_summary(fun = mean, geom = "point", shape = 23, size = 2.5, fill = "white") +
-      ggh4x::facet_grid2(
-        option ~ confounding_mechanism,
-        scales = "free",
-        independent = "all",
-        labeller = labeller(confounding_mechanism = function(x) paste("Confounding \nmechanism", x))
-      ) +
-      labs(x = "Method", y = expression(paste("Estimate minus true ", psi, " of the replicate"))) +
-      scale_fill_manual(name = "Method", values = error_cols, breaks = names(error_cols)) +
-      theme_minimal(base_size = 14) +
-      theme(
-        axis.title = element_text(size = 15),
-        axis.text = element_text(size = 12),
-        axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
-        strip.text = element_text(size = 14, face = "bold"),
-        legend.title = element_text(size = 13),
-        legend.text = element_text(size = 12),
-        legend.position = "top"
-      )
-  }
-
-  png(sprintf("images/error_boxplot_%s.png", results_label), width = 3200, height = 1700, res = 200)
-  print(error_plot(error_df))
-  dev.off()
-
-  png(sprintf("images/error_boxplot_%s_maintext.png", results_label), width = 2500, height = 1700, res = 200)
-  print(error_plot(droplevels(subset(error_df, confounding_mechanism %in% as.character(1:6)))))
-  dev.off()
-}
 
 # ---- n_ac/n_uc selection recovery vs. DGP ground truth (basis-selection
 # methods only) ----
@@ -526,7 +452,7 @@ print_wide_panel(ci_summary, "coverage", digits = 3)
 cat("  \\hline\n\\multicolumn{8}{c}{Average confidence interval width} \\\\ \n\\hline\n")
 print_wide_panel(ci_summary, "mean_width", digits = 3)
 cat("\\end{tabular}\n")
-cat("    \\caption{Average coverage, defined as the proportion of confidence intervals containing that replicate's own true truncated exposure effect (see coverage\\_analysis/compute\\_true\\_psi.R), and average confidence interval width.}\n")
+cat("    \\caption{Average coverage, defined as the proportion of confidence intervals containing that replicate's own true truncated exposure effect (see simulation/compute\\_true\\_psi.R), and average confidence interval width.}\n")
 cat("\\label{tab:combined_tall_results_coverage_width}\n\\end{table}\n")
 
 # ---- n_ac selection recovery vs. DGP ground truth (replaces the old,

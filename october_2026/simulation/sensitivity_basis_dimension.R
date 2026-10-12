@@ -3,7 +3,7 @@
 #
 # For mechanisms 1, 2, 3, 7 (matched basis: TPS for 1 and 3, GL for 2 and 7),
 # both outcome models, and n_reps replicates, this fits the estimate at every
-# n_c = 1, ..., max(50, reference) and plots the trajectories. Each replicate
+# n_c = 1, ..., reference (the R^2 reference) and plots the trajectories. Each replicate
 # shows:
 #   - the selected n_c (diamond), obtained by applying the rule in
 #     ../R/basis_selection.R to these fits: same reference (smallest B^c with
@@ -13,6 +13,7 @@
 #   - the true n_c = 10 (dashed red line).
 #
 # Run from october_2026/simulation/:  Rscript sensitivity_basis_dimension.R
+# On the cluster:                      sbatch run_sensitivity.sh
 # Output: images/sensitivity_basis_dimension.png (+ .rds with the fits).
 
 suppressMessages({
@@ -26,12 +27,11 @@ source("../R/truncated_effect.R")
 load("sim.RData")
 
 n_reps       <- 5L
-max_nc       <- 50L     # fit every n_c from 1 to max(max_nc, reference)
 true_nc      <- 10L
 r2_reference <- 0.7
 family_alpha <- 0.05
 fit_seed     <- 12001L   # same per-fit seed as select_basis_dimension()
-n_cores      <- 8L
+n_cores      <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "8"))
 options_     <- c("linear", "nonlinear")
 
 mechanisms <- list(
@@ -83,7 +83,7 @@ for (mc in mechanisms) {
 run_job <- function(job) {
   r2 <- exposure_r2_curve(job$B, job$a)
   n0 <- which(r2 >= r2_reference)[1]            # reference (walk starts here)
-  fits <- lapply(seq_len(max(max_nc, n0)), function(q) {
+  fits <- lapply(seq_len(n0), function(q) {
     set.seed(fit_seed)
     w <- cbind(Ac = project_Ac_full(job$B, job$a, q)$Ac, intercept)
     do.call(estimate_truncated_effect_full,
@@ -131,7 +131,7 @@ res$panel <- factor(
 selected_pts  <- subset(res, n_c == selected)
 reference_pts <- subset(res, n_c == reference)
 
-# Lines run from n_c = 1 to max(50, reference) for each replicate.
+# Lines run from n_c = 1 to the R^2 reference for each replicate.
 p <- ggplot(res, aes(n_c, psi, colour = rep, group = rep)) +
   geom_vline(xintercept = true_nc, colour = "red", linetype = "dashed") +
   geom_line(alpha = 0.8) +
