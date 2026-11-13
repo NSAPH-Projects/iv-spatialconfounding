@@ -1,0 +1,18 @@
+.DS_Store
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+.Renviron
+.Rproj.user/
+*.Rproj
+
+# Cluster logs
+simulation/output_*/
+simulation/error_*/
+simulation/sensitivity.out
+simulation/sensitivity.err
+
+# Data application outputs (restricted data)
+data_application/preprocessed/
+data_application/results/
