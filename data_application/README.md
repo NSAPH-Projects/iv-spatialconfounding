@@ -5,8 +5,7 @@ ZIP-code level, and the outcome is the all-cause mortality rate among Medicare
 enrollees aged 65+ over 2011-2016 (n = 33,254 ZIP codes; adapted from Wu et
 al., 2020). The Medicare data are not publicly
 available; the analysis was run in Harvard University's Regulated Data
-Environment (ReD). These scripts are provided for transparency and cannot be
-run without access to the data.
+Environment (ReD).
 
 Run from `data_application/`:
 

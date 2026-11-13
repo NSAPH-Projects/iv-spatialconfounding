@@ -8,12 +8,10 @@ Run every command from `simulation/`.
 
 | Step | Command | Output |
 |---|---|---|
-| **1. Fixed inputs** (spatial surfaces; already committed) | `Rscript preprocessing.R` | `sim.rds` |
-| **2. Simulation** (SLURM cluster) | `bash submit_jobs.sh final 1000 linear,tanh 0.5 noniv,ivtps,ivgl LS,MS,twoU,coordnoise,stateJump 250` | `results_final/` |
+| **1. Fixed inputs** (spatial surfaces) | `Rscript preprocessing.R` | `sim.rds` |
+| **2. Simulation** | `bash submit_jobs.sh final 1000 linear,tanh 0.5 noniv,ivtps,ivgl LS,MS,twoU,coordnoise,stateJump 250` | `results_final/` |
 | **3. Supplement tables** | `Rscript analysis.R` | `tables/results_final.tex` |
 | **4. Main-text table** | `Rscript make_main_table.R` | `tables/main_rmse_final.tex` |
 | **5. Maps of the confounding mechanisms** | `Rscript make_decomp.R` | `images/all-decomp.jpeg` |
-| **6. Sensitivity analysis** (SLURM cluster) | `sbatch run_sensitivity.sh` | `images/sensitivity.rds`, `images/sensitivity.png` |
+| **6. Sensitivity analysis** | `sbatch run_sensitivity.sh` | `images/sensitivity.rds`, `images/sensitivity.png` |
 | **7. Sensitivity and selected n<sub>uc</sub>** | `Rscript plot_combined.R` | `images/sensitivity_selection.png` |
-
-The outputs of steps 1, 2 and 6 are committed, so steps 3-5 and 7 run locally.

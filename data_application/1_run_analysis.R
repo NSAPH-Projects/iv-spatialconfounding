@@ -37,7 +37,7 @@ density_trim <- 0.01
 constrain <- TRUE
 
 # The selection rule.
-r2_reference <- 0.5 # 0.25 worked well, 0.7 IV-TPS too noisy at heavy spatial confounding adjustments
+r2_reference <- 0.5
 family_alpha <- 0.05
 selection_seed <- 12001L
 
