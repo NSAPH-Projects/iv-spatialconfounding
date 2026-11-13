@@ -81,7 +81,7 @@ select_basis_dimension <- function(
     cutoff,
     effect_estimator,
     effect_args = list(),
-    r2_reference = 0.75,
+    r2_reference = 0.5,
     family_alpha = 0.05,
     seed = 12001L,
     empty_column_tol = 1e-25,
@@ -162,9 +162,8 @@ select_basis_dimension <- function(
   # 4. Walk down; stop at the first rejection.
   # If the column moved to B^uc carries no exposure variation, A^c is
   # unchanged, so the previous fit is reused instead of refit. Real basis
-  # columns explain at least ~1e-14 of Var(A); only exactly empty columns
-  # (simulation mechanisms 4 and 8 with the matched basis) fall below the
-  # 1e-25 default, where this skips hundreds of redundant fits.
+  # columns explain at least ~1e-14 of Var(A), so with the 1e-25 default this
+  # only skips columns that carry exactly no exposure variation.
   previous <- reference
   previous_q <- n_ac0
   for (q in candidates) {
