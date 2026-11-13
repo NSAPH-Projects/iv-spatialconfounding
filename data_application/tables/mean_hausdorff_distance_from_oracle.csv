@@ -1,0 +1,9 @@
+"adjustment","method","mean_hausdorff"
+"with_covariates","IV-GL",0.002475395
+"with_covariates","Spatial coordinates",0.003047499
+"with_covariates","IV-TPS",0.004164206
+"with_covariates","Baseline",0.008011996
+"without_covariates","Spatial coordinates",0.004914928
+"without_covariates","IV-GL",0.007721829
+"without_covariates","IV-TPS",0.017877228
+"without_covariates","Baseline",0.021687259

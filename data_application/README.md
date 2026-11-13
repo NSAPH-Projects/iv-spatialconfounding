@@ -17,3 +17,7 @@ Run from `data_application/`:
    of the truncated exposure effect for cutoffs 6-12 µg/m³, with the sequential
    stability rule (`../R/basis_selection.R`). Writes CSVs to `results/` and
    `images/selected_estimates_across_cutoffs_*.png`.
+
+`tables/` holds the exported Hausdorff distances between each method's confidence
+interval and the oracle's (Supplementary Section 5.2), copied from
+`results/full_sample_basis_selection/`.
