@@ -2,19 +2,23 @@
 #
 # Layout as plot_sensitivity.R: rows are Mechanisms 1-5, columns are method x
 # outcome model (IV-TPS linear, IV-GL linear, IV-TPS nonlinear, IV-GL
-# nonlinear), each panel with its own x axis (n_uc = m - n_ac). Each panel
+# nonlinear), each panel with its own x axis (k = m - n_ac, labelled k). Each panel
 # shows
 #   - the trajectories of the estimate in the five sensitivity replicates,
-#     with the selected n_uc (filled diamond);
+#     with the selected k (filled diamond);
 #   - the true psi (dotted grey) and the mean baseline estimate over all
 #     simulated datasets (dashed red), as horizontal lines;
-#   - along its bottom, a histogram of the selected n_uc over all simulated
+#   - along its bottom, a histogram of the selected k over all simulated
 #     datasets (from results_dir), scaled to a band below the trajectories.
 #
 # Usage (from simulation/):
-#   Rscript plot_combined.R [rds[,rds2,...]] [results_dir] [png] [scenarios]
+#   Rscript plot_combined.R [rds[,rds2,...]] [results_dir] [png] [scenarios] [options]
 #   defaults: images/sensitivity.rds, results_final,
-#             images/sensitivity_selection.png, LS,MS,twoU,coordnoise,stateJump
+#             images/sensitivity_selection.png, LS,MS,twoU,coordnoise,stateJump,
+#             linear,tanh
+#   Main-text version (Mechanisms 1-2, linear outcome, panels in one row):
+#   Rscript plot_combined.R images/sensitivity.rds results_final \
+#     images/sensitivity_selection_main.png LS,MS linear
 #   results_dir needs summary.csv (analysis.R) and the IV result files.
 
 suppressMessages({
@@ -27,11 +31,24 @@ results_dir <- if (length(args) >= 2L) args[[2]] else "results_final"
 png_path <- if (length(args) >= 3L) args[[3]] else "images/sensitivity_selection.png"
 plot_scenarios <- if (length(args) >= 4L) strsplit(args[[4]], ",")[[1]] else
   c("LS", "MS", "twoU", "coordnoise", "stateJump")
+plot_options <- if (length(args) >= 5L) strsplit(args[[5]], ",")[[1]] else c("linear", "tanh")
+
+# Font: Noto Sans, the default sans font on the cluster where the data
+# application figures were drawn. Where it is not installed, point
+# NOTO_SANS_DIR to a folder with NotoSans-{Regular,Italic,Bold}.ttf.
+font_dir <- Sys.getenv("NOTO_SANS_DIR")
+if (nzchar(font_dir)) {
+  systemfonts::register_font("Noto Sans",
+                             plain = file.path(font_dir, "NotoSans-Regular.ttf"),
+                             bold = file.path(font_dir, "NotoSans-Bold.ttf"),
+                             italic = file.path(font_dir, "NotoSans-Italic.ttf"))
+}
+font_family <- if ("Noto Sans" %in% c(systemfonts::system_fonts()$family,
+                                      systemfonts::registry_fonts()$family)) "Noto Sans" else "sans"
 
 scenario_labels <- c(LS = "Mechanism 1", MS = "Mechanism 2", twoU = "Mechanism 3",
                      coordnoise = "Mechanism 4", stateJump = "Mechanism 5")
 option_labels <- c(linear = "linear", tanh = "nonlinear")
-method_cols <- c("IV-TPS" = "#9ECAE1", "IV-GL" = "#FDAE6B")
 
 # ---- Trajectories (later files replace earlier ones scenario by scenario) ----
 traj <- NULL
@@ -46,7 +63,7 @@ for (path in strsplit(rds_path, ",")[[1]]) {
   traj <- rbind(traj, new$trajectories[, c("scenario", "option", "basis", "rep", "m", "n_ac", "psi", "selected")])
   truth <- rbind(truth, new$truth)
 }
-traj <- traj[traj$scenario %in% plot_scenarios, ]
+traj <- traj[traj$scenario %in% plot_scenarios & traj$option %in% plot_options, ]
 traj$method <- paste0("IV-", traj$basis)
 traj$n_uc <- traj$m - traj$n_ac
 
@@ -56,17 +73,18 @@ sel <- do.call(rbind, lapply(files, function(f) {
   d <- read.csv(f)
   d[!is.na(d$n_ac), c("scenario", "option", "method", "n_ac")]
 }))
-sel <- sel[sel$scenario %in% plot_scenarios, ]
+sel <- sel[sel$scenario %in% plot_scenarios & sel$option %in% plot_options, ]
 m_basis <- 999L  # n - 1 columns
 sel$n_uc <- m_basis - sel$n_ac
 summ <- read.csv(file.path(results_dir, "summary.csv"))
-base <- summ[summ$method == "baseline" & summ$scenario %in% plot_scenarios, ]
+base <- summ[summ$method == "baseline" & summ$scenario %in% plot_scenarios &
+               summ$option %in% plot_options, ]
 base$baseline_mean <- base$psi_true + base$bias
 hlines <- rbind(
   data.frame(scenario = truth$scenario, option = truth$option, y = truth$psi_true, line = "truth"),
   data.frame(scenario = base$scenario, option = base$option, y = base$baseline_mean, line = "baseline")
 )
-hlines <- hlines[hlines$scenario %in% plot_scenarios, ]
+hlines <- hlines[hlines$scenario %in% plot_scenarios & hlines$option %in% plot_options, ]
 hlines <- merge(hlines, data.frame(method = c("IV-TPS", "IV-GL")))
 
 # ---- Histogram band: below the trajectories, per mechanism row ----
@@ -100,10 +118,17 @@ hist_rects <- do.call(rbind, lapply(split(sel, list(sel$scenario, sel$option, se
 baselines <- merge(unique(hist_rects[, c("scenario", "option", "method")]), row_range)
 
 # ---- Labels ----
-column_levels <- c("IV-TPS, linear", "IV-GL, linear", "IV-TPS, nonlinear", "IV-GL, nonlinear")
+column_levels <- as.vector(outer(c("IV-TPS", "IV-GL"), option_labels[plot_options], paste, sep = ", "))
+# With one outcome model, columns are labelled by method only.
+column_name <- function(method, option) {
+  if (length(plot_options) == 1L) method else paste0(method, ", ", option_labels[option])
+}
+if (length(plot_options) == 1L) column_levels <- c("IV-TPS", "IV-GL")
 relabel <- function(df) {
-  df$column <- factor(paste0(df$method, ", ", option_labels[df$option]), levels = column_levels)
+  df$column <- factor(column_name(df$method, df$option), levels = column_levels)
   df$scenario <- factor(scenario_labels[df$scenario], levels = scenario_labels[plot_scenarios])
+  df$panel <- factor(paste0(df$scenario, ", ", df$column),
+                     levels = as.vector(t(outer(scenario_labels[plot_scenarios], column_levels, paste, sep = ", "))))
   df
 }
 traj <- relabel(traj)
@@ -115,6 +140,17 @@ baselines <- relabel(baselines)
 
 line_labels <- c(truth = expression(paste("True ", psi)), baseline = "Mean baseline estimate")
 
+# With one outcome model the panels go in a single row (main-text version).
+one_row <- length(plot_options) == 1L
+n_cols <- if (one_row) length(plot_scenarios) * length(column_levels) else length(column_levels)
+facets <- if (one_row) {
+  facet_wrap(~ panel, nrow = 1, scales = "free")
+} else {
+  ggh4x::facet_grid2(scenario ~ column, scales = "free", independent = "x")
+}
+# Theme and labels match the data application figures
+# (data_application/1_run_analysis.R): theme_classic, plain strip labels.
+method_cols <- c("IV-TPS" = "#9ECAE1", "IV-GL" = "#FDAE6B")
 p <- ggplot() +
   geom_rect(data = hist_rects, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = method),
             alpha = 0.9, inherit.aes = FALSE) +
@@ -123,7 +159,8 @@ p <- ggplot() +
              key_glyph = "path") +
   geom_line(data = traj, aes(n_uc, psi, group = rep, colour = rep), alpha = 0.85) +
   geom_point(data = selected_pts, aes(n_uc, psi, colour = rep, shape = "selected"), size = 5) +
-  ggh4x::facet_grid2(scenario ~ column, scales = "free", independent = "x") +
+  facets +
+  scale_x_continuous(breaks = scales::breaks_extended(if (one_row) 4 else 5)) +
   scale_colour_manual(
     name = NULL,
     values = c(setNames(RColorBrewer::brewer.pal(5, "Set1"), 1:5), truth = "grey30", baseline = "#D62728"),
@@ -131,21 +168,27 @@ p <- ggplot() +
   scale_linetype_manual(name = NULL, values = c(truth = "dotted", baseline = "dashed"),
                         breaks = c("truth", "baseline"), labels = line_labels) +
   scale_shape_manual(name = NULL, values = c(selected = 18),
-                     labels = expression(paste("Selected ", n[uc]))) +
-  scale_fill_manual(name = expression(paste("Selected ", n[uc], " across datasets:")), values = method_cols,
+                     labels = expression(paste("Selected ", italic(k)))) +
+  scale_fill_manual(name = expression(paste("Selected ", italic(k), " across datasets:")), values = method_cols,
                     breaks = c("IV-TPS", "IV-GL")) +
   # Replicate colours only distinguish the five trajectories, so they get no legend.
   guides(colour = "none",
          shape = guide_legend(order = 2, override.aes = list(size = 6, colour = "black")),
          linetype = guide_legend(order = 3, override.aes = list(colour = c("grey30", "#D62728"))),
-         fill = guide_legend(order = 4)) +
-  labs(x = expression(paste("Number of basis functions ", n[uc],
-                            " approximating the instrumental variation")),
+         # In the one-row version the panel titles name the method, so the
+         # histogram colours need no key.
+         fill = if (one_row) "none" else guide_legend(order = 4)) +
+  labs(x = expression(paste("Number of spatial basis functions used to approximate the instrumental variation, ",
+                            italic(k))),
        y = "Truncated exposure effect estimate") +
-  theme_minimal(base_size = 22) +
-  theme(strip.text = element_text(face = "bold"), panel.spacing.x = unit(3, "lines"),
-        legend.position = "top", legend.box = "horizontal", legend.key.width = unit(2.5, "lines"))
+  theme_classic(base_size = 22, base_family = font_family) +
+  theme(strip.background = element_blank(), panel.spacing.x = unit(3, "lines"),
+        legend.position = "top", legend.box = "horizontal",
+        legend.spacing.y = unit(0, "lines"),
+        legend.box.spacing = unit(0.3, "lines"),
+        legend.margin = margin(0, 0, 0, 0), legend.key.width = unit(2.5, "lines"))
 
-ggsave(png_path, p, width = 20, height = 3.6 * length(plot_scenarios) + 4, dpi = 200, bg = "white",
+ggsave(png_path, p, width = 5 * n_cols,
+       height = if (one_row) 6.5 else 3.6 * length(plot_scenarios) + 4, dpi = 200, bg = "white", device = ragg::agg_png,
        limitsize = FALSE)
 message("Wrote ", png_path)
