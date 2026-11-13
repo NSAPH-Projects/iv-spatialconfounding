@@ -23,6 +23,18 @@ sf, dplyr, ggplot2, mgcv, RSpectra, Matrix, SuperLearner (with gam and earth),
 KernSmooth, RANN; the data application also uses readr, stringr, xtable, here
 and gridExtra.
 
+## Citation
+
+```bibtex
+@article{woodward2024instrumental,
+  title   = {An Instrumental Variables Framework to Unite Spatial Confounding Methods},
+  author  = {Woodward, Sophie M. and Tec, Mauricio and Dominici, Francesca},
+  journal = {arXiv preprint arXiv:2411.10381},
+  year    = {2024},
+  url     = {https://arxiv.org/abs/2411.10381}
+}
+```
+
 ### Acknowledgements
 The computations in this paper were run on the FASRC Cannon cluster, supported by the FAS Division of Science Research Computing Group at Harvard University, as well as the Regulated Data (ReD) Environment, operated by Harvard University Information Technology and supported by the Office of the Vice Provost for Research at Harvard University.
 

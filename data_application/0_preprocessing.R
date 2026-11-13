@@ -37,12 +37,6 @@ n_c_candidate_grid <- c(
 
 n_uc_cands <- sort(as.integer(basis_k_max - n_c_candidate_grid))
 
-# These diagnostics are inexpensive projections; evaluate more dimensions than
-# will necessarily be used in the outcome analysis.
-n_c_diagnostic_grid <- sort(unique(c(
-  6L, 10L, 15L, 20L, 25L, 30L, 40L, 49L
-)))
-
 # Outcome: zipcode-level all cause mortality 2011-2016
 # Exposure: zipcode-level all source PM2.5 2001-2010
 # Confounders: zipcode-level Census + gridMET + BRFSS 2000
@@ -64,7 +58,6 @@ outcome_data_sub <- aggregate_data[aggregate_data$year %in% 2011:2016, ]
 print(length(unique(covariate_data_sub$zip))) # 33833 zip codes
 print(length(unique(outcome_data_sub$zip))) # 34464 zip codes
 
-# Select columns of interest: for now omit individual-level stratification!
 covariate_data_sub <- select(
   covariate_data_sub,
   zip,
@@ -758,115 +751,6 @@ stopifnot(
   )
 )
 
-# -----------------------------------------------------------------------------
-# Diagnose residual association with the omitted confounders
-# -----------------------------------------------------------------------------
-
-omitted_weather_names <- c(
-  "summer_tmmx",
-  "winter_tmmx",
-  "summer_rmax",
-  "winter_rmax"
-)
-
-X_diagnostic <- cbind(
-  intercept = 1,
-  as.matrix(xmat)
-)
-X_diagnostic_qr <- qr(X_diagnostic)
-
-weather_residuals <- qr.resid(
-  X_diagnostic_qr,
-  as.matrix(covs[, omitted_weather_names, drop = FALSE])
-)
-
-diagnose_basis_leakage <- function(B, basis_name, n_c_values) {
-  do.call(rbind, lapply(n_c_values, function(n_c) {
-    if (n_c < 1L || n_c >= ncol(B)) {
-      stop("Every diagnostic n_c must be between 1 and ncol(B) - 1.")
-    }
-    
-    Bc <- B[, seq_len(n_c), drop = FALSE]
-    Ac <- qr.fitted(qr(Bc), a)
-    Auc <- a - Ac
-    Auc_residual <- qr.resid(X_diagnostic_qr, Auc)
-    
-    partial_correlations <- drop(
-      stats::cor(Auc_residual, weather_residuals)
-    )
-    
-    names(partial_correlations) <- paste0(
-      "partial_cor_",
-      omitted_weather_names
-    )
-    
-    weather_design <- cbind(
-      intercept = 1,
-      weather_residuals
-    )
-    Auc_weather_residual <- qr.resid(qr(weather_design), Auc_residual)
-    Auc_residual_ss <- sum(Auc_residual^2)
-    
-    joint_weather_R2 <- if (Auc_residual_ss > 0) {
-      1 - sum(Auc_weather_residual^2) / Auc_residual_ss
-    } else {
-      NA_real_
-    }
-    
-    data.frame(
-      basis = basis_name,
-      n_c = as.integer(n_c),
-      n_uc_internal = as.integer(ncol(B) - n_c),
-      exposure_R2 = 1 -
-        sum(Auc^2) / sum((a - mean(a))^2),
-      Auc_sd = stats::sd(Auc),
-      Auc_residual_sd = stats::sd(Auc_residual),
-      joint_weather_partial_R2 = joint_weather_R2,
-      max_abs_weather_partial_cor = max(abs(partial_correlations)),
-      as.list(partial_correlations),
-      check.names = FALSE
-    )
-  }))
-}
-
-basis_leakage_diagnostics <- dplyr::bind_rows(
-  diagnose_basis_leakage(
-    B = B_tps,
-    basis_name = "TPS",
-    n_c_values = n_c_diagnostic_grid
-  ),
-  diagnose_basis_leakage(
-    B = B_gl,
-    basis_name = "GraphLaplacian",
-    n_c_values = n_c_diagnostic_grid
-  )
-) %>%
-  dplyr::arrange(n_c, basis)
-
-print(basis_leakage_diagnostics)
-
-leakage_diagnostics_path <- file.path(
-  results_dir,
-  paste0(
-    "basis_confounder_leakage_diagnostics_",
-    basis_run_tag,
-    ".csv"
-  )
-)
-
-utils::write.csv(
-  basis_leakage_diagnostics,
-  leakage_diagnostics_path,
-  row.names = FALSE
-)
-
-rm(
-  X_diagnostic,
-  X_diagnostic_qr,
-  weather_residuals
-)
-gc()
-
 # The graph matrices are unnecessary downstream once B_gl constructed
 rm(W, L)
 gc()
@@ -907,8 +791,6 @@ preprocessed <- list(
   basis_k_max = basis_k_max,
   n_uc_cands = n_uc_cands,
   n_c_candidate_grid = n_c_candidate_grid,
-  n_c_diagnostic_grid = n_c_diagnostic_grid,
-  basis_leakage_diagnostics = basis_leakage_diagnostics,
   component_summary = component_summary,
   graph_summary = graph_summary,
   basis_run_tag = basis_run_tag,
@@ -957,191 +839,6 @@ message(
 
 message("Modeling bundle: ", preprocessed_path)
 message("Map geometry: ", map_path)
-message("Leakage diagnostics: ", leakage_diagnostics_path)
-
-# -----------------------------------------------------------------------------
-# Low-memory plots of large- and small-scale retained basis functions
-# -----------------------------------------------------------------------------
-
-basis_plot_dir <- file.path(
-  results_dir,
-  paste0("basis_checks_", basis_run_tag)
-)
-
-dir.create(
-  basis_plot_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
-)
-
-plot_basis_points <- function(
-    values,
-    basis_x,
-    basis_y,
-    title,
-    subtitle,
-    filename
-) {
-  stopifnot(
-    length(values) == length(basis_x),
-    length(values) == length(basis_y),
-    all(is.finite(values))
-  )
-  
-  # Use the same magnitude for the positive and negative color limits.
-  z_limit <- max(abs(values))
-  
-  if (!is.finite(z_limit) || z_limit == 0) {
-    z_limit <- 1
-  }
-  
-  palette <- grDevices::hcl.colors(
-    n = 101L,
-    palette = "Blue-Red 3",
-    rev = TRUE
-  )
-  
-  color_breaks <- seq(
-    -z_limit,
-    z_limit,
-    length.out = length(palette) + 1L
-  )
-  
-  color_index <- findInterval(
-    values,
-    color_breaks,
-    all.inside = TRUE
-  )
-  
-  grDevices::png(
-    filename = filename,
-    width = 1800,
-    height = 1100,
-    res = 200,
-    bg = "white"
-  )
-  
-  # Ensure the graphics device closes even if plotting fails.
-  on.exit({
-    grDevices::dev.off()
-    invisible(gc())
-  }, add = TRUE)
-  
-  graphics::par(
-    mar = c(0.5, 0.5, 3.5, 0.5),
-    xaxs = "i",
-    yaxs = "i"
-  )
-  
-  graphics::plot(
-    basis_x,
-    basis_y,
-    col = palette[color_index],
-    pch = 15,
-    cex = 0.35,
-    asp = 1,
-    axes = FALSE,
-    xlab = "",
-    ylab = "",
-    main = title,
-    sub = subtitle
-  )
-  
-  legend_positions <- c(1L, 51L, 101L)
-  legend_values <- signif(c(-z_limit, 0, z_limit), 3L)
-  
-  graphics::legend(
-    "bottomleft",
-    legend = legend_values,
-    fill = palette[legend_positions],
-    title = "Basis value",
-    horiz = TRUE,
-    bty = "n",
-    cex = 0.8
-  )
-  
-  invisible(NULL)
-}
-
-# TPS columns 1--3 are the affine null space. Column 4 is therefore the
-# smoothest non-affine TPS direction.
-plot_basis_points(
-  values = B_tps[, 4L],
-  basis_x = analysis_data$basis_x,
-  basis_y = analysis_data$basis_y,
-  title = "TPS: large-scale basis function",
-  subtitle = paste(
-    "Column 4; roughness =",
-    signif(roughness_tps[4L], 4L)
-  ),
-  filename = file.path(
-    basis_plot_dir,
-    "TPS_large_scale_column_04.png"
-  )
-)
-
-# The final column is the smallest-scale direction among the retained TPS
-# columns.
-plot_basis_points(
-  values = B_tps[, basis_k_max],
-  basis_x = analysis_data$basis_x,
-  basis_y = analysis_data$basis_y,
-  title = "TPS: smallest-scale retained basis function",
-  subtitle = paste(
-    "Column",
-    basis_k_max,
-    "; roughness =",
-    signif(roughness_tps[basis_k_max], 4L)
-  ),
-  filename = file.path(
-    basis_plot_dir,
-    sprintf(
-      "TPS_small_scale_column_%02d.png",
-      basis_k_max
-    )
-  )
-)
-
-# For the connected graph, column 1 is the constant zero-eigenvalue direction.
-# Column 2 is the smoothest nonconstant graph-Laplacian direction.
-plot_basis_points(
-  values = B_gl[, 2L],
-  basis_x = analysis_data$basis_x,
-  basis_y = analysis_data$basis_y,
-  title = "Graph Laplacian: large-scale basis function",
-  subtitle = paste(
-    "Column 2; roughness =",
-    signif(roughness_gl[2L], 4L)
-  ),
-  filename = file.path(
-    basis_plot_dir,
-    "GL_large_scale_column_02.png"
-  )
-)
-
-# The final column is the smallest-scale direction among the retained GL
-# columns.
-plot_basis_points(
-  values = B_gl[, basis_k_max],
-  basis_x = analysis_data$basis_x,
-  basis_y = analysis_data$basis_y,
-  title = "Graph Laplacian: smallest-scale retained basis function",
-  subtitle = paste(
-    "Column",
-    basis_k_max,
-    "; roughness =",
-    signif(roughness_gl[basis_k_max], 4L)
-  ),
-  filename = file.path(
-    basis_plot_dir,
-    sprintf(
-      "GL_small_scale_column_%02d.png",
-      basis_k_max
-    )
-  )
-)
-
-message("Basis plots saved in: ", basis_plot_dir)
 
 # -----------------------------------------------------------------------------
 # Recreate the exposure / IV decomposition maps (g1-g5)
