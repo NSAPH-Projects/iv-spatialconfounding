@@ -1,57 +1,18 @@
-# History files
-*.Rhistory
-.Rapp.history
-
-# DS_Store files
 .DS_Store
-
-# Session Data files
-*.RData
-*.RDataTmp*
-
-# User-specific files
+.Rhistory
+.Rapp.history
+.RData
 .Ruserdata
-
-# RStudio files
+.Renviron
 .Rproj.user/
 *.Rproj
 
-# knitr and R markdown default cache directories
-*_cache/
-/cache/
+# Cluster logs
+simulation/output_*/
+simulation/error_*/
+simulation/sensitivity.out
+simulation/sensitivity.err
 
-# R Environment Variables
-.Renviron
-
-# Data
-*.rds
-*.csv
-*.zip
-*.RData
-
-# Folders
-*archived*
-simulation/results_Mar1
-simulation/results_Sep6
-simulation/sensitivity
-
-# htmls
-*.html
-
-# Other
-*.tex
-*tests*
-*old*
-*data_application_may2026*
-*docs*
-*0.8*
-*.log
-
-# specific files
-funcs_cluster_apr15.R
-data_application/timing_test.R
-
-# Images (for now)
-*.png
-*.pdf
-*.jpeg
+# Data application outputs (restricted data)
+data_application/preprocessed/
+data_application/results/

@@ -1,0 +1,23 @@
+\begin{table}[!ht]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llcccccc}
+\toprule
+Confounding Mechanism & Outcome model & Oracle & True IV & Baseline & Spatial coordinates & IV-TPS & IV-GL \\
+\midrule
+1 & linear & 0.71 & 0.98 & 7.01 & 3.37 & 2.35 & 2.57 \\
+ & non-linear & 0.57 & 0.80 & 6.91 & 3.38 & 2.10 & 2.28 \\
+2 & linear & 0.68 & 0.92 & 7.38 & 7.03 & 2.40 & 2.79 \\
+ & non-linear & 0.54 & 0.76 & 7.30 & 6.92 & 2.12 & 2.51 \\
+3 & linear & 0.78 & 1.15 & 7.41 & 3.66 & 2.66 & 2.99 \\
+ & non-linear & 0.59 & 0.91 & 7.21 & 3.33 & 2.41 & 2.64 \\
+4 & linear & 0.64 & 0.96 & 7.09 & 0.66 & 1.54 & 1.70 \\
+ & non-linear & 0.53 & 0.75 & 7.01 & 0.54 & 1.39 & 1.50 \\
+5 & linear & 0.70 & 0.96 & 7.02 & 5.58 & 3.31 & 3.35 \\
+ & non-linear & 0.56 & 0.79 & 6.87 & 5.32 & 3.00 & 3.05 \\
+\bottomrule
+\end{tabular}
+\caption{Root mean squared error ($\times 10^2$) of the truncated exposure effect estimates across $1000$ simulated datasets.}
+\label{tab:main-rmse}
+\end{table}

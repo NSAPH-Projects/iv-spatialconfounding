@@ -1,16 +1,19 @@
-# Data Application
+# Data application: PM2.5 and all-cause mortality
 
-This folder contains the code for the data application section of the paper. 
+The exposure is the 2001-2010 average of fine particulate matter (PM2.5) at the
+ZIP-code level, and the outcome is the all-cause mortality rate among Medicare
+enrollees aged 65+ over 2011-2016 (n = 33,254 ZIP codes; adapted from Wu et
+al., 2020). The Medicare data are not publicly
+available; the analysis was run in Harvard University's Regulated Data
+Environment (ReD).
 
-- `PM_mortality.R` contains the code to load the data, preprocess the data, estimate the truncated exposure effects using five methods, and create plots of the estimates.
-- The plots are saved in the `images` folder.
+Run from `data_application/`:
 
-### Sources of Data
-The exposure, confounders, and mortality data used in the data application were adapted from:
-[X. Wu, D. Braun, J. Schwartz, M. A. Kioumourtzoglou, F. Dominici, Evaluating the impact of long-term exposure to fine particulate matter on mortality among the elderly. Sci. Adv. 6, eaba5692 (2020).](https://www.science.org/doi/full/10.1126/sciadv.aba5692). 
-
-- Medicare claims data were obtained from the Centers for Medicare and Medicaid services. 
-- Exposure data was obtained from a [well-validated ensemble-based prediction model](https://www.sciencedirect.com/science/article/pii/S0160412019300650).
-- Confounder data was obtained from the U.S. Census, American Community Survey, Behavioral Risk Factor Surveillance System, and Gridmet via Google Earth Engine.
-
-This data is not publicly available.
+1. `0_preprocessing.R`: merges exposure, confounders and outcomes, builds the
+   thin plate spline and graph Laplacian bases (`../R/basis_construction.R`),
+   and saves them to `preprocessed/`. Also writes `images/PM_ivs_20pct_2010.png`
+   (exposure and estimated instrumental / non-instrumental variation).
+2. `1_run_analysis.R`: baseline, spatial coordinates, IV-TPS and IV-GL estimates
+   of the truncated exposure effect for cutoffs 6-12 µg/m³, with the sequential
+   stability rule (`../R/basis_selection.R`). Writes CSVs to `results/` and
+   `images/selected_estimates_across_cutoffs_*.png`.
