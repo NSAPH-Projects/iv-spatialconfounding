@@ -19,6 +19,10 @@ Run from `data_application/`:
    `images/selected_estimates_across_cutoffs_*.png`.
 3. `2_maps_layout.R`: rearranges `images/PM_ivs_20pct_2010.png` into the
    two-row layout used in the paper (`images/PM_ivs_20pct_2010_2x3.png`).
+4. `3_relabel_k.R`: copies of `images/full_sample_basis_selection_cutoff{6,7,8}.png`
+   with the x-axis symbol n<sub>uc</sub> replaced by *k*
+   (`images/full_sample_basis_selection_cutoff{6,7,8}_k.png`). Needs Noto Sans
+   (set `NOTO_SANS_DIR` if it is not installed).
 
 `tables/` holds the exported Hausdorff distances between each method's confidence
 interval and the oracle's (Supplementary Section 5.2), copied from
